@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>RolX Authentication Failed</title>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --fg: #1a1a2e;
+      --card-bg: #fff;
+      --card-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+      --icon-bg: #ffebee;
+      --icon-stroke: #c62828;
+      --text-secondary: #333;
+      --error-bg: #fbe9e7;
+      --error-fg: #8e1c1c;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1a1a2e;
+        --fg: #fff;
+        --card-bg: #2a2a3e;
+        --card-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+        --icon-bg: #c62828;
+        --icon-stroke: #ffebee;
+        --text-secondary: #eee;
+        --error-bg: #3a2a3e;
+        --error-fg: #ffcdd2;
+      }
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      margin: 0;
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      box-shadow: var(--card-shadow);
+      padding: 3rem 2.5rem;
+      width: min(400px, calc(100vw - 2rem));
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: var(--icon-bg);
+      margin-bottom: 1.25rem;
+    }
+    .icon svg {
+      width: 32px;
+      height: 32px;
+      stroke: var(--icon-stroke);
+    }
+    h1 {
+      margin-bottom: 0.75rem;
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+    p {
+      margin: 0;
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+    .error {
+      margin: 1.25rem 0 0;
+      padding: 0.75rem 1rem;
+      width: 100%;
+      border-radius: 8px;
+      background: var(--error-bg);
+      color: var(--error-fg);
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
+      </svg>
+    </div>
+    <h1>RolX Authentication Failed</h1>
+    <p>You may close this tab and return to the application.</p>
+    <pre class="error">{{error}}</pre>
+  </div>
+</body>
+</html>
