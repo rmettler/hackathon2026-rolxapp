@@ -20,3 +20,5 @@ Base project for the custom client apps of the [RolX time tracking server](https
   Run `cargo xtask fetch-server` to clone it to `./rolx-server`.
 - Lint/format:  
   cargo clippy, cargo fmt
+- Mobile app (Android):  
+  `cargo xtask android run`, see [docs/dev-setup.md](docs/dev-setup.md).

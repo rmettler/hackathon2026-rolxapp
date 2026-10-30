@@ -1,5 +1,5 @@
 [workspace]
-members = ["xtask"]
+members = ["xtask", "rolx-mobile"]
 
 [package]
 edition = "2024"

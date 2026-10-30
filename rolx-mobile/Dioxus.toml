@@ -1,0 +1,24 @@
+[application]
+
+# Lets the activity survive config changes such as dark mode, see the file's header.
+android_manifest = "android/AndroidManifest.xml"
+
+[web.app]
+
+# HTML title tag content
+title = "rolx-mobile"
+
+# include `assets` in web platform
+[web.resource]
+
+# Additional CSS style files
+style = []
+
+# Additional JavaScript files
+script = []
+
+[web.resource.dev]
+
+# Javascript code file
+# serve: [dev-server] only
+script = []

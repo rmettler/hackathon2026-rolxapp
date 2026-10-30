@@ -1,0 +1,16 @@
+[package]
+name = "rolx-mobile"
+version = "0.1.0"
+authors = ["Marcel Albl <marcel.albl@cudos.ch>"]
+edition = "2024"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dioxus = { version = "0.7.1", features = ["router"] }
+
+[features]
+default = ["mobile"]
+web = ["dioxus/web"]
+desktop = ["dioxus/desktop"]
+mobile = ["dioxus/mobile"]

@@ -11,6 +11,7 @@ where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-refer
 - Run: `cargo run -- -h`.
 - Lint: `cargo clippy`. Format: `cargo fmt`.
 - Fetch the pinned server checkout: `cargo xtask fetch-server` (workspace member `xtask/`).
+- Mobile app (`rolx-mobile/`, Dioxus): `cargo xtask android {devices,emulator,run}`; see `docs/dev-setup.md`.
 - Cargo feature `uncensored_logs` disables log redaction.
 
 ## The server you integrate with
