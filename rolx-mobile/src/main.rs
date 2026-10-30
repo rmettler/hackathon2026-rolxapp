@@ -15,6 +15,7 @@ use rolx_core::week::{fetch_week, summarize};
 use rolx_ui::Compact;
 use rolx_ui::app_state::{AppState, Loaded, use_app_state};
 use rolx_ui::day_view::DayView;
+use rolx_ui::lucide::{Glyph, Icon};
 use rolx_ui::stamp_panel::StampPanel;
 use rolx_ui::stamper::Stamper;
 use rolx_ui::undo::{UndoLine, use_undo};
@@ -396,14 +397,14 @@ fn App() -> Element {
                             class: "icon",
                             title: "Previous day",
                             onclick: move |_| day.set(day() - Duration::days(1)),
-                            "◀"
+                            Icon { glyph: Glyph::ChevronLeft, size: 20 }
                         }
                         span { class: "date", "{date_label}" }
                         button {
                             class: "icon",
                             title: "Next day",
                             onclick: move |_| day.set(day() + Duration::days(1)),
-                            "▶"
+                            Icon { glyph: Glyph::ChevronRight, size: 20 }
                         }
                         button {
                             class: "secondary",
@@ -411,16 +412,16 @@ fn App() -> Element {
                             "Today"
                         }
                         button {
-                            class: "secondary",
+                            class: "icon",
                             title: "Reload from the server",
                             onclick: move |_| refresh += 1,
-                            "↻"
+                            Icon { glyph: Glyph::RefreshCw, size: 18 }
                         }
                         button {
                             class: "icon",
                             title: "Share the day",
                             onclick: share_day,
-                            "⤴"
+                            Icon { glyph: Glyph::Share, size: 18 }
                         }
                     }
                     UndoLine { undo }

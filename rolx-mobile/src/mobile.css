@@ -17,7 +17,7 @@ header { position: sticky; top: 0; z-index: 5; display: flex; justify-content: s
 .user { color: var(--fg-muted); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .header-tools { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
 .settings-button { font-size: 1.3rem; padding: 6px 10px; }
-.net { padding: 5px 12px; border-radius: 999px; font-size: 0.8rem; background: var(--bg-alt); color: var(--fg); }
+.net { height: auto; padding: 5px 12px; border-radius: 999px; font-size: 0.8rem; background: var(--bg-alt); color: var(--fg); }
 .net.offline { background: transparent; color: var(--status-warn); border-color: var(--status-warn); opacity: 1; }
 
 /* Bottom tabs */
@@ -26,15 +26,18 @@ header { position: sticky; top: 0; z-index: 5; display: flex; justify-content: s
   padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   background: var(--surface-card); border-top: 1px solid var(--border); box-shadow: 0 -1px 6px rgba(0, 0, 0, 0.08);
 }
-.tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 0 10px; border: 0; border-radius: 0; background: transparent; color: var(--fg-muted); font-size: 0.78rem; }
+.tabbar button { flex: 1; height: auto; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 0 10px; border: 0; border-radius: 0; background: transparent; color: var(--fg-muted); font-size: 0.78rem; }
 .tabbar button.on { color: var(--brand-ink); font-weight: 700; }
+/* A touch leaves :hover on the tapped tab; the colour already marks it. */
+.tabbar button:hover:not(:disabled) { background: transparent; }
 .tab-icon { font-size: 1.35rem; line-height: 1.2; }
 
 /* Day navigation */
 .day-nav { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
 .day-nav .date { flex: 1; text-align: center; font-weight: 600; font-size: 1.02rem; white-space: nowrap; }
 .day-nav button { min-height: 44px; }
-.day-nav button.icon { min-width: 44px; font-size: 1rem; }
+.day-nav button.icon { width: 40px; min-width: 40px; padding: 0; }
+.day-nav button.secondary { padding: 0 14px; }
 
 /* Login */
 .login { display: flex; flex-direction: column; gap: 10px; text-align: center; }
