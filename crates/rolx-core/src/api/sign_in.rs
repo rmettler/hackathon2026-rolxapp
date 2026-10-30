@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
-use crate::logging::redact_json;
+use crate::redact::redact_json;
 use crate::session::{BearerToken, Session};
 
 #[derive(Debug, thiserror::Error)]
@@ -31,11 +31,11 @@ pub async fn sign_in(
     };
 
     let status = resp.status();
-    let body = serde_json::from_str::<serde_json::Value>(resp.text().await?.as_ref())?;
+    let body = resp.text().await?;
     if !status.is_success() {
         tracing::warn!(
             status = status.as_u16(),
-            body = redact_json(body.clone(), &["bearerToken", "user"]).to_string(),
+            body = loggable_body(&body),
             "HTTP response"
         );
         return Err(if status == reqwest::StatusCode::UNAUTHORIZED {
@@ -45,7 +45,7 @@ pub async fn sign_in(
         });
     }
 
-    Ok(serde_json::from_value::<ApprovalResponse>(body)?.into())
+    Ok(serde_json::from_str::<ApprovalResponse>(&body)?.into())
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -77,10 +77,10 @@ pub async fn extend(
         .send()
         .await?;
     let status = resp.status();
-    let body = serde_json::from_str::<serde_json::Value>(&resp.text().await?)?;
+    let body = resp.text().await?;
     tracing::debug!(
         status = status.as_u16(),
-        body = redact_json(body.clone(), &["bearerToken", "googleIdToken"]).to_string(),
+        body = loggable_body(&body),
         "HTTP response"
     );
 
@@ -91,7 +91,16 @@ pub async fn extend(
         return Err(SignInExtensionError::Rejected(status.as_u16()));
     }
 
-    Ok(serde_json::from_value::<ApprovalResponse>(body)?.into())
+    Ok(serde_json::from_str::<ApprovalResponse>(&body)?.into())
+}
+
+/// The body with secrets and personal data redacted. Error bodies are often empty or not JSON, and
+/// are then left out rather than logged unredacted.
+fn loggable_body(body: &str) -> String {
+    match serde_json::from_str(body) {
+        Ok(value) => redact_json(value, &["bearerToken", "googleIdToken", "user"]).to_string(),
+        Err(_) => format!("<{} bytes, not JSON>", body.len()),
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -121,5 +130,65 @@ impl From<ApprovalResponse> for Session {
             user_first_name: a.user.first_name,
             user_last_name: a.user.last_name,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::TimeZone;
+
+    use super::*;
+
+    /// Shape of `Auth/WebApi/Resource/Approval.cs` with its `Users/WebApi/Resource/User.cs`.
+    const APPROVAL: &str = r#"{
+        "user": {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "firstName": "Test",
+            "lastName": "User",
+            "email": "test@example.invalid",
+            "avatarUrl": "",
+            "role": 1,
+            "entryDate": null,
+            "leavingDate": null,
+            "isConfirmed": true,
+            "partTimeSettings": [],
+            "balanceCorrections": [],
+            "vacationDaysSettings": [],
+            "targetBillabilitySettings": [],
+            "positionSettings": []
+        },
+        "bearerToken": "fake-token",
+        "expires": "2030-01-02T03:04:05Z"
+    }"#;
+
+    #[test]
+    fn approval_becomes_a_session() {
+        let session: Session = serde_json::from_str::<ApprovalResponse>(APPROVAL)
+            .unwrap()
+            .into();
+
+        assert_eq!(session.bearer_token.as_str(), "fake-token");
+        assert_eq!(
+            session.expires,
+            Utc.with_ymd_and_hms(2030, 1, 2, 3, 4, 5).unwrap()
+        );
+        assert_eq!(session.user_id, "00000000-0000-0000-0000-000000000001");
+        assert_eq!(session.user_email, "test@example.invalid");
+        assert_eq!(session.user_first_name, "Test");
+        assert_eq!(session.user_last_name, "User");
+    }
+
+    #[cfg(not(feature = "uncensored_logs"))]
+    #[test]
+    fn logged_body_hides_token_and_user() {
+        let logged = loggable_body(APPROVAL);
+        assert!(!logged.contains("fake-token"));
+        assert!(!logged.contains("test@example.invalid"));
+    }
+
+    #[test]
+    fn logged_body_never_contains_text_that_is_not_json() {
+        assert_eq!(loggable_body("secret text"), "<11 bytes, not JSON>");
+        assert_eq!(loggable_body(""), "<0 bytes, not JSON>");
     }
 }

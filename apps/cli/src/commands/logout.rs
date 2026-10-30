@@ -1,7 +1,7 @@
-use crate::session::Session;
+use rolx_core::store::{FileSessionStore, SessionStore};
 
 pub fn run() -> anyhow::Result<()> {
-    Session::delete()?;
+    FileSessionStore::default_location()?.delete()?;
     println!("Logged out.");
     Ok(())
 }

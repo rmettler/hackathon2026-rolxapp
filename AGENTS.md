@@ -6,6 +6,11 @@
 RolX time tracking server. A slim CLI (`rolxcli`, in `apps/cli`) exists today; TUI/desktop/mobile are planned, all in Rust
 where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-reference.md`, `user-requirements.md`, server/frontend auth analyses).
 
+## Layout
+
+- `crates/rolx-core`: portable client core (native and wasm32): session, `SessionStore`, config, redaction, API calls. No tokio, `std::fs` or `dirs` outside the `fs` feature; take the time from `clock::now()`.
+- `apps/cli`: `rolxcli`. `xtask`: workspace tasks.
+
 ## Commands
 
 - Run the CLI: `cargo run -- -h` (default member `apps/cli`, binary `rolxcli`).
@@ -13,7 +18,7 @@ where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-refer
 - Secrets check alone: `cargo xtask secret-scan` (staged diff and untracked files).
 - Format: `cargo fmt --all`.
 - Fetch the pinned server checkout: `cargo xtask fetch-server` (workspace member `xtask/`).
-- Cargo feature `uncensored_logs` disables log redaction.
+- Cargo feature `uncensored_logs` (on `rolx-core` and `rolxcli`) disables log redaction; redaction is otherwise on in every build profile.
 - `ROLX_CONFIG_DIR` / `ROLX_CACHE_DIR` replace the default `<config dir>/rolx` and `<cache dir>/rolx` (holding `config.toml` and `session.json`). Tests must use them with temp dirs so the real session is never touched; `cargo xtask check` sets them for all tests.
 - `rolxcli config ls` prints client secrets, and `whoami` / `records` print personal data: never run them against the real config or session where the output is logged.
 

@@ -1,9 +1,9 @@
-use crate::config::AppConfig;
 use crate::oauth2::device_flow;
 use crate::oauth2::native_app_flow;
-use crate::rolx::sign_in;
-use crate::session::Session;
 use anyhow::anyhow;
+use rolx_core::api::sign_in;
+use rolx_core::config::AppConfig;
+use rolx_core::store::{FileSessionStore, SessionStore};
 
 // Uses Google OAuth, see:
 // - https://developers.google.com/identity/oauth2/native-app
@@ -31,7 +31,8 @@ pub async fn run(app_cfg: &AppConfig, flow: AuthFlow) -> anyhow::Result<()> {
         .tls_version_min(reqwest::tls::Version::TLS_1_2)
         .build()?;
 
-    let session = Session::load().ok();
+    let store = FileSessionStore::default_location()?;
+    let session = store.load().ok().flatten();
     let id_token = match flow {
         AuthFlow::NativeApp => {
             let credentials = app_cfg.google_desktop_client.as_ref().ok_or_else(|| {
@@ -69,7 +70,7 @@ pub async fn run(app_cfg: &AppConfig, flow: AuthFlow) -> anyhow::Result<()> {
         }
     };
     let session = sign_in::sign_in(&http, &app_cfg.server_url, &id_token).await?;
-    session.save()?;
+    store.save(&session)?;
 
     tracing::info!(
         name = format!("{} {}", session.user_first_name, session.user_last_name),

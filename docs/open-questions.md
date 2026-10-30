@@ -23,10 +23,14 @@ applied and noted here, and all questions are asked at the end.
 |---|---|
 | M0 | Toolchain pinned to stable with the wasm32 and Android targets (`rust-toolchain.toml`). |
 | M0 | Android env vars (`ANDROID_HOME`, `ANDROID_NDK_HOME`, `JAVA_HOME`) set at user level; the JDK is Android Studio's bundled JBR. |
-| M1 | Plan deviation: workspace `members` omits `crates/*` until M2, because cargo rejects a glob whose parent directory does not exist. |
+| M1 | Plan deviation, ended in M2: workspace `members` omitted `crates/*` until the directory existed, because cargo rejects the glob otherwise. |
 | M1 | `ROLX_CONFIG_DIR` / `ROLX_CACHE_DIR` replace the whole `<base>/rolx` directory; an empty value counts as unset. |
 | M1 | `secret-scan` also looks for the actual config/session string values of 8+ characters (shorter ones such as first names would match unrelated text), both in the default dirs and any override. The path allowlist skips only the patterns, not these values. |
 | M1 | `xtask check` derives the native package list from `cargo metadata` (all but `rolxapp-web`, `rolxapp-android`), so later milestones need no list edits; only wasm packages are listed. Tests get scratch `ROLX_*_DIR`s under `target/xtask-check`. |
+| M2 | Behaviour fix: `sign_in` / `extend` check the status before parsing the body, so a 401 with an empty body is `Unauthorized` / `SessionExpired`, not a JSON error. |
+| M2 | Behaviour fix: `redact_json` follows the `uncensored_logs` feature as documented, instead of being off in all debug builds (`-v` printed bearer tokens there). Non-JSON bodies are not logged. |
+| M2 | Config parse errors show only the file and line: toml's messages quote values, which could be a client secret. |
+| M2 | `SessionStore` is synchronous and has no `Send`/`Sync` bound: file, localStorage and `dioxus-sdk-storage` are all synchronous, and Dioxus tasks are local. |
 
 ## Manual verification checklist
 

@@ -1162,6 +1162,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "rolx-core"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "dirs",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "toml",
+ "tracing",
+]
+
+[[package]]
 name = "rolxcli"
 version = "0.1.0"
 dependencies = [
@@ -1169,10 +1184,10 @@ dependencies = [
  "base64",
  "chrono",
  "clap",
- "dirs",
  "open",
  "rand",
  "reqwest",
+ "rolx-core",
  "serde",
  "serde_json",
  "sha2",

@@ -1,4 +1,4 @@
-use crate::config::{self, AppConfig};
+use rolx_core::config::{self, AppConfig};
 
 /// Lists the settings of the config file as dotted `key = value` lines, ignoring CLI overrides.
 pub fn ls() -> anyhow::Result<()> {

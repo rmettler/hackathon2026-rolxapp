@@ -1,17 +1,13 @@
 mod cli;
 mod client;
 mod commands;
-mod config;
-mod error;
 mod logging;
 mod oauth2;
-mod rolx;
-mod session;
 
 use clap::Parser;
 use cli::{Cli, Command, ConfigCommand, LoginFlow};
 use commands::login::AuthFlow;
-use config::AppConfig;
+use rolx_core::config::AppConfig;
 
 #[tokio::main]
 async fn main() {

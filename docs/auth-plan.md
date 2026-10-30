@@ -80,7 +80,7 @@ urlencoding = "2"
 ## CLI Commands
 
 ```
-rolxapp [--server <URL>] <SUBCOMMAND>
+rolxcli [--server <URL>] <SUBCOMMAND>
 
 login [FLOW]       Run OAuth flow, store session
   FLOW:
