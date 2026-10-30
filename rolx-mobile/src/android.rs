@@ -32,12 +32,14 @@ const PERMISSION_REQUEST_CODE: i32 = 4711;
 
 // Android constants (API levels and flag values of the SDK).
 const API_O: i32 = 26;
+const API_S: i32 = 31;
 const API_TIRAMISU: i32 = 33;
 const IMPORTANCE_LOW: i32 = 2;
 const PRIORITY_LOW: i32 = -1;
 const PERMISSION_GRANTED: i32 = 0;
 const FLAG_UPDATE_CURRENT: i32 = 0x0800_0000;
 const FLAG_IMMUTABLE: i32 = 0x0400_0000;
+const DEFAULT_AMPLITUDE: i32 = -1;
 
 const BUILDER: &str = "android/app/Notification$Builder";
 
@@ -442,4 +444,126 @@ fn open_app_intent<'local>(
             ],
         )?
         .l()?)
+}
+
+/// Vibrates in the pattern of `timings_ms`: alternately milliseconds off and on, starting with off. Does nothing on
+/// devices without a vibrator.
+pub fn vibrate(timings_ms: &[i64]) -> anyhow::Result<()> {
+    with_activity(|env, ctx| {
+        let sdk = sdk_int(env)?;
+        let vibrator = if sdk >= API_S {
+            let manager = system_service(env, ctx, "vibrator_manager")?;
+            env.call_method(
+                &manager,
+                "getDefaultVibrator",
+                "()Landroid/os/Vibrator;",
+                &[],
+            )?
+            .l()?
+        } else {
+            system_service(env, ctx, "vibrator")?
+        };
+        if !env.call_method(&vibrator, "hasVibrator", "()Z", &[])?.z()? {
+            return Ok(());
+        }
+        if sdk < API_O {
+            let pattern = long_array(env, timings_ms)?;
+            env.call_method(
+                &vibrator,
+                "vibrate",
+                "([JI)V",
+                &[JValue::Object(&pattern), JValue::Int(-1)],
+            )?;
+            return Ok(());
+        }
+        let effect = match timings_ms {
+            [0, on] => env.call_static_method(
+                "android/os/VibrationEffect",
+                "createOneShot",
+                "(JI)Landroid/os/VibrationEffect;",
+                &[JValue::Long(*on), JValue::Int(DEFAULT_AMPLITUDE)],
+            )?,
+            _ => {
+                let pattern = long_array(env, timings_ms)?;
+                env.call_static_method(
+                    "android/os/VibrationEffect",
+                    "createWaveform",
+                    "([JI)Landroid/os/VibrationEffect;",
+                    &[JValue::Object(&pattern), JValue::Int(-1)],
+                )?
+            }
+        }
+        .l()?;
+        env.call_method(
+            &vibrator,
+            "vibrate",
+            "(Landroid/os/VibrationEffect;)V",
+            &[JValue::Object(&effect)],
+        )?;
+        Ok(())
+    })
+}
+
+/// A Java `long[]` with `values`.
+fn long_array<'local>(env: &mut JNIEnv<'local>, values: &[i64]) -> anyhow::Result<JObject<'local>> {
+    let array = env.new_long_array(i32::try_from(values.len())?)?;
+    env.set_long_array_region(&array, 0, values)?;
+    Ok(array.into())
+}
+
+/// Opens the share sheet (`Intent.ACTION_SEND` in a chooser) to send `text` as plain text, e.g. by mail or a
+/// messenger; `subject` is used where the target has one.
+pub fn share_text(subject: &str, text: &str) -> anyhow::Result<()> {
+    with_activity(|env, activity| {
+        let action = env.new_string("android.intent.action.SEND")?;
+        let send = env.new_object(
+            "android/content/Intent",
+            "(Ljava/lang/String;)V",
+            &[JValue::Object(&action)],
+        )?;
+        let mime = env.new_string("text/plain")?;
+        let this = env
+            .call_method(
+                &send,
+                "setType",
+                "(Ljava/lang/String;)Landroid/content/Intent;",
+                &[JValue::Object(&mime)],
+            )?
+            .l()?;
+        env.delete_local_ref(this)?;
+        put_extra(env, &send, "android.intent.extra.SUBJECT", subject)?;
+        put_extra(env, &send, "android.intent.extra.TEXT", text)?;
+        let no_title = JObject::null();
+        let chooser = env
+            .call_static_method(
+                "android/content/Intent",
+                "createChooser",
+                "(Landroid/content/Intent;Ljava/lang/CharSequence;)Landroid/content/Intent;",
+                &[JValue::Object(&send), JValue::Object(&no_title)],
+            )?
+            .l()?;
+        env.call_method(
+            activity,
+            "startActivity",
+            "(Landroid/content/Intent;)V",
+            &[JValue::Object(&chooser)],
+        )?;
+        Ok(())
+    })
+}
+
+/// `intent.putExtra(name, value)` for a string value.
+fn put_extra(env: &mut JNIEnv, intent: &JObject, name: &str, value: &str) -> anyhow::Result<()> {
+    let name = env.new_string(name)?;
+    let value = env.new_string(value)?;
+    let this = env
+        .call_method(
+            intent,
+            "putExtra",
+            "(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;",
+            &[JValue::Object(&name), JValue::Object(&value)],
+        )?
+        .l()?;
+    env.delete_local_ref(this)?;
+    Ok(())
 }
