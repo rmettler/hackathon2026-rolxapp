@@ -48,6 +48,7 @@ applied and noted here, and all questions are asked at the end.
 | M10 | `Platform` gains `copy_text` (`arboard` on desktop). Cancelling drops the running login. The sign-in error text shows the underlying error, because the user needs it to tell what failed. It can name an OAuth endpoint or quote part of an error response; the state and code values were removed from those messages. It is shown, not logged. |
 | M11 | The server URL is shown read-only on desktop: it comes from `config.toml`, the file the screen points to. Log out only deletes the local session; the server has no sign-out call to make. |
 | M12 | Windows bundle: NSIS installer, `dx` default (Q8), 12.9 MB without the WebView2 installer, which Blitz does not need. Not code-signed, so SmartScreen warns. Smoke test: the release app files were run directly, as running the installer would change this machine; see the checklist. The command is `dx bundle -p rolxapp-desktop --renderer native --release --out-dir dist/desktop`. |
+| M13 | Plan deviation: the `dx` flags are `--android --target x86_64-linux-android`. Bundle id `ch.cudos.rolxapp` (Q1 default). In the emulator the first render can take 20 s or more; checks wait for it. |
 
 ## Manual verification checklist
 

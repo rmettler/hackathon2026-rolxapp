@@ -1,0 +1,10 @@
+[package]
+edition.workspace = true
+name              = "rolxapp-android"
+version.workspace = true
+
+[dependencies]
+dioxus    = { workspace = true, features = ["launch", "logger", "mobile"] }
+reqwest   = { workspace = true, features = ["json", "rustls"] }
+rolx-core = { path = "../../crates/rolx-core", default-features = false }
+rolx-ui   = { path = "../../crates/rolx-ui" }
