@@ -6,3 +6,7 @@ tailwind_output = "../../crates/rolx-ui/assets/tailwind.css"
 [bundle]
 identifier = "ch.cudos.rolxapp"
 publisher  = "Cudos"
+
+# Blitz draws by itself, the WebView2 runtime would only add about 180 MB.
+[bundle.windows]
+webview_install_mode = "Skip"

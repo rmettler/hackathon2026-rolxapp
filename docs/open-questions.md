@@ -47,6 +47,7 @@ applied and noted here, and all questions are asked at the end.
 | M9 | Date navigation is previous, next and today, without the date picker: enough for CLI parity. A session the server rejects is deleted from the store, so the next start goes straight to Login. A failed extension of a still valid session shows an error with a retry and does not sign out. |
 | M10 | `Platform` gains `copy_text` (`arboard` on desktop). Cancelling drops the running login. The sign-in error text shows the underlying error, because the user needs it to tell what failed. It can name an OAuth endpoint or quote part of an error response; the state and code values were removed from those messages. It is shown, not logged. |
 | M11 | The server URL is shown read-only on desktop: it comes from `config.toml`, the file the screen points to. Log out only deletes the local session; the server has no sign-out call to make. |
+| M12 | Windows bundle: NSIS installer, `dx` default (Q8), 12.9 MB without the WebView2 installer, which Blitz does not need. Not code-signed, so SmartScreen warns. Smoke test: the release app files were run directly, as running the installer would change this machine; see the checklist. The command is `dx bundle -p rolxapp-desktop --renderer native --release --out-dir dist/desktop`. |
 
 ## Manual verification checklist
 
@@ -57,6 +58,7 @@ to expect.
 - [ ] M5: `rolxcli login device` with real Google and stage. Expect a URL and code in the terminal; after entering the code, `rolxcli whoami` shows your name.
 - [ ] M9: desktop app against stage with your real session. Expect today's entries and a total matching `rolxcli records`. Not done by the agent, so that real records stay out of its logs and screenshots.
 - [ ] M10: desktop app, both sign-in buttons with real Google and stage. Expect the browser sign-in to return to the app by itself, and the code sign-in to finish after you enter the code; both end on the day view.
+- [ ] M12: run `dist/desktop/RolX_0.1.0_x64-setup.exe`. Expect a SmartScreen warning (not signed), an install without administrator rights, a start-menu entry and a desktop shortcut, and the app starting with no console window. Build it first with the command in `apps/desktop/README.md`.
 
 ## Review findings accepted without a fix
 
@@ -69,4 +71,5 @@ Minor findings from the per-milestone reviews that were deliberately not fixed.
 - M8: Blitz's Tab order visits the hidden controls of `StylePreload`. It comes after the views, so they are reached last, but Tab can still land on invisible controls. The apps have no keyboard requirement so far. The preload test can be fooled by a deliberate edit, such as a commented-out import.
 - M9: the selected date resets to today after a trip to Settings. The 5-minute repeat of `SessionKeeper` was not observed live; its check is the tested `fresh_session`, which also runs at the start. With a near-expiry session, "Try again" keeps showing the old error until the extension has finished (30 s at most).
 - M10: `LoginView`'s task logic (success to save to Day, save failure, cancel) has no automated test, only the mock E2E runs; save failure was not run, and "Open browser" and the manual URL prompt were not clicked (the prompt has an SSR test).
+- M12: a panic in the release app ends it with no message anywhere (GUI subsystem, no panic hook or log file), and Blitz crashes are a known risk (`docs/blitz-spike.md`).
 - M11: if deleting the session fails at logout, the user reaches Login with only a log warning, and the next start signs them in again. The reachability check treating a 200 without JSON (such as a captive portal) as unreachable has no test, nor has the "not configured" state.
