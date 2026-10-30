@@ -124,6 +124,10 @@ pub fn app(config: Config) -> reqwest::Result<Router> {
         .layer(SetResponseHeaderLayer::overriding(
             header::CONTENT_SECURITY_POLICY,
             HeaderValue::from_static(API_CONTENT_SECURITY_POLICY),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::REFERRER_POLICY,
+            HeaderValue::from_static("no-referrer"),
         ));
 
     let routes = api.route("/config.json", get(config_json));
@@ -145,9 +149,10 @@ pub fn app(config: Config) -> reqwest::Result<Router> {
             header::X_CONTENT_TYPE_OPTIONS,
             HeaderValue::from_static("nosniff"),
         ))
-        .layer(SetResponseHeaderLayer::overriding(
+        // What Google's sign-in expects: its button checks the page's origin in the referrer.
+        .layer(SetResponseHeaderLayer::if_not_present(
             header::REFERRER_POLICY,
-            HeaderValue::from_static("no-referrer"),
+            HeaderValue::from_static("strict-origin-when-cross-origin"),
         ))
         .with_state(proxy))
 }

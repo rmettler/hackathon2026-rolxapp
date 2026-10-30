@@ -14,7 +14,8 @@ mod views;
 use dioxus::prelude::*;
 
 pub use platform::{
-    LoginFuture, LoginMethod, LoginPrompt, Platform, PlatformHandle, normalize_server_url,
+    LoginFuture, LoginMethod, LoginPrompt, LoginResultHandler, Platform, PlatformHandle,
+    normalize_server_url,
 };
 use state::{AppState, Route};
 

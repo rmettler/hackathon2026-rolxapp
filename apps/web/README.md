@@ -10,7 +10,7 @@ workspace root:
 
 ```powershell
 cargo run -p rolx-mock
-cargo run -p rolxapp-webhost -- --server http://127.0.0.1:8090 --listen 127.0.0.1:8081
+cargo run -p rolxapp-webhost -- --server http://127.0.0.1:8090 --listen 127.0.0.1:8081 --google-client-id fake-client
 dx serve -p rolxapp-web --web --port 8080 --hot-patch false
 ```
 
@@ -29,3 +29,10 @@ python apps/web/tests/smoke.py
 
 It uses mock data and its own browser profile. Add `--production` when the webhost serves the
 bundle itself, then any console error counts.
+
+## Sign-in
+
+Google Identity Services: Google's script draws the button, and the id token it returns goes to
+`POST SignIn`. The client id comes from the webhost (`/config.json`, `--google-client-id`). It must be a
+Google OAuth client of the "Web application" type with this app's origin registered, and
+both `http://localhost` and `http://localhost:8080` for local work. Without a client id, the login screen says that none is configured.

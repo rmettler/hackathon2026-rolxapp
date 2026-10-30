@@ -62,6 +62,7 @@ impl DesktopPlatform {
         let (client, key) = match method {
             LoginMethod::Browser => (&config.google_desktop_client, "google_desktop_client"),
             LoginMethod::Device => (&config.google_device_client, "google_device_client"),
+            LoginMethod::GoogleButton => return Err("Not offered on the desktop.".to_string()),
         };
         client
             .as_ref()
@@ -130,7 +131,8 @@ impl Platform for DesktopPlatform {
             let server_url = server_url.ok_or("the server is not configured")?;
             let flow = match method {
                 LoginMethod::Browser => Flow::NativeApp { user_email },
-                LoginMethod::Device => Flow::Device,
+                // Not offered, and already refused by `client` above.
+                LoginMethod::Device | LoginMethod::GoogleButton => Flow::Device,
             };
             let http = rolx_auth::http_client().map_err(|e| e.to_string())?;
             let id_token = rolx_auth::login(

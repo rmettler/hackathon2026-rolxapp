@@ -13,5 +13,9 @@ rolx-ui           = { path = "../../crates/rolx-ui" }
 serde.workspace   = true
 serde_json.workspace = true
 tracing.workspace = true
+futures-util.workspace = true
+gloo-timers          = { version = "0.3", features = ["futures"] }
+js-sys               = "0.3"
 wasm-bindgen         = "0.2"
-web-sys           = { version = "0.3", features = ["Location", "Storage", "Window"] }
+wasm-bindgen-futures = "0.4"
+web-sys           = { version = "0.3", features = ["Document", "Element", "HtmlHeadElement", "HtmlScriptElement", "Location", "Storage", "Window"] }

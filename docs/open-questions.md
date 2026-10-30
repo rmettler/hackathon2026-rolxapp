@@ -16,6 +16,7 @@ applied and noted here, and all questions are asked at the end.
 | Q7 | Android minimum SDK version | dx template default |
 | Q8 | Windows bundle format | dx default |
 | Q9 | Hackathon deadline / priority if time runs out | milestone order as in the plan |
+| Q10 | Google rejects the web sign-in button: "The given origin is not allowed for the given client ID" (HTTP 403, seen in M20) with the client in `[google_web_client]`. Please check that both `http://localhost` and `http://localhost:8080` are authorized JavaScript origins of that client, as Google asks for both, and add the production origin too. The cause is not proven until that is tried. | Everything else is tested with a stand-in for Google's script; the real button stays deferred |
 
 ## Decisions taken
 
@@ -56,6 +57,7 @@ applied and noted here, and all questions are asked at the end.
 | M17 | The wasm clock is checked in the browser with Playwright: a seeded session passes `is_expired` (`now()`) and the day view shows today (`today()`), without a panic. The app shows no sign-in button until M20. The bearer token in local storage (as the plan decided) is readable by any script on the origin, so the host sends a Content-Security-Policy (M18). |
 | M18 | Beyond the plan's hardening: paths that would leave `/api` are refused, upstream redirects are passed on rather than followed, and a Content-Security-Policy, `nosniff` and `no-referrer` are sent. Request bodies are buffered up to the limit, responses are streamed. The upstream client trusts bundled roots, so a private CA is not supported. The CSP allows no inline scripts (only the `dx` dev page has them, checked with a release bundle in M21) but has to allow `'unsafe-eval'`: the Dioxus components' `document::eval` runs through `new Function`, and the app panics without it. |
 | M19 | `--bundle-dir` of the webhost is optional: without it only `/api` and `/config.json` are served, as behind `dx serve`. Browser checks are committed as `apps/web/tests/smoke.py`, run by hand as they need the chain up, not by the gate. |
+| M20 | Web sign-in is `LoginMethod::GoogleButton`: the shared view gives the platform an element, and all JavaScript interop stays in `apps/web`. A result reaches the app through a channel, as a browser callback runs outside Dioxus. The app waits for `/config.json` before drawing, because the login screen depends on it. The browser test replaces Google's script with a stand-in. Pages now have `Referrer-Policy: strict-origin-when-cross-origin`, as Google's button needs it; `/api` keeps `no-referrer`. A `/config.json` that does not answer in 10 s counts as no configuration. |
 
 ## Manual verification checklist
 
@@ -69,6 +71,7 @@ to expect.
 - [ ] M12: run `dist/desktop/RolX_0.1.0_x64-setup.exe`. Expect a SmartScreen warning (not signed), an install without administrator rights, a start-menu entry and a desktop shortcut, and the app starting with no console window. Build it first with the command in `apps/desktop/README.md`.
 - [ ] M15: Android device login with real Google and stage, on an emulator or phone. Put the server and device client into `apps/android/config.local.toml` and build. Expect the code on screen, Open browser to show Google's device page in the system browser, and the day view after entering the code. Also check Copy code by pasting.
 - [ ] M16: install the `aarch64` APK on a real phone (`adb install`, or copy it and allow the install). Expect the app to start and show Login; with a build holding your settings, sign in as in M15.
+- [ ] M20: web sign-in with real Google, after Q10. Start the chain from `apps/web/README.md` with `--google-client-id <web client id>` and the server of your choice. Expect Google's button, the sign-in, and the day view.
 
 ## Review findings accepted without a fix
 
@@ -84,5 +87,6 @@ Minor findings from the per-milestone reviews that were deliberately not fixed.
 - M18: no limit on concurrent connections in the webhost; `/API/x`, `//api/x` and `/api%2fx` get the app with a 200 instead of a 404; a client abort during the body reports 413. A mid-stream upstream failure has no test.
 - M15: `dispatch` panics if no activity exists, which only a tap during activity destruction could reach. A failed Open browser shows no message; the address stays on screen.
 - M14: Android Auto Backup is left at its default, so `files/rolx/session.json` may be included in the device backup; the `dx` manifest template is not customized yet. Settings have no way back to the compiled-in server. `data_directory()` panics without an activity, which was not seen in normal use. A new APK built with another `ROLX_SERVER_URL` keeps the stored session (a developer-only case). The server file is not written atomically.
+- M20: no feedback on screen while the `POST SignIn` of the web button runs, so a second click sends a second POST and an old error stays until then.
 - M12: a panic in the release app ends it with no message anywhere (GUI subsystem, no panic hook or log file), and Blitz crashes are a known risk (`docs/blitz-spike.md`).
 - M11: if deleting the session fails at logout, the user reaches Login with only a log warning, and the next start signs them in again. The reachability check treating a 200 without JSON (such as a captive portal) as unreachable has no test, nor has the "not configured" state.

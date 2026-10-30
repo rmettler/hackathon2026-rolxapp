@@ -7070,6 +7070,7 @@ dependencies = [
  "dioxus-primitives",
  "dioxus-sdk-time",
  "dioxus-ssr",
+ "futures-util",
  "reqwest",
  "rolx-core",
  "rolx-mock",
@@ -7113,6 +7114,9 @@ version = "0.1.0"
 dependencies = [
  "dioxus",
  "dioxus-primitives",
+ "futures-util",
+ "gloo-timers 0.3.0",
+ "js-sys",
  "reqwest",
  "rolx-core",
  "rolx-ui",
@@ -7120,6 +7124,7 @@ dependencies = [
  "serde_json",
  "tracing",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 

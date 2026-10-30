@@ -1,9 +1,10 @@
+mod google;
 mod platform;
 
 use dioxus::prelude::*;
 use rolx_ui::{App, PlatformHandle};
 
-use platform::WebPlatform;
+use platform::{WebConfig, WebPlatform};
 
 fn main() {
     dioxus::launch(Root);
@@ -11,13 +12,17 @@ fn main() {
 
 #[component]
 fn Root() -> Element {
-    let platform = use_hook(|| PlatformHandle::new(WebPlatform::default()));
     let config = use_resource(platform::load_config);
-    if let Some(config) = &*config.read() {
-        tracing::debug!(
-            has_google_client = config.google_client_id.is_some(),
-            "web config"
-        );
+    let current = config.read().clone();
+    match current {
+        // The login screen depends on it, and it is a small file on the same host.
+        None => rsx! {},
+        Some(config) => rsx! { Loaded { config } },
     }
+}
+
+#[component]
+fn Loaded(config: WebConfig) -> Element {
+    let platform = use_hook(|| PlatformHandle::new(WebPlatform::new(config)));
     rsx! { App { platform } }
 }

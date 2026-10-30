@@ -12,6 +12,8 @@ pub enum LoginMethod {
     Browser,
     /// Sign in with a code shown by the app, entered on a web page.
     Device,
+    /// Sign in with a button the platform draws itself, see [`Platform::mount_login_button`].
+    GoogleButton,
 }
 
 /// What a running login asks the user to do.
@@ -24,6 +26,10 @@ pub enum LoginPrompt {
 }
 
 pub type LoginFuture = Pin<Box<dyn Future<Output = Result<Session, String>>>>;
+
+/// Gets the outcome of a sign-in that started outside the app's own code. It may be called from
+/// anywhere, also from a browser callback.
+pub type LoginResultHandler = Rc<dyn Fn(Result<Session, String>)>;
 
 /// Everything the shared UI needs from the app it runs in.
 pub trait Platform {
@@ -57,6 +63,10 @@ pub trait Platform {
 
     /// Runs a login up to the signed-in session. The session is not saved yet.
     fn login(&self, method: LoginMethod, on_prompt: Rc<dyn Fn(LoginPrompt)>) -> LoginFuture;
+
+    /// Draws the [`LoginMethod::GoogleButton`] into the element `element_id`. The session is not
+    /// saved yet when it reaches `on_result`.
+    fn mount_login_button(&self, _element_id: &str, _on_result: LoginResultHandler) {}
 
     fn http_client(&self) -> reqwest::Client;
 

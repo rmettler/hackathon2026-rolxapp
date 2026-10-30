@@ -66,6 +66,7 @@ async fn echo_server() -> String {
                 ("access-control-allow-credentials", "true"),
                 ("set-cookie", "tracker=1"),
                 ("content-security-policy", "default-src *"),
+                ("referrer-policy", "unsafe-url"),
                 ("connection", "x-private-hop"),
                 ("x-private-hop", "dropped"),
                 ("keep-alive", "timeout=5"),
@@ -185,6 +186,7 @@ async fn api_answers_carry_no_cors_no_cookies_and_a_policy_that_lets_nothing_run
         headers["content-security-policy"],
         "default-src 'none'; sandbox"
     );
+    assert_eq!(headers["referrer-policy"], "no-referrer");
 }
 
 #[tokio::test]
@@ -386,6 +388,11 @@ async fn sends_no_wildcard_cors_and_the_security_headers() {
             .contains_key("access-control-allow-origin")
     );
     assert_eq!(response.headers()["x-content-type-options"], "nosniff");
+    // Google's sign-in button checks the origin in the referrer.
+    assert_eq!(
+        response.headers()["referrer-policy"],
+        "strict-origin-when-cross-origin"
+    );
     let policy = response.headers()["content-security-policy"]
         .to_str()
         .unwrap();

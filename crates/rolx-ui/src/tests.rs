@@ -23,6 +23,7 @@ struct FakePlatform {
     server_url: RefCell<String>,
     can_change_server: bool,
     fail_set_server: bool,
+    login_methods: Vec<LoginMethod>,
 }
 
 impl FakePlatform {
@@ -32,6 +33,7 @@ impl FakePlatform {
             server_url: RefCell::new("http://127.0.0.1:1".to_string()),
             can_change_server: false,
             fail_set_server: false,
+            login_methods: vec![LoginMethod::Browser, LoginMethod::Device],
         }
     }
 }
@@ -82,7 +84,7 @@ impl Platform for FakePlatform {
     }
 
     fn login_methods(&self) -> Vec<LoginMethod> {
-        vec![LoginMethod::Browser, LoginMethod::Device]
+        self.login_methods.clone()
     }
 
     fn login(&self, _method: LoginMethod, _on_prompt: Rc<dyn Fn(LoginPrompt)>) -> LoginFuture {
@@ -446,4 +448,36 @@ fn logging_out_clears_the_store_and_the_session_and_goes_to_the_login() {
     VirtualDom::new_with_props(host, platform.clone()).rebuild_in_place();
 
     assert!(platform.session_store().load().unwrap().is_none());
+}
+
+fn render_login_with(login_methods: Vec<LoginMethod>) -> String {
+    #[component]
+    fn Root(login_methods: Vec<LoginMethod>) -> Element {
+        let platform = use_hook(|| {
+            PlatformHandle::new(FakePlatform {
+                login_methods,
+                ..FakePlatform::new(None)
+            })
+        });
+        rsx! { App { platform } }
+    }
+
+    let mut dom = VirtualDom::new_with_props(Root, RootProps { login_methods });
+    dom.rebuild_in_place();
+    dioxus_ssr::render(&dom)
+}
+
+#[test]
+fn a_platform_button_gets_its_place_and_no_ordinary_button() {
+    let html = render_login_with(vec![LoginMethod::GoogleButton]);
+
+    assert!(html.contains("id=\"login-button\""), "{html}");
+    assert!(!html.contains("Sign in with"), "{html}");
+}
+
+#[test]
+fn no_login_method_is_explained() {
+    let html = render_login_with(Vec::new());
+
+    assert!(html.contains("No way to sign in"), "{html}");
 }
