@@ -1,5 +1,8 @@
 # RolX CLI — Google OAuth Authentication
 
+> The original plan for the login, kept for its reasoning. The code has since moved into `rolx-core` and is shared
+> by the CLI, desktop and mobile apps; where this document and the code differ, the code is right.
+
 ## Context
 
 The RolX server requires a Google ID token to authenticate users (`POST api/v1/SignIn`). The normal path (Angular frontend) uses a Web-type OAuth client with One-Tap/popup. A close reading of the server source reveals a key fact: **`SignInService.cs` line 79 calls `GoogleJsonWebSignature.ValidateAsync(token)` with one argument — it never validates the `aud` claim.** It only checks the Google signature and that the user's hosted domain is in the whitelist (`m-f.ch`, `cudos.ch`). This means a Google ID token issued by *any* OAuth client for a user on those domains will be accepted.
@@ -30,28 +33,25 @@ Findings from reading `./rolx-server/source/RolXServer` and `./rolx-server/sourc
 ## File / Module Structure
 
 ```
-src/
-  main.rs              -- clap dispatch, load config once
-  cli.rs               -- clap Arg/Command derive definitions (incl. login flow subcommand)
-  config.rs            -- AppConfig: server URL + OAuth creds, loaded from ~/.config/rolx/config.toml
+rolx-core/src/
+  config.rs            -- AppConfig: server URL + OAuth clients, loaded from <config dir>/rolx/config.toml
+  paths.rs             -- config, session and data dirs (the app's files dir on Android)
   error.rs             -- thiserror Error enum + Result alias
   client.rs            -- RolxClient (loads session, auto-extends near expiry)
-  auth/
-    mod.rs
-    session.rs         -- Session struct, load/save/delete ~/.cache/rolx/session.json
-    rolx_sign_in.rs    -- POST api/v1/SignIn, GET api/v1/SignIn/extend
+  http.rs              -- reqwest client builder with the TLS settings (Mozilla roots on Android)
+  login.rs             -- pick flow → Google id_token → sign in → persist session
+  session.rs           -- Session struct, load/save/delete <cache dir>/rolx/session.json
+  rolx/
+    sign_in.rs         -- POST api/v1/SignIn, GET api/v1/SignIn/extend
   oauth2/
-    mod.rs
     device_flow.rs     -- RFC 8628 device authorization grant → TokenResponse
     native_app_flow.rs -- OAuth 2.0 auth-code + PKCE (RFC 8252), loopback redirect server
+    native_app_flow/   -- authorization/token requests, success and error pages
     pkce.rs            -- S256 code verifier / challenge generation
-    success_page.html  -- page served on the redirect after browser authorization
-  commands/
-    mod.rs
-    login.rs           -- pick flow → Google id_token → sign in → persist session
-    logout.rs          -- delete session file
-    whoami.rs          -- print user from stored session
-    records.rs         -- GET WorkRecord for a day
+src/                   -- the CLI
+  main.rs              -- clap dispatch (incl. login, which calls rolx_core::login)
+  cli.rs               -- clap Arg/Command derive definitions
+  commands/            -- logout, whoami, records, ... (printing only)
 ```
 
 ## Cargo.toml Dependencies (auth-related)
@@ -91,19 +91,33 @@ whoami             Print current user from stored session
 records [DATE]     Show work entries for DATE (default: today, ISO yyyy-MM-dd)
 ```
 
-The server URL comes from the config file and can be overridden with `--server`. (A `ROLX_SERVER` env var was planned but is not implemented.)
+The server URL comes from the config file and can be overridden with `--server` or the `ROLX_SERVER` env var.
 
-## Config File: `~/.config/rolx/config.toml`
+## Config File: `<config dir>/rolx/config.toml`
+
+`cargo run -- config path` prints the location (`%APPDATA%\rolx\config.toml` on Windows, `~/.config/rolx/config.toml`
+on Linux). The mobile app has no config file; its build embeds this one (see `dev-setup.md`).
 
 ```toml
-server_url           = "https://rolx.example.com"
-google_client_id     = "xxxx.apps.googleusercontent.com"
-google_client_secret = "GOCSPX-..."
+server_url = "https://rolx.example.com"
+
+# Google OAuth client of type "Desktop app", for the default login in the browser.
+[google_desktop_client]
+id = "xxxx.apps.googleusercontent.com"
+secret = "GOCSPX-..."
+
+# Google OAuth client of type "TVs and Limited Input devices", for `login device`.
+[google_device_client]
+id = "yyyy.apps.googleusercontent.com"
+secret = "GOCSPX-..."
 ```
 
-`config.rs` loads this on startup; the file must exist (a helpful error message shows the template otherwise). `--server` overrides `server_url`. The OAuth client is a regular Google Cloud credential; both flows use its `client_id`, and `client_secret` is sent to Google when present.
+`config.rs` loads this on startup; if the file is missing, the error shows this template. Both client tables are
+optional, but a flow fails without its client. Google requires the `secret` at its token endpoint for both client
+types, even though an installed app cannot keep it confidential (RFC 8252 calls such apps "public clients"); it is not
+a credential for RolX. The secret ends up readable in every build that uses it, including the APK.
 
-## Session File: `~/.cache/rolx/session.json`
+## Session File: `<cache dir>/rolx/session.json`
 
 ```json
 {
@@ -116,7 +130,7 @@ google_client_secret = "GOCSPX-..."
 }
 ```
 
-Created with `0o600` permissions under `$XDG_CACHE_HOME/rolx/` (re-derivable by running `login` again). Loaded at start of commands that need it; if missing, the user is told to run `login`. On login, a previous session (if any) is reused to pre-fill Google's `login_hint` with the stored email.
+Created with `0o600` permissions on Unix under the OS cache dir (`%LOCALAPPDATA%\rolx\` on Windows, `~/.cache/rolx/` on Linux, the app's files dir on Android; re-derivable by running `login` again). Loaded at start of commands that need it; if missing, the user is told to run `login`. On login, a previous session (if any) is reused to pre-fill Google's `login_hint` with the stored email.
 
 ## Native App Flow (`native_app_flow.rs`)
 
@@ -167,7 +181,7 @@ load session → if expires < now                     → SessionExpired (told t
 
 ## Verification
 
-1. Create a Google Cloud project → Desktop app OAuth credential → add to `~/.config/rolx/config.toml`
+1. Create a Google Cloud project → Desktop app OAuth credential → add to the config file (`cargo run -- config path`)
 2. `cargo run -- login` — opens browser; after authorizing, prints "Logged in as <name> <last> <email>"
 3. `cargo run -- login device` — prints a URL + code; after entering the code in the browser, same success message
 4. `cargo run -- whoami` — should print user name/email

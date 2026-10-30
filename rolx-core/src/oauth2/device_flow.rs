@@ -336,7 +336,8 @@ mod token {
         result.unwrap_or(Err(Error::Expired))
     }
 
-    // TODO: check and describe, client_secret is not mentioned in RFC 8628, however, Google OAuth seems to use it
+    // RFC 8628 has no `client_secret`, but Google rejects the token request without it, even though the secret of an
+    // installed app cannot be kept confidential.
     fn create_request_body<'a>(
         device_code: &'a str,
         client_id: &'a str,

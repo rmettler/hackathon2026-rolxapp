@@ -3,8 +3,8 @@
 ## What this is
 
 `rolxapp` is a Rust workspace (edition **2024**) for building **custom client apps** for the
-RolX time tracking server. A slim CLI and a Dioxus desktop app exist today; TUI/mobile are planned, all in Rust
-where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-reference.md`, `user-requirements.md`, server/frontend auth analyses).
+RolX time tracking server. A slim CLI, a Dioxus desktop app and a Dioxus Android app exist today; a TUI is planned,
+all in Rust where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-reference.md`, `user-requirements.md`, server/frontend auth analyses).
 
 ## Workspace layout
 
