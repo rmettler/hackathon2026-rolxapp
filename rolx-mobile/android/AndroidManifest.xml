@@ -6,6 +6,8 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The "stamped in" notification, see src/native.rs; Android 13+ asks the user at the first stamp-in. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- `ic_rolx` comes from the `launcher-icon` plugin module, see src/android.rs. -->
     <application android:hasCode="true" android:icon="@mipmap/ic_rolx"
