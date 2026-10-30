@@ -29,6 +29,7 @@ pub struct CargoMetadata {
 #[derive(serde::Deserialize)]
 pub struct CargoPackage {
     pub name: String,
+    pub version: String,
     /// `[package.metadata]` — free-form; schema varies per package.
     pub metadata: serde_json::Value,
 }

@@ -25,7 +25,7 @@ all in Rust where sensible. Goals and roadmap: `README.md`. Design docs: `docs/`
 - Run desktop app: `cargo run -p rolxapp-dioxus` (heavy first build; excluded from `default-members`).
 - Lint: `cargo clippy --workspace`. Format: `cargo fmt --all`. Test: `cargo test --workspace`.
 - Fetch the pinned server checkout: `cargo xtask fetch-server` (workspace member `xtask/`).
-- Run mobile app (`rolx-mobile/`, Dioxus, Android): `cargo xtask android {devices,emulator,run}`; see `docs/dev-setup.md`.
+- Run mobile app (`rolx-mobile/`, Dioxus, Android): `cargo xtask android {devices,emulator,run,apk}`; see `docs/dev-setup.md`.
 - Cargo feature `uncensored_logs` disables log redaction (declared in `rolx-core`, forwarded by `rolxapp`).
 - Environment: `ROLX_SERVER` overrides `server_url` (CLI `--server`, GUI); `ROLX_DATA_DIR` moves the local
   data files (`stamps.json`, `activities.json`).

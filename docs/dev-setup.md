@@ -132,6 +132,29 @@ Wireless instead of USB (Android 11+): enable *Wireless debugging* in *Developer
 `adb connect <ip>:<port>` with the port shown on the *Wireless debugging* screen. Run with the
 serial shown by `devices`.
 
+### 8. Build an APK to share
+
+```sh
+$env:ROLX_KEYSTORE_PASSWORD = '<password>'   # macOS / Linux: export ROLX_KEYSTORE_PASSWORD=...
+cargo xtask android apk                      # writes target/apk/rolx-mobile-<version>.apk
+```
+
+This builds a signed release APK for arm64 phones (`--target` picks another Rust target). It
+installs without a dev setup: send the file to the phone, open it and allow installing from that
+source. The emulator on Intel/AMD machines needs `--target x86_64-linux-android`.
+
+The APK is signed with the keystore `rolx-mobile/release.jks` (ignored by git), created with
+`ROLX_KEYSTORE_PASSWORD` on the first run. **Keep the keystore and its password**: Android only
+installs an update over an existing app if it is signed with the same key, otherwise the app must
+be uninstalled first, which deletes its session and local stamps. To build on another machine,
+copy the keystore there.
+
+While building, the signing config (including the password) is added to `rolx-mobile/Dioxus.toml`
+and removed afterwards; if a build is killed, the next one cleans it up, but don't commit it.
+
+As noted under *Config* above, the APK contains the embedded config with the Google client
+secrets: share it within the team only.
+
 ### Troubleshooting
 
 | Problem                                                    | Fix                                                                                                                 |

@@ -1,6 +1,7 @@
-//! Android dev helpers: boot an emulator and run the mobile app on an emulator or a phone.
+//! Android dev helpers: boot an emulator, run the mobile app on an emulator or a phone, and build a release APK.
 
 use std::env;
+use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -14,6 +15,15 @@ const APP_DIR: &str = "rolx-mobile";
 const BOOT_TIMEOUT: Duration = Duration::from_secs(180);
 const POLL_INTERVAL: Duration = Duration::from_secs(2);
 
+/// Release keystore, relative to the workspace root: dx's gradle template prefixes `jks_file` with the way up from
+/// `target/dx/<app>/release/android/app/app`, so it can't be absolute. Ignored by git.
+const KEYSTORE: &str = "rolx-mobile/release.jks";
+const KEY_ALIAS: &str = "rolx";
+const KEYSTORE_PASSWORD_ENV: &str = "ROLX_KEYSTORE_PASSWORD";
+/// Starts the signing section `apk` adds to Dioxus.toml for the build; it and everything after it is removed again.
+const SIGNING_MARKER: &str =
+    "# --- release signing added by `cargo xtask android apk`, removed after the build ---";
+
 #[derive(clap::Subcommand)]
 pub enum AndroidCommand {
     /// Boot an Android emulator and wait until it is ready.
@@ -22,6 +32,8 @@ pub enum AndroidCommand {
     Run(RunArgs),
     /// List Android emulators (AVDs) and connected devices.
     Devices,
+    /// Build a signed release APK to share, e.g. to install on phones without a dev setup.
+    Apk(ApkArgs),
 }
 
 impl AndroidCommand {
@@ -30,6 +42,7 @@ impl AndroidCommand {
             AndroidCommand::Emulator(args) => emulator(args),
             AndroidCommand::Run(args) => run(root, args),
             AndroidCommand::Devices => devices(),
+            AndroidCommand::Apk(args) => apk(root, args),
         }
     }
 }
@@ -55,6 +68,13 @@ pub struct RunArgs {
     /// Extra arguments passed through to `dx serve`, e.g. `-- --release`.
     #[arg(last = true)]
     dx_args: Vec<String>,
+}
+
+#[derive(clap::Args)]
+pub struct ApkArgs {
+    /// Rust target to build for; the default runs on practically all phones.
+    #[arg(long, default_value = "aarch64-linux-android")]
+    target: String,
 }
 
 /// Boots an emulator (unless one is running) and waits until Android has finished booting.
@@ -93,6 +113,117 @@ fn run(root: &Path, args: &RunArgs) -> Result<String, String> {
         .success()
         .then(|| "dx serve finished".to_string())
         .ok_or_else(|| format!("`dx serve` failed (exit {:?})", status.code()))
+}
+
+/// Builds a release APK with `dx bundle`, signed with the keystore at `KEYSTORE` (created on first use).
+fn apk(root: &Path, args: &ApkArgs) -> Result<String, String> {
+    Sdk::locate()?;
+    check_dx()?;
+
+    let password = env::var(KEYSTORE_PASSWORD_ENV).map_err(|_| {
+        format!(
+            "set {KEYSTORE_PASSWORD_ENV} to the password of the release keystore `{KEYSTORE}` \
+             (a new keystore is created with it if there is none)"
+        )
+    })?;
+    // The password ends up in a Kotlin string literal, and keytool wants at least 6 characters.
+    if password.len() < 6 || password.contains(['"', '\\', '$']) {
+        return Err(format!(
+            "{KEYSTORE_PASSWORD_ENV} must have at least 6 characters and no `\"`, `\\` or `$`"
+        ));
+    }
+
+    let keystore = root.join(KEYSTORE);
+    if !keystore.is_file() {
+        create_keystore(&keystore, &password)?;
+        println!(
+            "Created the release keystore {}. Keep it and its password: updates of the app must be signed with it.",
+            keystore.display()
+        );
+    }
+
+    let out_dir = root.join("target").join("apk");
+    let signing = SigningConfig::add(&root.join(APP_DIR).join("Dioxus.toml"), &password)?;
+    let status = Command::new("dx")
+        .args(["bundle", "--android", "--release", "--package-types", "apk"])
+        .args(["--target", &args.target])
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .current_dir(root.join(APP_DIR))
+        .status();
+    signing.remove()?;
+    let status = status.map_err(|e| format!("failed to run `dx`: {e}"))?;
+    if !status.success() {
+        return Err(format!("`dx bundle` failed (exit {:?})", status.code()));
+    }
+
+    // dx keeps gradle's name for the APK; give it one that says what it is.
+    let built = out_dir.join("app-release.apk");
+    let apk = out_dir.join(format!("rolx-mobile-{}.apk", app_version(root)?));
+    fs::rename(&built, &apk).map_err(|e| format!("cannot rename {}: {e}", built.display()))?;
+    Ok(format!("Built {}", apk.display()))
+}
+
+/// Creates a keystore with a single RSA key `KEY_ALIAS`, valid for ~27 years (Android asks for 25+).
+fn create_keystore(path: &Path, password: &str) -> Result<(), String> {
+    let keytool = env::var_os("JAVA_HOME")
+        .map(|home| PathBuf::from(home).join("bin").join(exe("keytool")))
+        .filter(|p| p.is_file())
+        .unwrap_or_else(|| PathBuf::from("keytool"));
+    // PKCS12 keystores use the store password for the key too.
+    #[rustfmt::skip]
+    let args = [
+        "-genkeypair", "-keystore", &path.to_string_lossy(), "-storetype", "PKCS12", "-storepass", password,
+        "-alias", KEY_ALIAS, "-keyalg", "RSA", "-keysize", "2048", "-validity", "10000", "-dname", "CN=RolX Mobile",
+    ];
+    output(&keytool, &args).map(drop)
+}
+
+/// The version of the mobile app from its Cargo.toml, which dx also uses as the APK's `versionName`.
+fn app_version(root: &Path) -> Result<String, String> {
+    crate::util::read_cargo_metadata(root)?
+        .packages
+        .into_iter()
+        .find(|p| p.name == APP_DIR)
+        .map(|p| p.version)
+        .ok_or_else(|| format!("package `{APP_DIR}` not found"))
+}
+
+/// The `[bundle.android]` section that makes dx build and sign a release APK. It holds the keystore password, so it
+/// is only in Dioxus.toml during the build.
+struct SigningConfig {
+    path: PathBuf,
+    original: String,
+}
+
+impl SigningConfig {
+    fn add(path: &Path, password: &str) -> Result<Self, String> {
+        let text =
+            fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+        // Drops a section left over from an interrupted build.
+        let original = match text.find(SIGNING_MARKER) {
+            Some(i) => format!("{}\n", text[..i].trim_end()),
+            None => text,
+        };
+        let patched = format!(
+            "{original}\n{SIGNING_MARKER}\n[bundle.android]\njks_file = \"{KEYSTORE}\"\n\
+             jks_password = \"{password}\"\nkey_alias = \"{KEY_ALIAS}\"\nkey_password = \"{password}\"\n"
+        );
+        fs::write(path, patched).map_err(|e| format!("cannot write {}: {e}", path.display()))?;
+        Ok(Self {
+            path: path.to_path_buf(),
+            original,
+        })
+    }
+
+    fn remove(self) -> Result<(), String> {
+        fs::write(&self.path, &self.original).map_err(|e| {
+            format!(
+                "cannot restore {}, remove its signing section by hand: {e}",
+                self.path.display()
+            )
+        })
+    }
 }
 
 /// Lists the available AVDs and the devices adb can see.

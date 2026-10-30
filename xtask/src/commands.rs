@@ -7,7 +7,7 @@ mod fetch_server;
 pub enum Commands {
     /// Fetch the pinned RolX server repo and check out its rev.
     FetchServer,
-    /// Android dev helpers for the mobile app (emulator, devices, run).
+    /// Android dev helpers for the mobile app (emulator, devices, run, apk).
     #[command(subcommand)]
     Android(android::AndroidCommand),
 }
