@@ -2,17 +2,27 @@
 mod android;
 
 use anyhow::bail;
-use chrono::{Duration, Local, NaiveDate};
+use chrono::{Duration, Local};
 use dioxus::core::Task;
 use dioxus::prelude::*;
-use rolx_core::client::RolxClient;
 use rolx_core::config::AppConfig;
-use rolx_core::dayedit;
-use rolx_core::dayplan::{DayEntry, fmt_hm};
+use rolx_core::idle::Away;
 use rolx_core::login::{self, AuthFlow, UserAction};
-use rolx_core::session::{LoadError, Session};
+use rolx_core::session::Session;
+use rolx_core::stamp::StampState;
+use rolx_ui::Compact;
+use rolx_ui::app_state::{AppState, Loaded, use_app_state};
+use rolx_ui::day_view::DayView;
+use rolx_ui::stamp_panel::StampPanel;
+use rolx_ui::stamper::Stamper;
+use rolx_ui::undo::{UndoLine, use_undo};
+use rolx_ui::week_panel::WeekPanel;
 
-const MAIN_CSS: Asset = asset!("/assets/main.css");
+mod settings;
+use settings::Settings;
+
+/// Mobile layout on top of `rolx_ui::CSS`.
+const CSS: &str = include_str!("mobile.css");
 /// Opens the app from the browser, linked on the page shown after the Google login. The scheme is registered in
 /// `android/AndroidManifest.xml`.
 const RETURN_URL: &str = "ch.cudos.rolxmobile://login";
@@ -20,6 +30,7 @@ const RETURN_URL: &str = "ch.cudos.rolxmobile://login";
 const CONFIG_TOML: &str = include_str!(concat!(env!("OUT_DIR"), "/config.toml"));
 
 fn main() {
+    let _ = rolx_ui::set_config_source(config);
     dioxus::launch(App);
 }
 
@@ -43,31 +54,16 @@ fn config() -> anyhow::Result<AppConfig> {
     Ok(AppConfig::from_toml(CONFIG_TOML)?)
 }
 
-enum Loaded {
-    NeedsLogin,
-    Day {
-        user: String,
-        entries: Vec<DayEntry>,
-    },
-}
-
-async fn load_day(day: NaiveDate) -> anyhow::Result<Loaded> {
-    match Session::load() {
-        Err(LoadError::NoSession) => return Ok(Loaded::NeedsLogin),
-        Ok(session) if session.is_expired() => return Ok(Loaded::NeedsLogin),
-        _ => {}
-    }
-    let client = RolxClient::new(&config()?).await?;
-    let user = format!(
-        "{} {}",
-        client.session.user_first_name, client.session.user_last_name
-    );
-    let entries = dayedit::load_day(&client, day).await?;
-    Ok(Loaded::Day { user, entries })
+/// The logged-in user's name, if the session is valid.
+fn session_user() -> Option<String> {
+    Session::load()
+        .ok()
+        .filter(|s| !s.is_expired())
+        .map(|s| format!("{} {}", s.user_first_name, s.user_last_name))
 }
 
 /// What the user has to do to complete a running login.
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 enum LoginPrompt {
     OpenUrl(String),
     EnterCode { url: String, code: String },
@@ -94,51 +90,206 @@ fn qr_svg(url: &str) -> Option<String> {
     Some(qr.render::<svg::Color>().min_dimensions(200, 200).build())
 }
 
+/// A running login and what it needs from the user. Kept in the app, so switching tabs doesn't lose it.
+#[derive(Clone, Copy)]
+struct LoginState {
+    /// Cancelling it drops the flow, which closes the redirect listener or stops polling.
+    task: Signal<Option<Task>>,
+    error: Signal<Option<String>>,
+    prompt: Signal<Option<LoginPrompt>>,
+    start: Callback<AuthFlow>,
+    cancel: Callback<()>,
+}
+
+/// The card shown instead of the day and the week without a session; stamping works without one.
+fn login_card(login: LoginState) -> Element {
+    let busy = login.task.read().is_some();
+    rsx! {
+        div { class: "card login",
+            p { "You are not logged in." }
+            button { disabled: busy, onclick: move |_| login.start.call(AuthFlow::NativeApp { return_url: Some(RETURN_URL.into()) }),
+                if busy { "Waiting for login…" } else { "Log in with Google" }
+            }
+            button { class: "secondary", disabled: busy, onclick: move |_| login.start.call(AuthFlow::Device),
+                "Log in with a code"
+            }
+            if busy {
+                button { class: "secondary", onclick: move |_| login.cancel.call(()), "Cancel" }
+            }
+            match (login.prompt)() {
+                Some(LoginPrompt::OpenUrl(url)) => rsx! {
+                    p { "Opening the browser failed, open this link to log in: "
+                        a { href: "{url}", "Log in" }
+                    }
+                },
+                Some(LoginPrompt::EnterCode { url, code }) => rsx! {
+                    p { "Open " a { href: "{url}", "{url}" } " or scan the QR code, and enter this code:" }
+                    if let Some(svg) = qr_svg(&url) {
+                        div { class: "qr", dangerous_inner_html: svg }
+                    }
+                    p { class: "code", "{code}" }
+                },
+                None => rsx! {},
+            }
+            if let Some(e) = (login.error)() {
+                p { class: "error", "{e}" }
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Tab {
+    Stamp,
+    Day,
+    Week,
+}
+
+/// Page events the app reacts to: coming back to the foreground, the network, and swipes on the day.
+const PAGE_EVENTS: &str = r#"
+const send = (m) => dioxus.send(m);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') send('visible');
+});
+window.addEventListener('online', () => send('online'));
+window.addEventListener('offline', () => send('offline'));
+send(navigator.onLine ? 'started' : 'offline');
+
+let swipe = null;
+document.addEventListener('touchstart', (e) => {
+  const t = e.target;
+  const free = e.touches.length === 1 && t.closest && t.closest('.swipe-days')
+    && !t.closest('input, textarea, select, .popover, .editing, .conflict, .chart');
+  swipe = free ? { x: e.touches[0].clientX, y: e.touches[0].clientY, at: Date.now() } : null;
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  if (!swipe) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - swipe.x, dy = t.clientY - swipe.y;
+  if (Date.now() - swipe.at < 800 && Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(dy)) {
+    send(dx < 0 ? 'next-day' : 'previous-day');
+  }
+  swipe = null;
+}, { passive: true });
+"#;
+
+/// Whether there are finished entries with an activity, which an upload would send.
+fn has_uploads(state: Signal<StampState>) -> bool {
+    state.read().pending.iter().any(|e| e.activity.is_some())
+}
+
 #[component]
 fn App() -> Element {
     use_hook(init_storage);
+    use_context_provider(|| Compact(true));
+    let app = use_app_state();
+    let AppState {
+        mut day,
+        mut refresh,
+        mut stamp_state,
+        activities,
+        selected,
+        notice,
+        info,
+        stamper,
+        loaded,
+        on_favourite,
+        on_reload,
+    } = app;
+    let undo = use_undo(app);
+    let mut tab = use_signal(|| Tab::Stamp);
+    let mut show_settings = use_signal(|| false);
+    let mut confirm_logout = use_signal(|| false);
+    let mut online = use_signal(|| true);
+    // Stamping has no away detection on the phone, so this stays empty.
+    let away = use_signal(|| None::<Away>);
+    let user = use_memo(move || {
+        refresh();
+        session_user()
+    });
 
-    let mut day = use_signal(|| Local::now().date_naive());
-    let mut refresh = use_signal(|| 0u32);
-    // The running login, if any; cancelling it drops the flow, which closes the redirect listener or stops polling.
+    let show_chart = use_signal(|| Settings::load().show_chart);
+    use_effect(move || {
+        let show = show_chart();
+        if show != Settings::load().show_chart {
+            Settings::update(|s| s.show_chart = show);
+        }
+    });
+
     let mut login_task = use_signal(|| None::<Task>);
     let mut login_error = use_signal(|| None::<String>);
     let mut login_prompt = use_signal(|| None::<LoginPrompt>);
-
-    let loaded = use_resource(move || async move {
-        refresh();
-        load_day(day()).await
-    });
-
-    let mut start_login = move |flow: AuthFlow| {
+    let start_login = use_callback(move |flow: AuthFlow| {
         login_error.set(None);
         let task = spawn(async move {
-            if let Err(e) = log_in(flow, login_prompt).await {
-                login_error.set(Some(e.to_string()));
+            match log_in(flow, login_prompt).await {
+                Ok(()) => {
+                    // Fetch what a logged-out phone could not: the activities, and upload what was stamped meanwhile.
+                    on_reload.call(());
+                    stamper.sync(true);
+                }
+                Err(e) => login_error.set(Some(e.to_string())),
             }
             login_task.set(None);
             login_prompt.set(None);
             refresh += 1;
         });
         login_task.set(Some(task));
-    };
-
-    let cancel_login = move |_| {
+    });
+    let cancel_login = use_callback(move |_| {
         if let Some(task) = login_task.take() {
             task.cancel();
         }
         login_prompt.set(None);
+    });
+    let login = LoginState {
+        task: login_task,
+        error: login_error,
+        prompt: login_prompt,
+        start: start_login,
+        cancel: cancel_login,
     };
+
+    use_future(move || async move {
+        let mut events = document::eval(PAGE_EVENTS);
+        while let Ok(event) = events.recv::<String>().await {
+            match event.as_str() {
+                // Back from the background: the stamps may have changed (another app, a file edit), and the day,
+                // the week and the server may have moved on.
+                "visible" => {
+                    stamp_state.set(StampState::load().unwrap_or_default());
+                    if online() && has_uploads(stamp_state) {
+                        stamper.sync(true);
+                    } else {
+                        refresh += 1;
+                    }
+                }
+                "started" | "online" => {
+                    online.set(true);
+                    if has_uploads(stamp_state) {
+                        stamper.sync(true);
+                    }
+                }
+                "offline" => online.set(false),
+                "next-day" if tab() == Tab::Day => day.set(day() + Duration::days(1)),
+                "previous-day" if tab() == Tab::Day => day.set(day() - Duration::days(1)),
+                _ => {}
+            }
+        }
+    });
 
     let on_logout = move |_| {
         if let Err(e) = Session::delete() {
             login_error.set(Some(e.to_string()));
         }
+        confirm_logout.set(false);
+        show_settings.set(false);
         refresh += 1;
     };
 
-    let login_busy = login_task().is_some();
-    let content = match &*loaded.read() {
+    let logged_in = user().is_some();
+    let date_label = day().format("%a %d.%m.%Y").to_string();
+    let day_content = match &*loaded.read() {
         None => rsx! { p { class: "empty", "Loading…" } },
         Some(Err(e)) => rsx! {
             div { class: "card",
@@ -146,102 +297,197 @@ fn App() -> Element {
                 button { onclick: move |_| refresh += 1, "Retry" }
             }
         },
-        Some(Ok(Loaded::NeedsLogin)) => rsx! {
-            div { class: "card login",
-                p { "You are not logged in." }
-                button { disabled: login_busy, onclick: move |_| start_login(AuthFlow::NativeApp { return_url: Some(RETURN_URL.into()) }),
-                    if login_busy { "Waiting for login…" } else { "Log in with Google" }
-                }
-                button { class: "secondary", disabled: login_busy, onclick: move |_| start_login(AuthFlow::Device),
-                    "Log in with a code"
-                }
-                if login_busy {
-                    button { class: "secondary", onclick: cancel_login, "Cancel" }
-                }
-                match login_prompt() {
-                    Some(LoginPrompt::OpenUrl(url)) => rsx! {
-                        p { "Opening the browser failed, open this link to log in: "
-                            a { href: "{url}", "Log in" }
-                        }
-                    },
-                    Some(LoginPrompt::EnterCode { url, code }) => rsx! {
-                        p { "Open " a { href: "{url}", "{url}" } " or scan the QR code, and enter this code:" }
-                        if let Some(svg) = qr_svg(&url) {
-                            div { class: "qr", dangerous_inner_html: svg }
-                        }
-                        p { class: "code", "{code}" }
-                    },
-                    None => rsx! {},
+        Some(Ok(Loaded::NeedsLogin)) => login_card(login),
+        Some(Ok(Loaded::Day { entries, .. })) => rsx! {
+            for d in [day()] {
+                DayView {
+                    key: "{d}",
+                    day: d,
+                    entries: entries.clone(),
+                    state: stamp_state,
+                    activities,
+                    on_favourite,
+                    on_reload,
+                    on_changed: undo.on_changed,
                 }
             }
         },
-        Some(Ok(Loaded::Day { user, entries })) => {
-            let rows: Vec<_> = entries
-                .iter()
-                .map(|e| {
-                    (
-                        e.full_activity_number.clone(),
-                        fmt_hm(e.duration),
-                        e.comment.clone().unwrap_or_default(),
-                    )
-                })
-                .collect();
-            let total = fmt_hm(entries.iter().map(|e| e.duration).sum());
-            let date_label = day().format("%a %d.%m.%Y").to_string();
-            rsx! {
-                p { class: "user", "Signed in as {user}" }
-                div { class: "card day-nav",
-                    button { class: "secondary", onclick: move |_| day.set(day() - Duration::days(1)), "◀" }
-                    span { class: "date", "{date_label}" }
-                    button { class: "secondary", onclick: move |_| day.set(day() + Duration::days(1)), "▶" }
-                }
-                div { class: "actions",
-                    button { class: "secondary", onclick: move |_| day.set(Local::now().date_naive()), "Today" }
-                    button { onclick: move |_| refresh += 1, "Refresh" }
-                }
-                div { class: "card",
-                    if rows.is_empty() {
-                        p { class: "empty", "No entries for this day." }
-                    } else {
-                        ul { class: "entries",
-                            for (activity, time, comment) in rows {
-                                li {
-                                    div { class: "entry-head",
-                                        span { class: "activity", "{activity}" }
-                                        span { class: "num", "{time}" }
-                                    }
-                                    if !comment.is_empty() {
-                                        div { class: "comment", "{comment}" }
-                                    }
-                                }
-                            }
-                            li { class: "total entry-head",
-                                span { "Total" }
-                                span { class: "num", "{total}" }
-                            }
-                        }
-                    }
-                }
+    };
+
+    let tab_class = move |t: Tab| {
+        if tab() == t {
+            "tab-page"
+        } else {
+            "tab-page hidden"
+        }
+    };
+    let day_class = format!("{} swipe-days", tab_class(Tab::Day));
+    let tab_button = move |t: Tab, icon: &'static str, label: &'static str| {
+        rsx! {
+            button {
+                class: if tab() == t { "on" } else { "" },
+                onclick: move |_| tab.set(t),
+                span { class: "tab-icon", "{icon}" }
+                span { "{label}" }
             }
         }
     };
 
-    let logged_in = matches!(&*loaded.read(), Some(Ok(Loaded::Day { .. })));
-
     rsx! {
-        document::Meta { name: "viewport", content: "width=device-width, initial-scale=1" }
-        document::Link { rel: "stylesheet", href: MAIN_CSS }
-        main {
+        document::Meta { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" }
+        style { "{rolx_ui::CSS}" }
+        style { "{CSS}" }
+        main { class: "compact",
             header {
-                h1 { "RolX" }
-                if logged_in {
-                    button { class: "secondary", onclick: on_logout, "Log out" }
+                div { class: "brand",
+                    h1 { "RolX" }
+                    if let Some(name) = user() {
+                        span { class: "user", "{name}" }
+                    }
+                }
+                div { class: "header-tools",
+                    {net_status(online, stamper)}
+                    button {
+                        class: "icon settings-button",
+                        title: "Settings",
+                        onclick: move |_| show_settings.set(true),
+                        "⚙"
+                    }
                 }
             }
-            if let Some(e) = login_error() {
+            if let Some(e) = notice() {
                 p { class: "error", "{e}" }
             }
-            {content}
+            div { class: tab_class(Tab::Stamp),
+                StampPanel { selected, away, on_favourite, on_reload }
+            }
+            div { class: day_class,
+                if logged_in {
+                    nav { class: "day-nav",
+                        button {
+                            class: "icon",
+                            title: "Previous day",
+                            onclick: move |_| day.set(day() - Duration::days(1)),
+                            "◀"
+                        }
+                        span { class: "date", "{date_label}" }
+                        button {
+                            class: "icon",
+                            title: "Next day",
+                            onclick: move |_| day.set(day() + Duration::days(1)),
+                            "▶"
+                        }
+                        button {
+                            class: "secondary",
+                            onclick: move |_| day.set(Local::now().date_naive()),
+                            "Today"
+                        }
+                        button {
+                            class: "secondary",
+                            title: "Reload from the server",
+                            onclick: move |_| refresh += 1,
+                            "↻"
+                        }
+                    }
+                    UndoLine { undo }
+                    if let Some(text) = info() {
+                        p { class: "status-line", "{text}" }
+                    }
+                }
+                {day_content}
+            }
+            div { class: tab_class(Tab::Week),
+                if logged_in {
+                    WeekPanel { day, refresh, state: stamp_state, show_chart }
+                } else {
+                    {login_card(login)}
+                }
+            }
+            if show_settings() {
+                SettingsSheet {
+                    show_chart,
+                    user: user(),
+                    confirm_logout,
+                    on_close: move |_| {
+                        confirm_logout.set(false);
+                        show_settings.set(false);
+                    },
+                    on_logout,
+                }
+            }
+        }
+        nav { class: "tabbar",
+            {tab_button(Tab::Stamp, "⏱", "Stamp")}
+            {tab_button(Tab::Day, "☰", "Day")}
+            {tab_button(Tab::Week, "▤", "Week")}
+        }
+    }
+}
+
+/// "Offline" and what is waiting to upload, on every tab; tap to upload now.
+fn net_status(online: Signal<bool>, stamper: Stamper) -> Element {
+    let waiting = stamper.state.read().pending.len();
+    let syncing = (stamper.syncing)();
+    let text = match (online(), waiting) {
+        (false, 0) => "Offline".to_string(),
+        (false, n) => format!("Offline · {n} to upload"),
+        (true, 0) => return rsx! {},
+        (true, _) if syncing => "Uploading…".to_string(),
+        (true, n) => format!("{n} to upload"),
+    };
+    rsx! {
+        button {
+            class: if online() { "net" } else { "net offline" },
+            disabled: syncing || !online(),
+            title: "Upload now",
+            onclick: move |_| stamper.sync(false),
+            "{text}"
+        }
+    }
+}
+
+#[component]
+fn SettingsSheet(
+    mut show_chart: Signal<bool>,
+    user: Option<String>,
+    mut confirm_logout: Signal<bool>,
+    on_close: EventHandler<()>,
+    on_logout: EventHandler<()>,
+) -> Element {
+    let server = rolx_ui::config()
+        .map(|c| c.server_url)
+        .unwrap_or_else(|e| e.to_string());
+    rsx! {
+        div { class: "sheet settings",
+            div { class: "sheet-head",
+                h2 { "Settings" }
+                button { class: "secondary", onclick: move |_| on_close.call(()), "Done" }
+            }
+            label { class: "setting",
+                span { "Show the week chart" }
+                input {
+                    r#type: "checkbox",
+                    checked: show_chart(),
+                    onchange: move |e| show_chart.set(e.checked()),
+                }
+            }
+            div { class: "setting account",
+                if let Some(name) = user {
+                    span { "Logged in as {name}" }
+                    if confirm_logout() {
+                        div { class: "controls",
+                            button { class: "danger", onclick: move |_| on_logout.call(()), "Log out" }
+                            button { class: "secondary", onclick: move |_| confirm_logout.set(false), "Cancel" }
+                        }
+                        p { class: "muted", "Stamps that are not uploaded yet stay on the phone." }
+                    } else {
+                        button { class: "secondary", onclick: move |_| confirm_logout.set(true), "Log out…" }
+                    }
+                } else {
+                    span { class: "muted", "Not logged in. Log in on the Day or Week tab." }
+                }
+            }
+            p { class: "muted", "Server: {server}" }
         }
     }
 }

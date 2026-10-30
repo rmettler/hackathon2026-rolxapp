@@ -4724,6 +4724,8 @@ dependencies = [
  "ndk-context",
  "qrcode",
  "rolx-core",
+ "rolx-ui",
+ "serde",
 ]
 
 [[package]]
