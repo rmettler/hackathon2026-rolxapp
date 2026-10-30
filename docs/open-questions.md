@@ -52,6 +52,7 @@ applied and noted here, and all questions are asked at the end.
 | M14 | Plan deviation: of `dioxus-sdk-storage` only `data_directory()` is used (it resolves the app directory by JNI). The session is the shared `FileSessionStore` JSON file in `files/rolx`, because the SDK's own format is opaque, and this way a mock session can be seeded with `adb run-as`. |
 | M14 | Android settings are compiled in by `build.rs`, so the device client secret ends up in the APK. Google treats such secrets as not confidential for installed apps; do not share a build made with real values beyond your team. Only the server can be changed at run time, in Settings; that ends the session (a token must not reach another server), and release builds accept only HTTPS there and for the client. |
 | M15 | The browser and the clipboard are reached by JNI through `dispatch` on the main thread (`apps/android/src/system.rs`), with Java exceptions cleared so a failure cannot crash the app. `Endpoints::at_base_url` exists only in debug builds. `rolx-mock` gained `--device-pending-polls` to keep the code screen up. |
+| M16 | Plan deviation: `dx bundle` gives an `.aab`, which cannot be installed directly, so the APKs come from `dx build --release`: optimized, debug-signed and **debuggable** (Gradle's debug variant), 18.5 MB for `aarch64`. So on a phone with USB debugging, `adb run-as` can read the stored session; a store build needs a real signing setup, which is out of scope here. Each architecture must be built from a clean directory (`apps/android/README.md`). The minimum SDK is the `dx` default (Q7). |
 
 ## Manual verification checklist
 
@@ -64,6 +65,7 @@ to expect.
 - [ ] M10: desktop app, both sign-in buttons with real Google and stage. Expect the browser sign-in to return to the app by itself, and the code sign-in to finish after you enter the code; both end on the day view.
 - [ ] M12: run `dist/desktop/RolX_0.1.0_x64-setup.exe`. Expect a SmartScreen warning (not signed), an install without administrator rights, a start-menu entry and a desktop shortcut, and the app starting with no console window. Build it first with the command in `apps/desktop/README.md`.
 - [ ] M15: Android device login with real Google and stage, on an emulator or phone. Put the server and device client into `apps/android/config.local.toml` and build. Expect the code on screen, Open browser to show Google's device page in the system browser, and the day view after entering the code. Also check Copy code by pasting.
+- [ ] M16: install the `aarch64` APK on a real phone (`adb install`, or copy it and allow the install). Expect the app to start and show Login; with a build holding your settings, sign in as in M15.
 
 ## Review findings accepted without a fix
 
