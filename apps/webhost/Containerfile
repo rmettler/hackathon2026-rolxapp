@@ -1,0 +1,18 @@
+# The web app and its host, for one architecture. Build context: dist/web/<target>, as made by
+# `cargo xtask dist-web --target <target>`. See apps/webhost/README.md.
+#
+# Nothing but a static binary and the app's files. CA certificates are not needed: the host brings
+# its own roots.
+FROM scratch
+
+COPY rolxapp-webhost /rolxapp-webhost
+COPY public /public
+
+# Inside the container it has to listen on all interfaces. Publish the port on loopback only, as
+# it has no TLS of its own: `-p 127.0.0.1:8080:8080`.
+ENV ROLX_LISTEN=0.0.0.0:8080
+ENV ROLX_BUNDLE_DIR=/public
+EXPOSE 8080
+
+USER 65534:65534
+ENTRYPOINT ["/rolxapp-webhost"]

@@ -63,6 +63,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "rolxapp-webhost listening on http://{}",
         listener.local_addr()?
     );
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
     Ok(())
+}
+
+/// Stops on Ctrl-C and on SIGTERM. A container's PID 1 has to do this itself: without a handler the
+/// kernel ignores the signal, and `podman stop` would wait for its timeout.
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        match signal(SignalKind::terminate()) {
+            Ok(mut terminate) => {
+                tokio::select! {
+                    _ = terminate.recv() => {}
+                    _ = tokio::signal::ctrl_c() => {}
+                }
+            }
+            Err(_) => {
+                let _ = tokio::signal::ctrl_c().await;
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+    }
 }

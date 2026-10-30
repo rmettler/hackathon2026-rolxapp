@@ -24,6 +24,7 @@ where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-refer
 - Desktop bundle: see `apps/desktop/README.md`.
 - Android app: `dx build -p rolxapp-android --android --target x86_64-linux-android` (needs `ANDROID_HOME`, `ANDROID_NDK_HOME`, `JAVA_HOME`), APK below `target/dx/rolxapp-android/debug/android/app`. Settings are compiled in from the environment or the gitignored `apps/android/config.local.toml` (see `apps/android/README.md`, also for APKs).
 - Web app and its browser tests: `apps/web/README.md`. `dx serve` goes through `rolxapp-webhost` on port 8081 to the mock on 8090; hot-patching can panic the running app, so keep `--hot-patch false`.
+- Linux packages of web app and host: `cargo xtask dist-web --target <triple>`, containers: `apps/webhost/README.md`.
 - Tailwind CSS: `cargo xtask tailwind` regenerates it; `dx` does too and installs the binary on its first build. Stage the result, the gate checks freshness.
 - GUI checks (unlocked, awake desktop): `cargo xtask screenshot --window <title> --out screenshots/x.png`, `cargo xtask input click --window <title> --x <x> --y <y>`, `input type <text>`, `input scroll <lines>`. `/screenshots/` is ignored.
 - Fetch the pinned server checkout: `cargo xtask fetch-server` (workspace member `xtask/`).

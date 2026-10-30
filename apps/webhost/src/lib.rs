@@ -149,6 +149,12 @@ pub fn app(config: Config) -> reqwest::Result<Router> {
             header::X_CONTENT_TYPE_OPTIONS,
             HeaderValue::from_static("nosniff"),
         ))
+        // Always revalidate: `index.html` names the hashed files of its version, so an old copy would
+        // ask for files that are gone after an upgrade.
+        .layer(SetResponseHeaderLayer::if_not_present(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("no-cache"),
+        ))
         // What Google's sign-in expects: its button checks the page's origin in the referrer.
         .layer(SetResponseHeaderLayer::if_not_present(
             header::REFERRER_POLICY,

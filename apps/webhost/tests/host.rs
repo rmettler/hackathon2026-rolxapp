@@ -388,6 +388,7 @@ async fn sends_no_wildcard_cors_and_the_security_headers() {
             .contains_key("access-control-allow-origin")
     );
     assert_eq!(response.headers()["x-content-type-options"], "nosniff");
+    assert_eq!(response.headers()["cache-control"], "no-cache");
     // Google's sign-in button checks the origin in the referrer.
     assert_eq!(
         response.headers()["referrer-policy"],

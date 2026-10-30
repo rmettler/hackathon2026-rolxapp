@@ -25,6 +25,7 @@ dioxus-sdk-time    = "=0.8.0-alpha.3"
 dioxus-ssr         = "=0.8.0-alpha.3"
 dirs               = "7"
 enigo              = "0.6"
+flate2             = "1"
 futures-util       = "0.3"
 open               = "5"
 rand               = "0.10"
@@ -33,6 +34,7 @@ reqwest            = { version = "0.13", default-features = false }
 serde              = { version = "1", features = ["derive"] }
 serde_json         = "1"
 sha2               = { version = "0.11", features = ["oid"] }
+tar                = "0.4"
 tempfile           = "3"
 thiserror          = "2"
 time               = "0.3.44"
