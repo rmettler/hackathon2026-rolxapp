@@ -7,8 +7,9 @@ use dioxus::core::Task;
 use dioxus::prelude::*;
 use rolx_core::client::RolxClient;
 use rolx_core::config::AppConfig;
+use rolx_core::dayedit;
+use rolx_core::dayplan::{DayEntry, fmt_hm};
 use rolx_core::login::{self, AuthFlow, UserAction};
-use rolx_core::records::{self, RecordEntry, fmt_duration};
 use rolx_core::session::{LoadError, Session};
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
@@ -22,13 +23,13 @@ fn main() {
     dioxus::launch(App);
 }
 
-/// Points rolx-core to the app's files dir, as Android has no config and cache dirs. Elsewhere the defaults of the
+/// Points rolx-core to the app's files dir, as Android has no config, cache and data dirs. Elsewhere the defaults of the
 /// CLI and desktop app are kept, so they share the session.
 fn init_storage() {
     #[cfg(target_os = "android")]
     match android::files_dir() {
         Ok(dir) => {
-            dioxus::logger::tracing::info!(dir = %dir.display(), "storing the session in");
+            dioxus::logger::tracing::info!(dir = %dir.display(), "storing the session and data in");
             _ = rolx_core::paths::set_base_dir(dir);
         }
         Err(e) => dioxus::logger::tracing::error!(error = %e, "cannot determine the files dir"),
@@ -46,7 +47,7 @@ enum Loaded {
     NeedsLogin,
     Day {
         user: String,
-        entries: Vec<RecordEntry>,
+        entries: Vec<DayEntry>,
     },
 }
 
@@ -61,7 +62,7 @@ async fn load_day(day: NaiveDate) -> anyhow::Result<Loaded> {
         "{} {}",
         client.session.user_first_name, client.session.user_last_name
     );
-    let entries = records::fetch_day(&client, day).await?;
+    let entries = dayedit::load_day(&client, day).await?;
     Ok(Loaded::Day { user, entries })
 }
 
@@ -180,12 +181,12 @@ fn App() -> Element {
                 .map(|e| {
                     (
                         e.full_activity_number.clone(),
-                        fmt_duration(e.duration),
+                        fmt_hm(e.duration),
                         e.comment.clone().unwrap_or_default(),
                     )
                 })
                 .collect();
-            let total = fmt_duration(entries.iter().map(|e| e.duration).sum::<Duration>());
+            let total = fmt_hm(entries.iter().map(|e| e.duration).sum());
             let date_label = day().format("%a %d.%m.%Y").to_string();
             rsx! {
                 p { class: "user", "Signed in as {user}" }

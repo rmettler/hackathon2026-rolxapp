@@ -7,14 +7,16 @@ use anyhow::{Context, anyhow};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-/// Path of a file in the per-user data directory (`<data dir>/rolx/<name>`).
+use crate::paths;
+
+/// Path of a file in the per-user data directory (`<data dir>/rolx/<name>`, see [`paths::data_dir`]).
 /// The `ROLX_DATA_DIR` environment variable replaces the directory (`$ROLX_DATA_DIR/<name>`).
 pub fn data_file(name: &str) -> anyhow::Result<PathBuf> {
     if let Some(dir) = std::env::var_os("ROLX_DATA_DIR") {
         return Ok(PathBuf::from(dir).join(name));
     }
-    let base = dirs::data_dir().ok_or_else(|| anyhow!("cannot determine data directory"))?;
-    Ok(base.join("rolx").join(name))
+    let dir = paths::data_dir().ok_or_else(|| anyhow!("cannot determine data directory"))?;
+    Ok(dir.join(name))
 }
 
 /// Reads a JSON file, returning the default value if it doesn't exist yet.
