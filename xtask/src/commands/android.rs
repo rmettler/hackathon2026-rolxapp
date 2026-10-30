@@ -119,11 +119,20 @@ fn devices() -> Result<String, String> {
     Ok(out.trim_end().to_string())
 }
 
-/// Returns the serial of a booted emulator, booting `avd` (or the first AVD) if none is running.
+/// Returns the serial of a booted emulator running `avd`, booting it unless it is running. Without `avd`, any running
+/// emulator is used, else the first AVD is booted.
 fn ensure_emulator(sdk: &Sdk, avd: Option<&str>, cold: bool) -> Result<String, String> {
-    if let Some(d) = sdk.devices()?.into_iter().find(Device::is_emulator) {
+    let running = sdk
+        .devices()?
+        .into_iter()
+        .filter(Device::is_emulator)
+        .find(|d| avd.is_none() || sdk.avd_name(&d.serial).as_deref() == avd);
+    if let Some(d) = running {
         println!("Emulator {} is already running", d.serial);
-        return wait_for_boot(sdk);
+        if cold {
+            println!("warning: --cold ignored, the emulator is already running");
+        }
+        return wait_for_boot(sdk, avd);
     }
 
     let avd = match avd {
@@ -143,26 +152,25 @@ fn ensure_emulator(sdk: &Sdk, avd: Option<&str>, cold: bool) -> Result<String, S
     }
     spawn_detached(&mut cmd).map_err(|e| format!("failed to start the emulator: {e}"))?;
 
-    wait_for_boot(sdk)
+    wait_for_boot(sdk, Some(&avd))
 }
 
-/// Polls adb until an emulator reports `sys.boot_completed`, returning its serial.
-fn wait_for_boot(sdk: &Sdk) -> Result<String, String> {
+/// Polls adb until an emulator running `avd` (or any emulator) reports `sys.boot_completed`, returning its serial.
+fn wait_for_boot(sdk: &Sdk, avd: Option<&str>) -> Result<String, String> {
     let start = Instant::now();
     print!("Waiting for Android to boot");
     loop {
-        if let Some(d) = sdk
-            .devices()?
-            .into_iter()
-            .find(|d| d.is_emulator() && d.state == "device")
-        {
-            let booted = sdk
-                .adb_output(&["-s", &d.serial, "shell", "getprop", "sys.boot_completed"])
-                .is_ok_and(|out| out.trim() == "1");
-            if booted {
-                println!();
-                return Ok(d.serial);
-            }
+        let booted = sdk.devices()?.into_iter().find(|d| {
+            d.is_emulator()
+                && d.state == "device"
+                && (avd.is_none() || sdk.avd_name(&d.serial).as_deref() == avd)
+                && sdk
+                    .adb_output(&["-s", &d.serial, "shell", "getprop", "sys.boot_completed"])
+                    .is_ok_and(|out| out.trim() == "1")
+        });
+        if let Some(d) = booted {
+            println!();
+            return Ok(d.serial);
         }
         if start.elapsed() > BOOT_TIMEOUT {
             println!();
@@ -329,6 +337,18 @@ impl Sdk {
                 })
             })
             .collect())
+    }
+
+    /// Returns the name of the AVD the emulator `serial` runs, or `None` if the emulator console doesn't answer.
+    fn avd_name(&self, serial: &str) -> Option<String> {
+        // Prints the name, then `OK`.
+        let out = self
+            .adb_output(&["-s", serial, "emu", "avd", "name"])
+            .ok()?;
+        out.lines()
+            .map(str::trim)
+            .find(|l| !l.is_empty() && *l != "OK")
+            .map(String::from)
     }
 
     fn list_avds(&self) -> Result<Vec<String>, String> {

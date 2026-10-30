@@ -99,9 +99,9 @@ cargo xtask android run -- --release     # pass extra arguments to `dx serve`
 ```
 
 `run` uses `dx serve`, so changes are hot-reloaded while it runs. The first build is slow:
-`dx` downloads the Tailwind CLI (~130 MB) and a nightly Rust toolchain (used only to plan the
-build), Gradle downloads its dependencies, and ~490 crates are compiled for Android. Expect
-15–30 minutes on a slow connection; later builds take seconds.
+`dx` downloads a nightly Rust toolchain (used only to plan the build), Gradle downloads its
+dependencies, and ~490 crates are compiled for Android. Expect 15–30 minutes on a slow connection;
+later builds take seconds.
 
 **Config.** A phone has no `config.toml` to edit, so the build embeds one into the app: the file
 at `ROLX_CONFIG` if set, else your CLI/desktop config (`cargo run -- config path`). Without one

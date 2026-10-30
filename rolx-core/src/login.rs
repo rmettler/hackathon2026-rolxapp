@@ -63,6 +63,9 @@ pub async fn run(
                 client_secret: Some(credentials.secret.clone()),
                 user_email: session.map(|s| s.user_email),
                 return_url,
+                // Mobile OSes block the network while the app is in the background, i.e. while the user is in the
+                // browser; on desktops, an unreachable network is reported at once.
+                retry_while_offline: cfg!(any(target_os = "android", target_os = "ios")),
             };
             let resp = native_app_flow::run(
                 &http,

@@ -12,8 +12,8 @@ use tokio::time::Instant;
 
 pub use token_request::Response;
 
-/// How long the access token request is retried while the network is unreachable, e.g. on Android until the user is
-/// back in the app. Google's authorization codes expire after 10 minutes.
+/// How long the access token request is retried while the network is unreachable, if `Cfg::retry_while_offline` is
+/// set. Google's authorization codes expire after 10 minutes.
 const TOKEN_RETRY_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 const TOKEN_RETRY_INTERVAL: Duration = Duration::from_secs(2);
 
@@ -31,6 +31,9 @@ pub struct Cfg {
     /// URL that opens the app, linked from the result page in the browser so the user gets back to the app with a
     /// tap, e.g. a custom URI scheme on mobile
     pub return_url: Option<String>,
+    /// Retries the access token request while the network is unreachable, instead of failing at once. Needed on
+    /// Android, which blocks the network of background apps until the user is back in the app.
+    pub retry_while_offline: bool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -105,8 +108,9 @@ pub async fn run(
         )
         .await
         {
+            // Only connection errors: the request was not sent, so the authorization code is still unused.
             Err(token_request::Error::Http(e))
-                if (e.is_connect() || e.is_request()) && Instant::now() < deadline =>
+                if cfg.retry_while_offline && e.is_connect() && Instant::now() < deadline =>
             {
                 tracing::debug!(error = %e, "exchanging access token failed, retrying");
                 tokio::time::sleep(TOKEN_RETRY_INTERVAL).await;

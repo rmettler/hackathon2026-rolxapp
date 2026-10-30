@@ -1,4 +1,5 @@
 use chrono::{Duration, Local, NaiveDate};
+use dioxus::core::Task;
 use dioxus::desktop::{Config, WindowBuilder};
 use dioxus::prelude::*;
 use rolx_core::client::RolxClient;
@@ -61,7 +62,8 @@ async fn log_in(mut manual_url: Signal<Option<String>>) -> anyhow::Result<()> {
 fn App() -> Element {
     let mut day = use_signal(|| Local::now().date_naive());
     let mut refresh = use_signal(|| 0u32);
-    let mut login_busy = use_signal(|| false);
+    // The running login, if any; cancelling it drops the flow, which closes the redirect listener.
+    let mut login_task = use_signal(|| None::<Task>);
     let mut login_error = use_signal(|| None::<String>);
     let mut login_url = use_signal(|| None::<String>);
 
@@ -71,16 +73,23 @@ fn App() -> Element {
     });
 
     let on_login = move |_| {
-        spawn(async move {
-            login_busy.set(true);
-            login_error.set(None);
+        login_error.set(None);
+        let task = spawn(async move {
             if let Err(e) = log_in(login_url).await {
                 login_error.set(Some(e.to_string()));
             }
-            login_busy.set(false);
+            login_task.set(None);
             login_url.set(None);
             refresh += 1;
         });
+        login_task.set(Some(task));
+    };
+
+    let cancel_login = move |_| {
+        if let Some(task) = login_task.take() {
+            task.cancel();
+        }
+        login_url.set(None);
     };
 
     let on_logout = move |_| {
@@ -90,14 +99,18 @@ fn App() -> Element {
         refresh += 1;
     };
 
+    let login_busy = login_task().is_some();
     let content = match &*loaded.read() {
         None => rsx! { p { class: "empty", "Loading…" } },
         Some(Err(e)) => rsx! { p { class: "error", "{e}" } },
         Some(Ok(Loaded::NeedsLogin)) => rsx! {
             div { class: "card empty",
                 p { "You are not logged in." }
-                button { disabled: login_busy(), onclick: on_login,
-                    if login_busy() { "Waiting for browser…" } else { "Log in with Google" }
+                button { disabled: login_busy, onclick: on_login,
+                    if login_busy { "Waiting for browser…" } else { "Log in with Google" }
+                }
+                if login_busy {
+                    button { class: "secondary", onclick: cancel_login, "Cancel" }
                 }
                 if let Some(url) = login_url() {
                     p { "Opening the browser failed, open this link to log in: "

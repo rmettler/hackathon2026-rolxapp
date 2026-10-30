@@ -3,6 +3,7 @@ mod android;
 
 use anyhow::bail;
 use chrono::{Duration, Local, NaiveDate};
+use dioxus::core::Task;
 use dioxus::prelude::*;
 use rolx_core::client::RolxClient;
 use rolx_core::config::AppConfig;
@@ -98,7 +99,8 @@ fn App() -> Element {
 
     let mut day = use_signal(|| Local::now().date_naive());
     let mut refresh = use_signal(|| 0u32);
-    let mut login_busy = use_signal(|| false);
+    // The running login, if any; cancelling it drops the flow, which closes the redirect listener or stops polling.
+    let mut login_task = use_signal(|| None::<Task>);
     let mut login_error = use_signal(|| None::<String>);
     let mut login_prompt = use_signal(|| None::<LoginPrompt>);
 
@@ -107,17 +109,24 @@ fn App() -> Element {
         load_day(day()).await
     });
 
-    let start_login = move |flow: AuthFlow| {
-        spawn(async move {
-            login_busy.set(true);
-            login_error.set(None);
+    let mut start_login = move |flow: AuthFlow| {
+        login_error.set(None);
+        let task = spawn(async move {
             if let Err(e) = log_in(flow, login_prompt).await {
                 login_error.set(Some(e.to_string()));
             }
-            login_busy.set(false);
+            login_task.set(None);
             login_prompt.set(None);
             refresh += 1;
         });
+        login_task.set(Some(task));
+    };
+
+    let cancel_login = move |_| {
+        if let Some(task) = login_task.take() {
+            task.cancel();
+        }
+        login_prompt.set(None);
     };
 
     let on_logout = move |_| {
@@ -127,6 +136,7 @@ fn App() -> Element {
         refresh += 1;
     };
 
+    let login_busy = login_task().is_some();
     let content = match &*loaded.read() {
         None => rsx! { p { class: "empty", "Loading…" } },
         Some(Err(e)) => rsx! {
@@ -138,11 +148,14 @@ fn App() -> Element {
         Some(Ok(Loaded::NeedsLogin)) => rsx! {
             div { class: "card login",
                 p { "You are not logged in." }
-                button { disabled: login_busy(), onclick: move |_| start_login(AuthFlow::NativeApp { return_url: Some(RETURN_URL.into()) }),
-                    if login_busy() { "Waiting for login…" } else { "Log in with Google" }
+                button { disabled: login_busy, onclick: move |_| start_login(AuthFlow::NativeApp { return_url: Some(RETURN_URL.into()) }),
+                    if login_busy { "Waiting for login…" } else { "Log in with Google" }
                 }
-                button { class: "secondary", disabled: login_busy(), onclick: move |_| start_login(AuthFlow::Device),
+                button { class: "secondary", disabled: login_busy, onclick: move |_| start_login(AuthFlow::Device),
                     "Log in with a code"
+                }
+                if login_busy {
+                    button { class: "secondary", onclick: cancel_login, "Cancel" }
                 }
                 match login_prompt() {
                     Some(LoginPrompt::OpenUrl(url)) => rsx! {
