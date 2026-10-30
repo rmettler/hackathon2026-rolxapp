@@ -10,8 +10,11 @@
     --color-red-700: oklch(50.5% 0.213 27.518);
     --color-sky-100: oklch(95.1% 0.026 236.824);
     --color-sky-700: oklch(50% 0.134 242.749);
+    --color-slate-200: oklch(92.9% 0.013 255.508);
     --color-slate-900: oklch(20.8% 0.042 265.755);
     --spacing: 0.25rem;
+    --text-xl: 1.25rem;
+    --text-xl--line-height: calc(1.75 / 1.25);
     --text-2xl: 1.5rem;
     --text-2xl--line-height: calc(2 / 1.5);
     --text-3xl: 1.875rem;
@@ -218,17 +221,33 @@
   .gap-2 {
     gap: calc(var(--spacing) * 2);
   }
+  .gap-3 {
+    gap: calc(var(--spacing) * 3);
+  }
   .gap-4 {
     gap: calc(var(--spacing) * 4);
   }
   .overflow-y-scroll {
     overflow-y: scroll;
   }
+  .border-b {
+    border-bottom-style: var(--tw-border-style);
+    border-bottom-width: 1px;
+  }
+  .border-slate-200 {
+    border-color: var(--color-slate-200);
+  }
   .p-1 {
     padding: calc(var(--spacing) * 1);
   }
   .p-8 {
     padding: calc(var(--spacing) * 8);
+  }
+  .px-8 {
+    padding-inline: calc(var(--spacing) * 8);
+  }
+  .py-3 {
+    padding-block: calc(var(--spacing) * 3);
   }
   .text-right {
     text-align: right;
@@ -240,6 +259,10 @@
   .text-3xl {
     font-size: var(--text-3xl);
     line-height: var(--tw-leading, var(--text-3xl--line-height));
+  }
+  .text-xl {
+    font-size: var(--text-xl);
+    line-height: var(--tw-leading, var(--text-xl--line-height));
   }
   .font-bold {
     --tw-font-weight: var(--font-weight-bold);
@@ -269,6 +292,11 @@
     }
   }
 }
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
 @property --tw-font-weight {
   syntax: "*";
   inherits: false;
@@ -281,6 +309,7 @@
 @layer properties {
   @supports ((-webkit-hyphens: none) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color:rgb(from red r g b)))) {
     *, ::before, ::after, ::backdrop {
+      --tw-border-style: solid;
       --tw-font-weight: initial;
       --tw-outline-style: solid;
     }

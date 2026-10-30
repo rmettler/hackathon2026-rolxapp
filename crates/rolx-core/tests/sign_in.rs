@@ -1,12 +1,35 @@
 //! `api::sign_in` against the in-process mock server.
 
 use chrono::{Duration, Utc};
-use rolx_core::api::sign_in::{self, SignInError, SignInExtensionError};
+use rolx_core::api::sign_in::{self, InfoError, SignInError, SignInExtensionError};
 use rolx_core::session::BearerToken;
 use rolx_mock::{MOCK_ID_TOKEN, MOCK_USER_ID, MockConfig, bearer_token_expiring_at};
 
 fn token_expiring_in(lifetime: Duration) -> BearerToken {
     BearerToken::from_string(bearer_token_expiring_at(Utc::now() + lifetime))
+}
+
+#[tokio::test]
+async fn info_answers_without_a_session() {
+    let mock = rolx_mock::spawn(MockConfig::default()).await.unwrap();
+
+    let info = sign_in::info(&reqwest::Client::new(), mock.base_url())
+        .await
+        .unwrap();
+
+    assert_eq!(info.google_client_id, "mock-client-id");
+}
+
+#[tokio::test]
+async fn info_fails_when_nothing_answers_or_the_address_is_not_a_rolx_server() {
+    let client = reqwest::Client::new();
+    let result = sign_in::info(&client, "http://127.0.0.1:1").await;
+    assert!(matches!(result, Err(InfoError::Http(_))));
+
+    let mock = rolx_mock::spawn(MockConfig::default()).await.unwrap();
+    let not_rolx = format!("{}/nothing-here", mock.base_url());
+    let result = sign_in::info(&client, &not_rolx).await;
+    assert!(matches!(result, Err(InfoError::Status(404))));
 }
 
 #[tokio::test]

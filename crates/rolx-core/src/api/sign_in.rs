@@ -4,6 +4,41 @@ use serde::Deserialize;
 use crate::redact::redact_json;
 use crate::session::{BearerToken, Session};
 
+/// What `GET SignIn/info` says, without a session.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignInInfo {
+    pub google_client_id: String,
+    pub installation_id: String,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum InfoError {
+    #[error("HTTP error: {0}")]
+    Http(#[from] reqwest::Error),
+
+    #[error("JSON error: {0}")]
+    Json(#[from] serde_json::Error),
+
+    #[error("HTTP {0}")]
+    Status(u16),
+}
+
+pub async fn info(
+    client: &reqwest::Client,
+    server_url: &str,
+) -> std::result::Result<SignInInfo, InfoError> {
+    let resp = client
+        .get(format!("{server_url}/api/v1/SignIn/info"))
+        .send()
+        .await?;
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(InfoError::Status(status.as_u16()));
+    }
+    Ok(serde_json::from_str(&resp.text().await?)?)
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum SignInError {
     #[error("HTTP error: {0}")]

@@ -46,6 +46,7 @@ applied and noted here, and all questions are asked at the end.
 | M8 | `Platform::login` takes a callback for prompts, because `rolx-ui` must compile for wasm and so cannot use `rolx-auth`'s `AuthPrompt`. The desktop app bridges the two. An unreadable session store counts as no session. |
 | M9 | Date navigation is previous, next and today, without the date picker: enough for CLI parity. A session the server rejects is deleted from the store, so the next start goes straight to Login. A failed extension of a still valid session shows an error with a retry and does not sign out. |
 | M10 | `Platform` gains `copy_text` (`arboard` on desktop). Cancelling drops the running login. The sign-in error text shows the underlying error, because the user needs it to tell what failed. It can name an OAuth endpoint or quote part of an error response; the state and code values were removed from those messages. It is shown, not logged. |
+| M11 | The server URL is shown read-only on desktop: it comes from `config.toml`, the file the screen points to. Log out only deletes the local session; the server has no sign-out call to make. |
 
 ## Manual verification checklist
 
@@ -68,3 +69,4 @@ Minor findings from the per-milestone reviews that were deliberately not fixed.
 - M8: Blitz's Tab order visits the hidden controls of `StylePreload`. It comes after the views, so they are reached last, but Tab can still land on invisible controls. The apps have no keyboard requirement so far. The preload test can be fooled by a deliberate edit, such as a commented-out import.
 - M9: the selected date resets to today after a trip to Settings. The 5-minute repeat of `SessionKeeper` was not observed live; its check is the tested `fresh_session`, which also runs at the start. With a near-expiry session, "Try again" keeps showing the old error until the extension has finished (30 s at most).
 - M10: `LoginView`'s task logic (success to save to Day, save failure, cancel) has no automated test, only the mock E2E runs; save failure was not run, and "Open browser" and the manual URL prompt were not clicked (the prompt has an SSR test).
+- M11: if deleting the session fails at logout, the user reaches Login with only a log warning, and the next start signs them in again. The reachability check treating a 200 without JSON (such as a captive portal) as unreachable has no test, nor has the "not configured" state.

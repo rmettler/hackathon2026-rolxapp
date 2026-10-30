@@ -7,6 +7,7 @@ use crate::components::button::{Button, ButtonVariant};
 use crate::day_model::{self, DayEntries, LoadError};
 use crate::platform::PlatformHandle;
 use crate::state::{AppState, RouteEvent};
+use crate::views::Header;
 
 #[component]
 pub fn DayView() -> Element {
@@ -20,14 +21,10 @@ pub fn DayView() -> Element {
         async move { load(&platform, state, date).await }
     });
 
-    let name = state
-        .session
-        .read()
-        .as_ref()
-        .map(|session| format!("{} {}", session.user_first_name, session.user_last_name));
-
     rsx! {
-        main { class: "flex flex-col gap-4 p-8 h-screen box-border text-slate-900",
+        main { class: "flex flex-col h-screen box-border text-slate-900",
+            Header { title: "RolX" }
+            div { class: "flex flex-col flex-1 min-h-0 gap-4 p-8",
             div { class: "flex flex-row items-center gap-2",
                 Button {
                     id: "previous-day",
@@ -51,9 +48,6 @@ pub fn DayView() -> Element {
                     "Today"
                 }
             }
-            if let Some(name) = name {
-                p { "Signed in as {name}" }
-            }
             // Checked first: while loading, the resource still holds the result of the previous day.
             match (day.pending(), &*day.read()) {
                 (true, _) | (_, None) => rsx! { p { id: "loading", "Loading…" } },
@@ -70,10 +64,6 @@ pub fn DayView() -> Element {
                 },
                 (_, Some(Ok(entries))) => rsx! { Entries { entries: entries.clone() } },
             }
-            Button {
-                variant: ButtonVariant::Ghost,
-                onclick: move |_| state.navigate(RouteEvent::OpenSettings),
-                "Settings"
             }
         }
     }

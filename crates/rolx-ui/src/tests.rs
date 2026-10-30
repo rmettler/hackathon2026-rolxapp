@@ -12,7 +12,7 @@ use rolx_core::store::{SessionStore, StoreError};
 use crate::day_model::{LoadError, fresh_session, load_day};
 use crate::state::tests::session_expiring_in;
 use crate::state::{AppState, Route};
-use crate::views::{LoginPhase, LoginStatus, end_session};
+use crate::views::{LoginPhase, LoginStatus, Reachability, check_server, end_session, log_out};
 use crate::{App, LoginFuture, LoginMethod, LoginPrompt, Platform, PlatformHandle};
 
 struct FakePlatform {
@@ -101,14 +101,15 @@ fn without_a_session_the_login_shows_each_method() {
 
     assert!(html.contains("Sign in with browser"), "{html}");
     assert!(html.contains("Sign in with a code"), "{html}");
-    assert!(!html.contains("Signed in as"), "{html}");
+    assert!(!html.contains("Log out"), "{html}");
 }
 
 #[test]
 fn with_a_session_the_day_shows_the_user() {
     let html = render_app(Some(session_expiring_in(Duration::hours(1))));
 
-    assert!(html.contains("Signed in as Test User"), "{html}");
+    assert!(html.contains("Test User"), "{html}");
+    assert!(html.contains("Log out"), "{html}");
     assert!(!html.contains("Sign in with browser"), "{html}");
 }
 
@@ -309,4 +310,41 @@ fn login_status_shows_each_phase() {
     assert!(device.contains("http://example.invalid/device"), "{device}");
     assert!(device.contains("Copy code"), "{device}");
     assert!(device.contains("Open browser"), "{device}");
+}
+
+#[tokio::test]
+async fn the_server_check_tells_reachable_from_unreachable() {
+    let mock = mock().await;
+    assert_eq!(
+        check_server(&platform_on(mock.base_url())).await,
+        Reachability::Reachable
+    );
+    assert_eq!(
+        check_server(&platform_on("http://127.0.0.1:1")).await,
+        Reachability::Unreachable
+    );
+}
+
+#[test]
+fn logging_out_clears_the_store_and_the_session_and_goes_to_the_login() {
+    let platform = platform_on("http://127.0.0.1:1");
+    platform
+        .session_store()
+        .save(&valid_mock_session())
+        .unwrap();
+    fn host(platform: PlatformHandle) -> Element {
+        use_hook(|| {
+            let state = AppState {
+                route: Signal::new(Route::Day),
+                session: Signal::new(Some(valid_mock_session())),
+            };
+            log_out(&platform, state);
+            assert_eq!(*state.route.peek(), Route::Login);
+            assert!(state.session.peek().is_none());
+        });
+        rsx! {}
+    }
+    VirtualDom::new_with_props(host, platform.clone()).rebuild_in_place();
+
+    assert!(platform.session_store().load().unwrap().is_none());
 }
