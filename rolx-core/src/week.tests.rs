@@ -69,6 +69,111 @@ fn daily_target_is_eight_point_four_hours() {
 }
 
 #[test]
+fn guidance_tells_when_today_is_done_and_how_far_behind_the_week_is() {
+    let summary = summarize(&sample_week(), &[]);
+    // Friday 10:00 with a session running for one hour
+    let g = guidance(&summary, d(30), 10 * 3600, 3600, true);
+
+    let today = g.today.unwrap();
+    assert_eq!(today.booked_secs, 3600);
+    assert_eq!(today.target_secs, DAILY_TARGET_SECS);
+    assert_eq!(today.left_secs, DAILY_TARGET_SECS - 3600);
+    assert_eq!(
+        today.done_at_secs,
+        Some(10 * 3600 + DAILY_TARGET_SECS - 3600)
+    );
+    assert!(today.working);
+    // Mon +1:26:24, Tue -0:33:36, Thu -3:33:36 against 7:33:36 each; the holiday has no target
+    assert_eq!(g.past_balance_secs, 5_184 - 2_016 - 12_816);
+    assert!(g.missing_days.is_empty());
+}
+
+#[test]
+fn guidance_flags_working_days_without_any_booking() {
+    let week = parse_week(&[
+        record(d(26), NINETY, None, vec![entry(1, 8)]),
+        record(d(27), NINETY, None, vec![]), // forgotten
+        record(d(28), 0, None, vec![]),      // holiday
+        record(d(29), NINETY, Some("Vacation"), vec![]),
+        record(d(30), NINETY, None, vec![]), // today
+    ])
+    .unwrap();
+    let g = guidance(&summarize(&week, &[]), d(30), 9 * 3600, 0, false);
+
+    assert_eq!(g.missing_days, vec![d(27)]);
+    assert!(!g.today.unwrap().working);
+}
+
+#[test]
+fn guidance_has_nothing_to_say_about_today_off_work_or_when_done() {
+    let summary = summarize(&sample_week(), &[]);
+    assert_eq!(
+        guidance(&summary, d(31), 10 * 3600, 0, false).today,
+        None,
+        "Saturday"
+    );
+    assert_eq!(
+        guidance(&summary, d(28), 10 * 3600, 0, false).today,
+        None,
+        "holiday"
+    );
+
+    let done = guidance(&summary, d(30), 15 * 3600, DAILY_TARGET_SECS + 60, true)
+        .today
+        .unwrap();
+    assert_eq!(done.left_secs, 0);
+    assert_eq!(done.done_at_secs, None);
+
+    let too_late = guidance(&summary, d(30), 23 * 3600, 0, true).today.unwrap();
+    assert_eq!(too_late.done_at_secs, None, "would be after midnight");
+}
+
+#[test]
+fn guidance_is_worded_for_the_user() {
+    let summary = summarize(&sample_week(), &[]);
+    let working = guidance(&summary, d(30), 10 * 3600, 3600, true);
+    assert_eq!(
+        working.today.as_ref().unwrap().describe(),
+        "Today 1:00 of 8:24 · 7:24 left · at this pace done at 17:24"
+    );
+    let idle = guidance(&summary, d(30), 10 * 3600, 0, false);
+    assert_eq!(
+        idle.today.unwrap().describe(),
+        "Today 0:00 of 8:24 · 8:24 left · starting now you are done at 18:24"
+    );
+    let done = guidance(&summary, d(30), 15 * 3600, 9 * 3600, true);
+    assert_eq!(
+        done.today.unwrap().describe(),
+        "Today's target reached: 9:00 of 8:24"
+    );
+    assert_eq!(
+        working.balance_text().as_deref(),
+        Some("2:40 behind on previous days")
+    );
+    let on_target = guidance(&summary, d(26), 10 * 3600, 0, false);
+    assert_eq!(on_target.balance_text(), None, "no previous days");
+}
+
+#[test]
+fn queued_entries_count_towards_today() {
+    let summary = summarize(
+        &sample_week(),
+        &[PendingEntry {
+            date: d(30),
+            begin: 28_800,
+            duration: 7_200,
+            pause: 0,
+            activity: None,
+            comment: None,
+        }],
+    );
+    let today = guidance(&summary, d(30), 12 * 3600, 0, false)
+        .today
+        .unwrap();
+    assert_eq!(today.booked_secs, 7_200);
+}
+
+#[test]
 fn target_is_the_sum_of_the_servers_daily_nominal_times() {
     let s = summarize(&sample_week(), &[]);
     assert_eq!(s.target_secs, 4 * NINETY, "holiday and weekend count as 0");

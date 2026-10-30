@@ -1,8 +1,8 @@
-use chrono::Datelike;
+use chrono::{Datelike, Local, Timelike};
 use rolx_core::client::RolxClient;
 use rolx_core::dayplan::fmt_hm;
-use rolx_core::stamp::StampState;
-use rolx_core::week::{DAILY_TARGET_SECS, fetch_week, summarize};
+use rolx_core::stamp::{StampState, Status};
+use rolx_core::week::{DAILY_TARGET_SECS, fetch_week, guidance, summarize};
 
 use super::records::parse_day;
 
@@ -12,14 +12,14 @@ const BAR_FULL_SECS: i64 = 10 * 3600;
 pub async fn run(client: &RolxClient, date: Option<String>) -> anyhow::Result<()> {
     let day = parse_day(date)?;
     let week = fetch_week(client, day).await?;
-    let queued = match StampState::load() {
-        Ok(state) => state.pending,
+    let state = match StampState::load() {
+        Ok(state) => state,
         Err(e) => {
             eprintln!("warning: queued entries not counted: {e}");
-            Vec::new()
+            StampState::default()
         }
     };
-    let summary = summarize(&week, &queued);
+    let summary = summarize(&week, &state.pending);
 
     let (Some(first), Some(last)) = (summary.days.first(), summary.days.last()) else {
         anyhow::bail!("the server returned no days");
@@ -69,5 +69,32 @@ pub async fn run(client: &RolxClient, date: Option<String>) -> anyhow::Result<()
         fmt_hm(DAILY_TARGET_SECS),
         fmt_hm(on_day)
     );
+
+    // Guidance is about the present, so only for the week that contains today.
+    let now = Local::now().naive_local();
+    if summary.days.iter().any(|d| d.date == now.date()) {
+        let (running, working) = match state.status(now) {
+            Status::StampedIn {
+                worked, on_break, ..
+            } => (worked.num_seconds(), !on_break),
+            Status::StampedOut => (0, false),
+        };
+        let g = guidance(
+            &summary,
+            now.date(),
+            i64::from(now.time().num_seconds_from_midnight()),
+            running,
+            working,
+        );
+        if let Some(today) = &g.today {
+            println!("{}", today.describe());
+        }
+        if let Some(text) = g.balance_text() {
+            println!("{text}");
+        }
+        for missing in &g.missing_days {
+            println!("⚠ Nothing booked on {}", missing.format("%a %d.%m."));
+        }
+    }
     Ok(())
 }

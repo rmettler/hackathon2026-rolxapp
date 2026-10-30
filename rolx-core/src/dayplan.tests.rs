@@ -504,3 +504,90 @@ fn record_entries_round_trip_without_touching_other_fields() {
     assert_eq!(record["dayType"], 0);
     assert_eq!(record["userId"], "u1");
 }
+
+fn new_entry(begin: (i32, i32), end: (i32, i32), pause_min: i32) -> NewEntry {
+    NewEntry {
+        activity: (7, "A-7".into()),
+        begin: begin.0 * 3600 + begin.1 * 60,
+        end: end.0 * 3600 + end.1 * 60,
+        pause: pause_min * 60,
+        comment: Some("  ".into()),
+    }
+}
+
+#[test]
+fn added_entry_has_net_duration_and_is_sorted_in() {
+    let mut day = vec![e(13, 0, 60, 0)];
+    add_entry(&mut day, &new_entry((9, 0), (12, 0), 30)).unwrap();
+
+    assert_eq!(day[0].begin, at(9, 0));
+    assert_eq!(day[0].duration, 150 * 60);
+    assert_eq!(day[0].pause, Some(30 * 60));
+    assert_eq!(day[0].activity_id, 7);
+    assert_eq!(day[0].comment, None, "blank comment is dropped");
+    assert_eq!(day[1], e(13, 0, 60, 0));
+}
+
+#[test]
+fn added_entry_is_validated() {
+    let mut day = Vec::new();
+    let mut bad = new_entry((9, 0), (12, 0), 0);
+    bad.activity.0 = 0;
+    assert_eq!(add_entry(&mut day, &bad), Err(EditError::NoActivity));
+    assert_eq!(
+        add_entry(&mut day, &new_entry((12, 0), (9, 0), 0)),
+        Err(EditError::InvalidTimes)
+    );
+    assert_eq!(
+        add_entry(&mut day, &new_entry((9, 0), (9, 30), 30)),
+        Err(EditError::BreakLongerThanEntry)
+    );
+    let mut late = new_entry((23, 0), (23, 30), 0);
+    late.end = SECONDS_PER_DAY as i32 + 1;
+    assert_eq!(add_entry(&mut day, &late), Err(EditError::OutsideDay));
+    assert!(day.is_empty(), "nothing is added on error");
+}
+
+#[test]
+fn an_added_entry_can_overlap_and_is_then_reported() {
+    let mut day = vec![e(8, 0, 120, 0)];
+    let before = day.clone();
+    add_entry(&mut day, &new_entry((9, 0), (11, 0), 0)).unwrap();
+    assert_eq!(new_issues(&before, &day).len(), 1);
+}
+
+#[test]
+fn suggests_the_end_of_the_latest_entry_as_start() {
+    assert_eq!(suggest_start(&[]), None);
+    let day = vec![e(8, 0, 120, 0), e(13, 0, 60, 30)];
+    assert_eq!(suggest_start(&day), Some(14 * 3600 + 30 * 60));
+    let full = vec![e(0, 0, 24 * 60, 0)];
+    assert_eq!(suggest_start(&full), None, "nothing is left of the day");
+}
+
+#[test]
+fn gap_range_is_the_unbooked_time() {
+    let day = vec![e(8, 0, 60, 0), e(10, 0, 60, 0)];
+    let issue = analyze(&day)[0];
+    assert_eq!(
+        issue.gap_range(&day),
+        Some((9 * 3600, 10 * 3600)),
+        "from the end of the first to the start of the second"
+    );
+    let overlap = Issue::Overlap {
+        first: 0,
+        second: 1,
+        secs: 60,
+    };
+    assert_eq!(overlap.gap_range(&day), None);
+}
+
+#[test]
+fn copying_skips_entries_without_activity_and_sorts() {
+    let unassigned = DayEntry {
+        activity_id: 0,
+        ..e(9, 0, 60, 0)
+    };
+    let day = vec![e(13, 0, 60, 0), unassigned, e(8, 0, 60, 0)];
+    assert_eq!(copyable(&day), vec![e(8, 0, 60, 0), e(13, 0, 60, 0)]);
+}

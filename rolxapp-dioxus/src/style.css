@@ -87,6 +87,31 @@ td.actions button, .issue button, .queue button { padding: 3px 10px; font-size: 
 .legend-item { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
 .legend .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: 0 0 auto; }
 
+.header-tools { display: flex; gap: 8px; }
+.undo-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.undo-line button { padding: 3px 10px; font-size: 0.85rem; }
+.banner { border-left: 4px solid #e67700; }
+.banner p { margin: 0 0 4px; }
+.tiles { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center; margin-top: 8px; }
+.tile { background: transparent; color: inherit; border: 1px solid #3b6cf6; border-radius: 8px; padding: 8px 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile:hover { background: rgba(59,108,246,.15); }
+button.repeat { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.day-tools { display: flex; justify-content: flex-end; }
+.day-tools button { padding: 4px 12px; font-size: 0.85rem; }
+.editing.add { border-top: 1px solid #e3e6ee; margin-top: 12px; padding-top: 4px; background: rgba(59,108,246,.06); border-radius: 8px; padding: 8px 12px; }
+.editing.add h3 { margin: 4px 0; font-size: 1rem; }
+.guidance { margin-top: 8px; }
+.guidance p { margin: 4px 0; }
+.guidance .today { font-weight: 600; }
+button.link { background: transparent; color: #3b6cf6; padding: 0 6px; text-decoration: underline; }
+.chart .col.missing .lbl, .chart .col.missing .val { color: #d6336c; font-weight: 700; opacity: 1; }
+.chart .col.missing .bars { outline: 2px dashed rgba(214,51,108,.7); }
+.backdrop.dim { background: rgba(0,0,0,.35); z-index: 19; }
+.palette { position: fixed; z-index: 20; top: 70px; left: 50%; transform: translateX(-50%); width: min(600px, 92vw); background: #fff; color: #1d2330; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,.45); padding: 10px; }
+.palette > input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px; border: 1px solid #c9ceda; font-size: 1rem; }
+.palette .options { max-height: 50vh; }
+.opt .kind { flex: 0 0 1.2rem; text-align: center; opacity: 0.6; }
+
 /* Must stay last so it overrides the light defaults above. */
 @media (prefers-color-scheme: dark) {
   body { background: #161a22; color: #e6e9ef; }
@@ -94,6 +119,9 @@ td.actions button, .issue button, .queue button { padding: 3px 10px; font-size: 
   th, td { border-color: #2d3444; }
   .popover { background: #262c3a; color: #e6e9ef; }
   .popover input { background: #1b202b; color: #e6e9ef; border-color: #3a4256; }
+  .palette { background: #262c3a; color: #e6e9ef; }
+  .palette > input { background: #1b202b; color: #e6e9ef; border-color: #3a4256; }
   .opt:hover, .opt.cur { background: #333b4f; }
   .queue-row { border-color: #2d3444; }
+  .editing.add { border-color: #2d3444; }
 }

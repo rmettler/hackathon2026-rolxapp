@@ -26,6 +26,7 @@ pub fn ActivityPicker(
     selected: Signal<Option<i32>>,
     on_favourite: EventHandler<(i32, bool)>,
     on_reload: EventHandler<()>,
+    #[props(default = true)] show_chips: bool,
 ) -> Element {
     let mut open = use_signal(|| false);
     let mut query = use_signal(String::new);
@@ -77,7 +78,7 @@ pub fn ActivityPicker(
 
     rsx! {
         div { class: "picker",
-            if !chips.is_empty() {
+            if show_chips && !chips.is_empty() {
                 div { class: "chips",
                     for chip in chips {
                         button {
