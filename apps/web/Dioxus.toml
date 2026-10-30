@@ -1,0 +1,7 @@
+[application]
+name            = "RolX"
+tailwind_input  = "../../crates/rolx-ui/tailwind.css"
+tailwind_output = "../../crates/rolx-ui/assets/tailwind.css"
+
+[web.app]
+title = "RolX"

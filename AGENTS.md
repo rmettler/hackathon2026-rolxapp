@@ -12,7 +12,7 @@ where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-refer
 - `crates/rolx-auth`: native-only Google login: loopback and device flow, with the UI left to the app through `AuthPrompt`.
 - `crates/rolx-mock`: dev/test-only mock of the RolX API and Google OAuth (lib + bin, `127.0.0.1` only, default port 8090, `cargo run -p rolx-mock`). Never a dependency of anything shipped, and no dependency on `rolx-core`. Bearer tokens carry their expiry, so a session can be seeded with `bearer_token_expiring_at` or `mock-bearer-<unix time>`.
 - `crates/rolx-ui`: shared Dioxus UI, renderer-agnostic and working on Blitz: no `document::eval`. The app gets everything platform-specific through the `Platform` trait. `tailwind.css` is the input, `assets/tailwind.css` the committed output. `src/components` are copied Dioxus components with local changes. Blitz rules (`docs/blitz-spike.md`): pass icons a concrete `stroke`, and every `css_module` component must render at startup (`StylePreload`) and no stylesheet may be added later, or the app can crash.
-- `apps/cli`: `rolxcli`. `apps/desktop`: `rolxapp-desktop` (Dioxus Native/Blitz), implements `rolx_ui::Platform`. `apps/android`: `rolxapp-android` (Dioxus mobile, system WebView), likewise, never built in the native gate. `xtask`: workspace tasks.
+- `apps/cli`: `rolxcli`. `apps/desktop`: `rolxapp-desktop` (Dioxus Native/Blitz), implements `rolx_ui::Platform`. `apps/android`: `rolxapp-android` (Dioxus mobile, system WebView), likewise, never built in the native gate. `apps/web`: `rolxapp-web` (Dioxus web, wasm32), likewise, API on its own origin. `xtask`: workspace tasks.
 
 ## Commands
 
@@ -23,6 +23,7 @@ where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-refer
 - Desktop app: `dx build -p rolxapp-desktop --renderer native` (run `dx` from the workspace root), output in `target/dx/rolxapp-desktop/debug/windows/app`. Launch it with `CARGO_MANIFEST_DIR` unset, otherwise the window stays blank.
 - Desktop bundle: see `apps/desktop/README.md`.
 - Android app: `dx build -p rolxapp-android --android --target x86_64-linux-android` (needs `ANDROID_HOME`, `ANDROID_NDK_HOME`, `JAVA_HOME`), APK below `target/dx/rolxapp-android/debug/android/app`. Settings are compiled in from the environment or the gitignored `apps/android/config.local.toml` (see `apps/android/README.md`, also for APKs).
+- Web app: `dx serve -p rolxapp-web --web --port 8080 --hot-patch false` (editing a file with hot-patching on can panic the running app).
 - Tailwind CSS: `cargo xtask tailwind` regenerates it; `dx` does too and installs the binary on its first build. Stage the result, the gate checks freshness.
 - GUI checks (unlocked, awake desktop): `cargo xtask screenshot --window <title> --out screenshots/x.png`, `cargo xtask input click --window <title> --x <x> --y <y>`, `input type <text>`, `input scroll <lines>`. `/screenshots/` is ignored.
 - Fetch the pinned server checkout: `cargo xtask fetch-server` (workspace member `xtask/`).
