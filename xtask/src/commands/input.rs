@@ -1,4 +1,4 @@
-use enigo::{Button, Coordinate, Direction, Enigo, Keyboard, Mouse, Settings};
+use enigo::{Button, Coordinate, Direction, Enigo, Key, Keyboard, Mouse, Settings};
 
 use super::screenshot::find_window;
 
@@ -39,7 +39,10 @@ pub fn run(action: &InputAction) -> Result<String, String> {
             Ok(format!("clicked at {x},{y}"))
         }
         InputAction::Type { text } => {
-            enigo.text(text).map_err(|e| e.to_string())?;
+            // Real key events: Blitz ignores the Unicode packets `Enigo::text` sends.
+            for c in text.chars() {
+                type_char(&mut enigo, c).map_err(|e| e.to_string())?;
+            }
             Ok("typed".to_string())
         }
         InputAction::Scroll { lines } => {
@@ -48,5 +51,17 @@ pub fn run(action: &InputAction) -> Result<String, String> {
                 .map_err(|e| e.to_string())?;
             Ok(format!("scrolled {lines}"))
         }
+    }
+}
+
+fn type_char(enigo: &mut Enigo, c: char) -> enigo::InputResult<()> {
+    if c.is_uppercase() {
+        enigo.key(Key::Shift, Direction::Press)?;
+        let typed = enigo.key(Key::Unicode(c.to_ascii_lowercase()), Direction::Click);
+        // Released in any case, a stuck Shift would hit the whole desktop.
+        enigo.key(Key::Shift, Direction::Release)?;
+        typed
+    } else {
+        enigo.key(Key::Unicode(c), Direction::Click)
     }
 }

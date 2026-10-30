@@ -19,6 +19,9 @@ base64             = "0.23"
 chrono             = { version = "0.4", features = ["serde"] }
 clap               = { version = "4", features = ["derive"] }
 dioxus             = { version = "=0.8.0-alpha.3", default-features = false }
+dioxus-icons       = "=0.2.0-alpha.3"
+dioxus-primitives  = { git = "https://github.com/DioxusLabs/components", rev = "6b4a1488", default-features = false }
+dioxus-ssr         = "=0.8.0-alpha.3"
 dirs               = "7"
 enigo              = "0.6"
 open               = "5"
@@ -30,6 +33,7 @@ serde_json         = "1"
 sha2               = { version = "0.11", features = ["oid"] }
 tempfile           = "3"
 thiserror          = "2"
+time               = "0.3.44"
 tokio              = { version = "1", features = ["rt-multi-thread", "macros"] }
 toml               = "1.1"
 tracing            = "0.1"

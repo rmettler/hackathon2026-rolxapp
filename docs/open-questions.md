@@ -39,6 +39,8 @@ applied and noted here, and all questions are asked at the end.
 | M6 | `apps/desktop/Dioxus.toml` points `dx` at the Tailwind files of `rolx-ui`. `cargo xtask tailwind` runs the binary `dx` installed (v4.1.5) with the same arguments, so both give the same CSS. |
 | M6 | Additions to the plan: `cargo xtask tailwind` (needed by the freshness gate) and `cargo xtask input scroll` (needed by M7). `input click` positions are physical pixels on the primary monitor. |
 | M6 | The window title stays "Dioxus App" until the app shell gets its window configuration (M8–M11); GUI checks use that title meanwhile. |
+| M7 | **Blitz spike passed: `apps/desktop` stays on Dioxus Native**, with five workarounds (`docs/blitz-spike.md`). Main remaining risk: a stylesheet arriving during a hover or focus change can crash Blitz, so all are loaded at startup (`StylePreload`); a small window while they load remains and is worth reporting upstream. |
+| M7 | Plan deviation: components were copied from the pinned rev by hand, because `dx components add` has no package option and its git client has no TLS here (`src/components/README.md`). The plan's `dioxus-primitives` and `dioxus-icons` pins are kept; no `[patch]` was needed. |
 
 ## Manual verification checklist
 
@@ -55,3 +57,4 @@ Minor findings from the per-milestone reviews that were deliberately not fixed.
 - M1: `secret-scan` has no automated test for its fail-closed paths (git failure, unreadable untracked file, unparsable config or session) or for scanning real untracked files. Those need a git repo and real files; the untracked-file detection was verified by manual probes only.
 - M3: `rolx-mock` answers a reversed date range with `200 []`, while the real `DateRange` throws, and sends a weekday as `dayName`, while the real server sends a rule name. No client reads or sends these.
 - M4: `DateRange::day` panics on the last date chrono can represent (year 262142), as the old CLI code did. Transport and JSON errors of `records` now carry an `HTTP error:` / `JSON error:` prefix.
+- M7: the scripted GUI run (coordinates and steps) is not committed, so `docs/blitz-spike.md` cannot be repeated exactly. `cargo xtask input type` handles ASCII capitals with Shift; other characters needing Shift were not tested.
