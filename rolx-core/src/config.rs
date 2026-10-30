@@ -31,6 +31,17 @@ impl AppConfig {
     pub fn from_toml(text: &str) -> Result<Self> {
         Ok(toml::from_str(text)?)
     }
+
+    /// Like [`AppConfig::load`], but the `ROLX_SERVER` environment variable overrides `server_url`.
+    pub fn load_with_env() -> Result<Self> {
+        let mut config = Self::load()?;
+        if let Ok(url) = std::env::var("ROLX_SERVER")
+            && !url.trim().is_empty()
+        {
+            config.server_url = url;
+        }
+        Ok(config)
+    }
 }
 
 pub fn config_path() -> Result<PathBuf> {

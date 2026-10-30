@@ -12,14 +12,88 @@ button.secondary { background: #8a92a6; }
 button:disabled { opacity: 0.5; cursor: default; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #e3e6ee; }
+th { white-space: nowrap; }
+td.comment { overflow-wrap: anywhere; }
+td.activity { white-space: nowrap; }
 td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 tr.total td { font-weight: 700; border-bottom: 0; }
 .error { color: #d6336c; }
 .empty { text-align: center; opacity: 0.7; padding: 16px 0; }
+.stamp { text-align: center; }
+.timer { font-size: 3rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+.timer.paused { opacity: 0.45; }
+.status { opacity: 0.8; margin: 4px 0 12px; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 12px; }
+.controls input, .controls select { padding: 8px 10px; border-radius: 8px; border: 1px solid #c9ceda; font-size: 0.95rem; background: transparent; color: inherit; min-width: 0; }
+.controls input { flex: 1 1 200px; }
+.controls select { flex: 1 1 220px; }
+button.danger { background: #d6336c; }
+button.ok { background: #2f9e44; }
+.muted { opacity: 0.7; font-size: 0.9rem; margin-top: 10px; }
+.warn { color: #e67700; }
+
+.picker { margin-top: 8px; position: relative; text-align: left; min-width: 0; max-width: 100%; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 8px; }
+.chip { background: transparent; color: inherit; border: 1px solid #8a92a6; border-radius: 999px; padding: 4px 12px; font-size: 0.85rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip.on { background: #3b6cf6; border-color: #3b6cf6; color: #fff; }
+.trigger-row { display: flex; gap: 6px; min-width: 0; }
+.trigger { flex: 1 1 0; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clear { flex: 0 0 auto; }
+.backdrop { position: fixed; inset: 0; z-index: 9; }
+.popover { position: absolute; z-index: 10; left: 0; right: 0; top: 100%; margin-top: 4px; background: #fff; color: #1d2330; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.35); padding: 8px; }
+.popover input { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #c9ceda; font-size: 0.95rem; }
+.options { max-height: 300px; overflow-y: auto; margin-top: 6px; }
+.group { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; padding: 8px 6px 2px; }
+.opt { display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 6px; cursor: pointer; }
+.opt span { min-width: 0; overflow-wrap: anywhere; }
+.opt:hover, .opt.cur { background: #e8eefc; }
+.opt.sel { font-weight: 600; }
+.star { background: transparent; color: #8a92a6; padding: 0 4px; font-size: 1.1rem; }
+.star.on { color: #f59f00; }
+.queue { text-align: left; margin-top: 8px; }
+.popover-foot { display: flex; justify-content: space-between; align-items: center; padding: 6px 2px 0; border-top: 1px solid #e3e6ee; margin-top: 6px; }
+.popover-foot button { padding: 3px 10px; font-size: 0.85rem; }
+.queue-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #e3e6ee; font-size: 0.9rem; }
+tr.queued td { opacity: 0.65; font-style: italic; }
+tr.editing > td { background: rgba(59,108,246,.08); max-width: 0; }
+td.actions { white-space: nowrap; text-align: right; }
+td.actions button, .issue button, .queue button { padding: 3px 10px; font-size: 0.85rem; }
+.issues { margin-top: 12px; text-align: left; font-size: 0.92rem; }
+.issue { padding: 4px 0; display: flex; gap: 10px; align-items: center; }
+.conflict { border: 1px solid #e67700; border-radius: 8px; padding: 8px 12px; margin-top: 10px; text-align: left; }
+.controls label { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.controls input.short { flex: 0 0 4.5rem; width: 4.5rem; }
+.queue-row span { min-width: 0; overflow-wrap: anywhere; }
+
+.week-toolbar { display: flex; justify-content: flex-end; }
+.week-head { margin-top: -26px; }
+.week-numbers { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.week-numbers .big { font-size: 1.8rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.week-numbers .left { margin-left: auto; font-weight: 600; color: #2f9e44; }
+.week-numbers .left.over { color: #e67700; }
+.progress { height: 10px; border-radius: 999px; background: rgba(138,146,166,.25); overflow: hidden; margin-top: 8px; }
+.progress .fill { height: 100%; background: #3b6cf6; border-radius: 999px; }
+.progress .fill.over { background: #e67700; }
+.chart { display: flex; gap: 8px; margin-top: 16px; }
+.chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.chart .bars { position: relative; width: 100%; height: 140px; display: flex; flex-direction: column-reverse; background: rgba(138,146,166,.12); border-radius: 6px; overflow: hidden; }
+.chart .seg { width: 100%; }
+.chart .target { position: absolute; left: 0; right: 0; border-top: 2px dashed rgba(230,119,0,.9); }
+.chart .lbl { font-size: 0.8rem; margin-top: 4px; opacity: 0.8; }
+.chart .val { font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.chart .col.sel .lbl { font-weight: 700; opacity: 1; }
+.chart .col.sel .bars { outline: 2px solid #3b6cf6; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 0.85rem; }
+.legend-item { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.legend .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: 0 0 auto; }
 
 /* Must stay last so it overrides the light defaults above. */
 @media (prefers-color-scheme: dark) {
   body { background: #161a22; color: #e6e9ef; }
   .card { background: #1f2430; }
   th, td { border-color: #2d3444; }
+  .popover { background: #262c3a; color: #e6e9ef; }
+  .popover input { background: #1b202b; color: #e6e9ef; border-color: #3a4256; }
+  .opt:hover, .opt.cur { background: #333b4f; }
+  .queue-row { border-color: #2d3444; }
 }
