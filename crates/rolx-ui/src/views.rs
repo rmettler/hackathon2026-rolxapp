@@ -12,4 +12,4 @@ pub use login::LoginView;
 pub use login::{LoginPhase, LoginStatus};
 pub use settings::SettingsView;
 #[cfg(test)]
-pub use settings::{Reachability, check_server};
+pub use settings::{Reachability, ServerChange, change_server, check_server};

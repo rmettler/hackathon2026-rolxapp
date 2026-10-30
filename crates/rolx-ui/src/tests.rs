@@ -12,19 +12,26 @@ use rolx_core::store::{SessionStore, StoreError};
 use crate::day_model::{LoadError, fresh_session, load_day};
 use crate::state::tests::session_expiring_in;
 use crate::state::{AppState, Route};
-use crate::views::{LoginPhase, LoginStatus, Reachability, check_server, end_session, log_out};
+use crate::views::{
+    LoginPhase, LoginStatus, Reachability, ServerChange, change_server, check_server, end_session,
+    log_out,
+};
 use crate::{App, LoginFuture, LoginMethod, LoginPrompt, Platform, PlatformHandle};
 
 struct FakePlatform {
     session: RefCell<Option<Session>>,
-    server_url: String,
+    server_url: RefCell<String>,
+    can_change_server: bool,
+    fail_set_server: bool,
 }
 
 impl FakePlatform {
     fn new(session: Option<Session>) -> Self {
         Self {
             session: RefCell::new(session),
-            server_url: "http://127.0.0.1:1".to_string(),
+            server_url: RefCell::new("http://127.0.0.1:1".to_string()),
+            can_change_server: false,
+            fail_set_server: false,
         }
     }
 }
@@ -51,7 +58,19 @@ impl Platform for FakePlatform {
     }
 
     fn server_url(&self) -> Option<String> {
-        Some(self.server_url.clone())
+        Some(self.server_url.borrow().clone())
+    }
+
+    fn can_change_server(&self) -> bool {
+        self.can_change_server
+    }
+
+    fn set_server_url(&self, url: &str) -> Result<(), String> {
+        if self.fail_set_server {
+            return Err("cannot save".to_string());
+        }
+        *self.server_url.borrow_mut() = url.to_string();
+        Ok(())
     }
 
     fn config_location(&self) -> Option<String> {
@@ -120,11 +139,15 @@ fn with_an_expired_session_the_login_shows() {
     assert!(html.contains("Sign in with browser"), "{html}");
 }
 
-#[test]
-fn settings_show_the_server() {
+fn render_settings(can_change_server: bool) -> String {
     #[component]
-    fn Root() -> Element {
-        use_context_provider(|| PlatformHandle::new(FakePlatform::new(None)));
+    fn Root(can_change_server: bool) -> Element {
+        use_context_provider(|| {
+            PlatformHandle::new(FakePlatform {
+                can_change_server,
+                ..FakePlatform::new(None)
+            })
+        });
         use_context_provider(|| AppState {
             route: Signal::new(Route::Settings),
             session: Signal::new(None),
@@ -132,17 +155,92 @@ fn settings_show_the_server() {
         rsx! { crate::views::SettingsView {} }
     }
 
-    let mut dom = VirtualDom::new(Root);
+    let mut dom = VirtualDom::new_with_props(Root, RootProps { can_change_server });
     dom.rebuild_in_place();
-    let html = dioxus_ssr::render(&dom);
+    dioxus_ssr::render(&dom)
+}
 
+#[test]
+fn settings_show_the_server() {
+    let html = render_settings(false);
     assert!(html.contains("Server: http://127.0.0.1:1"), "{html}");
+}
+
+#[test]
+fn the_server_form_shows_only_where_the_platform_allows_it() {
+    assert!(!render_settings(false).contains("save-server"));
+    assert!(render_settings(true).contains("save-server"));
+}
+
+fn platform_with_session() -> PlatformHandle {
+    PlatformHandle::new(FakePlatform::new(Some(valid_mock_session())))
+}
+
+#[test]
+fn a_new_server_ends_the_session_before_it_can_receive_the_token() {
+    let platform = platform_with_session();
+
+    let change = change_server(&platform, "https://other.invalid/");
+
+    assert!(change.session_ended);
+    assert_eq!(change.error, None);
+    assert!(platform.session_store().load().unwrap().is_none());
+    assert_eq!(
+        platform.server_url().as_deref(),
+        Some("https://other.invalid")
+    );
+}
+
+#[test]
+fn a_new_server_ends_a_session_held_only_in_memory() {
+    // The store is empty, as after an earlier failure, but the app may still hold a session.
+    let platform = PlatformHandle::new(FakePlatform::new(None));
+
+    let change = change_server(&platform, "https://other.invalid");
+
+    assert!(change.session_ended);
+}
+
+#[test]
+fn saving_the_current_server_keeps_the_session() {
+    let platform = platform_with_session();
+
+    let change = change_server(&platform, "http://127.0.0.1:1/");
+
+    assert_eq!(change, ServerChange::default());
+    assert!(platform.session_store().load().unwrap().is_some());
+}
+
+#[test]
+fn an_invalid_server_changes_nothing() {
+    let platform = platform_with_session();
+
+    let change = change_server(&platform, "not a url");
+
+    assert!(change.error.is_some());
+    assert!(!change.session_ended);
+    assert!(platform.session_store().load().unwrap().is_some());
+    assert_eq!(platform.server_url().as_deref(), Some("http://127.0.0.1:1"));
+}
+
+#[test]
+fn a_server_that_cannot_be_saved_still_ends_the_session_and_reports_the_error() {
+    let platform = PlatformHandle::new(FakePlatform {
+        fail_set_server: true,
+        ..FakePlatform::new(Some(valid_mock_session()))
+    });
+
+    let change = change_server(&platform, "https://other.invalid");
+
+    assert!(change.session_ended);
+    assert_eq!(change.error.as_deref(), Some("cannot save"));
+    assert_eq!(platform.server_url().as_deref(), Some("http://127.0.0.1:1"));
 }
 
 fn platform_on(server_url: &str) -> PlatformHandle {
     PlatformHandle::new(FakePlatform {
-        session: RefCell::new(None),
-        server_url: server_url.to_string(),
+        server_url: RefCell::new(server_url.to_string()),
+        ..FakePlatform::new(None)
     })
 }
 

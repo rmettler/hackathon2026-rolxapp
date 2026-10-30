@@ -11,6 +11,6 @@ fn main() {
 
 #[component]
 fn Root() -> Element {
-    let platform = use_hook(|| PlatformHandle::new(AndroidPlatform::default()));
+    let platform = use_hook(|| PlatformHandle::new(AndroidPlatform::load()));
     rsx! { App { platform } }
 }

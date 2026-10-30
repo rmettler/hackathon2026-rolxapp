@@ -280,6 +280,9 @@
   .text-slate-900 {
     color: var(--color-slate-900);
   }
+  .capitalize {
+    text-transform: capitalize;
+  }
   .outline {
     outline-style: var(--tw-outline-style);
     outline-width: 1px;

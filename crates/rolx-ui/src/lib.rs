@@ -13,7 +13,9 @@ mod views;
 
 use dioxus::prelude::*;
 
-pub use platform::{LoginFuture, LoginMethod, LoginPrompt, Platform, PlatformHandle};
+pub use platform::{
+    LoginFuture, LoginMethod, LoginPrompt, Platform, PlatformHandle, normalize_server_url,
+};
 use state::{AppState, Route};
 
 const TAILWIND: Asset = asset!("/assets/tailwind.css");
