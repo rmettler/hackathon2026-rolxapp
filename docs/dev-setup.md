@@ -155,6 +155,37 @@ and removed afterwards; if a build is killed, the next one cleans it up, but don
 As noted under *Config* above, the APK contains the embedded config with the Google client
 secrets: share it within the team only.
 
+### Native features
+
+`rolx-mobile/src/native.rs` adds what a phone app needs beyond the web view; the JNI calls are in
+`src/android.rs` (no Kotlin or Java), and on other targets everything is a no-op:
+
+- **Stamped-in notification.** `use_native_stamp_sync(app.stamp_state)` (called once in the root
+  component) keeps an ongoing, silent notification in line with the stamp state: "Stamped in since
+  08:12" with the activity and a timer the system keeps running without the app; "On break since …"
+  without a timer; removed when stamped out. It also runs at start, so it is back after the app was
+  killed. Tapping it opens the app. Channel "Stamped in" (low importance), icon
+  `ic_rolx_notification` in the `launcher-icon` module.
+- **Notification permission** (Android 13+, `POST_NOTIFICATIONS`): asked once per app start, at the
+  first stamp-in (or at start when stamped in). Without it nothing is posted; once granted (within
+  two minutes) the notification appears within a second.
+- **Vibration**: a short pulse on stamp-in, a double pulse on stamp-out (not at start).
+- **Share sheet**: `share_text(subject, text)` opens Android's chooser; `day_share` and
+  `week_share` build the texts for a day and a week.
+
+To check them on an emulator, besides looking at the shade:
+
+```sh
+adb shell dumpsys notification --noredact | grep -A40 pkg=ch.cudos.RolxMobile   # title, text, showChronometer, when
+adb shell dumpsys vibrator_manager | grep -A8 "Recent vibrations"
+adb shell cmd statusbar expand-notifications                                 # open the shade
+adb shell pm revoke ch.cudos.RolxMobile android.permission.POST_NOTIFICATIONS   # kills the app
+adb shell pm clear-permission-flags ch.cudos.RolxMobile android.permission.POST_NOTIFICATIONS user-set user-fixed  # ask again
+```
+
+Android 14+ lets the user swipe an ongoing notification away; it comes back with the next stamp
+action or app start. A force-stop removes it too, until the app is started again.
+
 ### Troubleshooting
 
 | Problem                                                    | Fix                                                                                                                 |

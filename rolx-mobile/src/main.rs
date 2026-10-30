@@ -1,5 +1,6 @@
 #[cfg(target_os = "android")]
 mod android;
+mod native;
 
 use anyhow::bail;
 use chrono::{Duration, Local};

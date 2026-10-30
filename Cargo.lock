@@ -4726,6 +4726,7 @@ dependencies = [
  "rolx-core",
  "rolx-ui",
  "serde",
+ "tokio",
 ]
 
 [[package]]

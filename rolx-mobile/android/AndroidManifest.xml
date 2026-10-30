@@ -8,6 +8,10 @@
     <!-- Lets the web view report `navigator.onLine` and the `online`/`offline` events (the app's offline status). -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The "stamped in" notification, see src/native.rs; Android 13+ asks the user at the first stamp-in. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The vibration when stamping in and out (granted at install). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- `ic_rolx` comes from the `launcher-icon` plugin module, see src/android.rs. A DayNight theme instead of dx's
          light `AppTheme`: the web view reports `prefers-color-scheme: dark` only if the app's theme is dark. -->
