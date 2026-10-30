@@ -1,4 +1,10 @@
+pub mod activities;
 pub mod config;
+pub mod entry;
+pub mod favourite;
 pub mod logout;
+pub mod pick;
 pub mod records;
+pub mod stamp;
+pub mod sync;
 pub mod whoami;

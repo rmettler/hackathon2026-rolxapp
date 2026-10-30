@@ -22,5 +22,8 @@ tracing            = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 urlencoding        = "2"
 
+[dev-dependencies]
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt", "time"] }
+
 [features]
 uncensored_logs = []

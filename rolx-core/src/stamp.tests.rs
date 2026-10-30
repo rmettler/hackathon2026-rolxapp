@@ -1,0 +1,215 @@
+use super::*;
+
+fn at(day: u32, h: u32, m: u32, s: u32) -> NaiveDateTime {
+    NaiveDate::from_ymd_opt(2026, 10, day)
+        .unwrap()
+        .and_hms_opt(h, m, s)
+        .unwrap()
+}
+
+fn act(id: i32) -> ActivityRef {
+    ActivityRef {
+        id,
+        full_number: format!("A-{id}"),
+    }
+}
+
+#[test]
+fn stamp_in_and_out_creates_one_entry() {
+    let mut s = StampState::default();
+    assert_eq!(s.stamp_in(at(30, 9, 0, 0), Some(act(1)), None), 0);
+    assert_eq!(s.stamp_out(at(30, 12, 30, 0)), Ok(1));
+
+    assert!(s.open.is_none());
+    assert_eq!(
+        s.pending,
+        vec![PendingEntry {
+            date: at(30, 0, 0, 0).date(),
+            begin: 9 * 3600,
+            duration: 3 * 3600 + 1800,
+            pause: 0,
+            activity: Some(act(1)),
+            comment: None,
+        }]
+    );
+}
+
+#[test]
+fn stamp_out_without_stamp_in_fails() {
+    let mut s = StampState::default();
+    assert_eq!(s.stamp_out(at(30, 9, 0, 0)), Err(StampError::NotStampedIn));
+}
+
+#[test]
+fn stamp_in_while_stamped_in_closes_previous_session() {
+    let mut s = StampState::default();
+    s.stamp_in(at(30, 9, 0, 0), Some(act(1)), None);
+    assert_eq!(s.stamp_in(at(30, 11, 0, 0), Some(act(2)), None), 1);
+
+    assert_eq!(s.pending.len(), 1);
+    assert_eq!(s.pending[0].duration, 2 * 3600);
+    assert_eq!(s.open.as_ref().unwrap().start, at(30, 11, 0, 0));
+}
+
+#[test]
+fn break_is_subtracted_and_reported_as_pause() {
+    let mut s = StampState::default();
+    s.stamp_in(at(30, 8, 0, 0), Some(act(1)), None);
+    s.start_break(at(30, 12, 0, 0)).unwrap();
+    s.end_break(at(30, 12, 45, 0)).unwrap();
+    s.stamp_out(at(30, 17, 0, 0)).unwrap();
+
+    let e = &s.pending[0];
+    assert_eq!(e.begin, 8 * 3600);
+    assert_eq!(e.pause, 45 * 60);
+    assert_eq!(e.duration, 9 * 3600 - 45 * 60);
+}
+
+#[test]
+fn stamp_out_during_break_ends_the_break_first() {
+    let mut s = StampState::default();
+    s.stamp_in(at(30, 8, 0, 0), Some(act(1)), None);
+    s.start_break(at(30, 16, 0, 0)).unwrap();
+    s.stamp_out(at(30, 16, 30, 0)).unwrap();
+
+    let e = &s.pending[0];
+    assert_eq!(e.pause, 30 * 60);
+    assert_eq!(e.duration, 8 * 3600);
+}
+
+#[test]
+fn break_state_errors() {
+    let mut s = StampState::default();
+    assert_eq!(
+        s.start_break(at(30, 9, 0, 0)),
+        Err(StampError::NotStampedIn)
+    );
+    s.stamp_in(at(30, 9, 0, 0), None, None);
+    assert_eq!(s.end_break(at(30, 9, 5, 0)), Err(StampError::NotOnBreak));
+    s.start_break(at(30, 9, 10, 0)).unwrap();
+    assert_eq!(
+        s.start_break(at(30, 9, 11, 0)),
+        Err(StampError::AlreadyOnBreak)
+    );
+}
+
+#[test]
+fn switch_closes_and_continues_with_new_activity() {
+    let mut s = StampState::default();
+    assert_eq!(
+        s.switch(at(30, 9, 0, 0), Some(act(2)), None),
+        Err(StampError::NotStampedIn)
+    );
+
+    s.stamp_in(at(30, 9, 0, 0), Some(act(1)), None);
+    assert_eq!(s.switch(at(30, 10, 0, 0), Some(act(2)), None), Ok(1));
+    s.stamp_out(at(30, 11, 0, 0)).unwrap();
+
+    let activities: Vec<_> = s.pending.iter().map(|e| e.activity.clone()).collect();
+    assert_eq!(activities, vec![Some(act(1)), Some(act(2))]);
+}
+
+#[test]
+fn session_over_midnight_is_split_per_day() {
+    let mut s = StampState::default();
+    s.stamp_in(at(30, 22, 0, 0), Some(act(1)), None);
+    s.stamp_out(at(31, 2, 0, 0)).unwrap();
+
+    assert_eq!(s.pending.len(), 2);
+    assert_eq!(s.pending[0].date, at(30, 0, 0, 0).date());
+    assert_eq!(s.pending[0].begin, 22 * 3600);
+    assert_eq!(s.pending[0].duration, 2 * 3600);
+    assert_eq!(s.pending[1].date, at(31, 0, 0, 0).date());
+    assert_eq!(s.pending[1].begin, 0);
+    assert_eq!(s.pending[1].duration, 2 * 3600);
+}
+
+#[test]
+fn zero_length_session_creates_no_entry() {
+    let mut s = StampState::default();
+    s.stamp_in(at(30, 9, 0, 0), Some(act(1)), None);
+    assert_eq!(s.stamp_out(at(30, 9, 0, 0)), Ok(0));
+    assert!(s.pending.is_empty());
+}
+
+#[test]
+fn unassigned_entries_can_be_assigned_later() {
+    let mut s = StampState::default();
+    s.stamp_in(at(30, 9, 0, 0), None, None);
+    s.stamp_out(at(30, 10, 0, 0)).unwrap();
+    s.stamp_in(at(30, 11, 0, 0), None, None);
+    assert_eq!(s.unassigned_count(), 1);
+
+    assert_eq!(s.assign_unassigned(&act(7), at(30, 12, 0, 0)), 2);
+    assert_eq!(s.unassigned_count(), 0);
+    assert_eq!(s.open.as_ref().unwrap().activity, Some(act(7)));
+}
+
+#[test]
+fn usage_counts_and_remembers_the_last_use() {
+    let mut s = StampState::default();
+    s.stamp_in(at(30, 9, 0, 0), Some(act(1)), None);
+    s.switch(at(30, 10, 0, 0), Some(act(2)), None).unwrap();
+    s.switch(at(30, 11, 0, 0), Some(act(1)), None).unwrap();
+    s.stamp_in(at(30, 12, 0, 0), None, None);
+
+    assert_eq!(s.usage[&1].count, 2);
+    assert_eq!(s.usage[&1].last_used, at(30, 11, 0, 0));
+    assert_eq!(s.usage[&2].count, 1);
+    assert_eq!(
+        s.usage.len(),
+        2,
+        "sessions without activity are not counted"
+    );
+}
+
+#[test]
+fn queued_entry_can_be_removed() {
+    let mut s = StampState::default();
+    s.stamp_in(at(30, 9, 0, 0), None, None);
+    s.stamp_out(at(30, 10, 0, 0)).unwrap();
+    let entry = s.pending[0].clone();
+
+    assert!(s.remove_pending(&entry));
+    assert!(s.pending.is_empty());
+    assert!(!s.remove_pending(&entry), "already gone");
+}
+
+#[test]
+fn status_reports_worked_time_without_breaks() {
+    let mut s = StampState::default();
+    assert_eq!(s.status(at(30, 9, 0, 0)), Status::StampedOut);
+
+    s.stamp_in(at(30, 8, 0, 0), Some(act(1)), None);
+    s.start_break(at(30, 9, 0, 0)).unwrap();
+    match s.status(at(30, 9, 30, 0)) {
+        Status::StampedIn {
+            on_break, worked, ..
+        } => {
+            assert!(on_break);
+            assert_eq!(worked, Duration::hours(1));
+        }
+        other => panic!("unexpected status {other:?}"),
+    }
+}
+
+#[test]
+fn state_survives_a_save_and_load_round_trip() {
+    let path = std::env::temp_dir().join(format!("rolx-stamp-test-{}.json", std::process::id()));
+    let mut s = StampState::default();
+    s.stamp_in(at(30, 9, 0, 0), Some(act(1)), Some("fix bug".into()));
+    s.stamp_out(at(30, 10, 0, 0)).unwrap();
+    s.stamp_in(at(30, 11, 0, 0), None, None);
+
+    s.save_to(&path).unwrap();
+    let loaded = StampState::load_from(&path).unwrap();
+    std::fs::remove_file(&path).unwrap();
+
+    assert_eq!(loaded, s);
+}
+
+#[test]
+fn missing_file_loads_as_empty_state() {
+    let path = std::env::temp_dir().join("rolx-stamp-test-does-not-exist.json");
+    assert_eq!(StampState::load_from(&path).unwrap(), StampState::default());
+}

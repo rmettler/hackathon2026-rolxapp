@@ -41,6 +41,35 @@ async fn run() -> anyhow::Result<()> {
             ConfigCommand::Ls => commands::config::ls(),
             ConfigCommand::Path => commands::config::path(),
         },
+        Command::Stamp { command } => commands::stamp::run(command),
+        Command::Sync => {
+            let config = load_config(cli.server)?;
+            commands::sync::run(&config).await
+        }
+        Command::Activities {
+            words,
+            favourites,
+            recent,
+            refresh,
+        } => {
+            if refresh {
+                let config = load_config(cli.server)?;
+                let client = RolxClient::new(&config).await?;
+                let loaded =
+                    rolx_core::activities::refresh(&client, chrono::Local::now().date_naive())
+                        .await?;
+                println!("Loaded {} activities", loaded.len());
+            }
+            commands::activities::run(words, favourites, recent)
+        }
+        Command::Favourite { activity, remove } => {
+            let config = load_config(cli.server)?;
+            commands::favourite::run(&config, activity, remove).await
+        }
+        Command::Entry { command } => {
+            let config = load_config(cli.server)?;
+            commands::entry::run(&config, command).await
+        }
     }
 }
 

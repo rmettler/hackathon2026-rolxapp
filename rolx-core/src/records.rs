@@ -1,61 +1,48 @@
-use anyhow::bail;
+use anyhow::anyhow;
 use chrono::{Duration, NaiveDate};
-use serde::Deserialize;
+use serde_json::Value;
 
 use crate::client::RolxClient;
-
-fn duration_from_seconds<'de, D: serde::Deserializer<'de>>(
-    d: D,
-) -> std::result::Result<Duration, D::Error> {
-    Ok(Duration::seconds(i64::deserialize(d)?))
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RecordEntry {
-    pub full_activity_number: String,
-    #[serde(deserialize_with = "duration_from_seconds")]
-    pub duration: Duration,
-    pub comment: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Record {
-    pub entries: Vec<RecordEntry>,
-}
 
 /// Formats a duration as `h:mm`.
 pub fn fmt_duration(d: Duration) -> String {
     format!("{}:{:02}", d.num_hours(), d.num_minutes() % 60)
 }
 
-/// Fetches the work entries of the logged-in user for a single day.
-pub async fn fetch_day(client: &RolxClient, day: NaiveDate) -> anyhow::Result<Vec<RecordEntry>> {
-    let url = format!(
-        "{}/api/v1/WorkRecord/{}/range/{}..{}",
-        client.server_url,
+fn day_range_path(client: &RolxClient, day: NaiveDate) -> String {
+    format!(
+        "api/v1/WorkRecord/{}/range/{}..{}",
         client.session.user_id,
         day.format("%Y-%m-%d"),
         (day + Duration::days(1)).format("%Y-%m-%d"),
-    );
-    tracing::debug!(method = "GET", url, "HTTP request");
-    let resp = client
-        .http
-        .get(&url)
-        .bearer_auth(client.session.bearer_token.as_str())
-        .send()
-        .await?;
+    )
+}
 
-    let status = resp.status();
-    let body = resp.text().await?;
-    // TODO redact body?
-    tracing::debug!(status = status.as_u16(), body, "HTTP response");
+/// Fetches the complete record of a day as the server sent it. The server replaces the whole
+/// record on update, so edits must start from this and send everything back.
+pub async fn fetch_day_record(client: &RolxClient, day: NaiveDate) -> anyhow::Result<Value> {
+    let date = day.format("%Y-%m-%d").to_string();
+    let records: Vec<Value> = client.get_json(&day_range_path(client, day)).await?;
+    records
+        .into_iter()
+        .find(|r| r["date"] == date.as_str())
+        .ok_or_else(|| anyhow!("server returned no record for {date}"))
+}
 
-    if !status.is_success() {
-        bail!("HTTP {status}");
-    }
-
-    let records: Vec<Record> = serde_json::from_str(&body)?;
-    Ok(records.into_iter().flat_map(|r| r.entries).collect())
+/// Replaces the record of a day with `record` (as obtained from [`fetch_day_record`]).
+pub async fn update_day_record(
+    client: &RolxClient,
+    day: NaiveDate,
+    record: &Value,
+) -> anyhow::Result<()> {
+    client
+        .put_json(
+            &format!(
+                "api/v1/WorkRecord/{}/{}",
+                client.session.user_id,
+                day.format("%Y-%m-%d")
+            ),
+            record,
+        )
+        .await
 }

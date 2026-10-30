@@ -1,11 +1,19 @@
 use chrono::{Duration, Local, NaiveDate};
 use dioxus::desktop::{Config, WindowBuilder};
 use dioxus::prelude::*;
-use rolx_core::client::RolxClient;
+use rolx_core::activities::{self, Activity};
 use rolx_core::config::AppConfig;
+use rolx_core::dayedit::load_day as load_day_entries;
+use rolx_core::dayplan::DayEntry;
 use rolx_core::login::{self, AuthFlow};
-use rolx_core::records::{self, RecordEntry, fmt_duration};
-use rolx_core::session::{LoadError, Session};
+use rolx_core::stamp::StampState;
+
+mod activity_picker;
+mod day_view;
+mod shared;
+mod stamp_panel;
+use day_view::DayView;
+use stamp_panel::StampPanel;
 
 const CSS: &str = include_str!("style.css");
 
@@ -21,28 +29,25 @@ enum Loaded {
     NeedsLogin,
     Day {
         user: String,
-        entries: Vec<RecordEntry>,
+        entries: Vec<DayEntry>,
     },
 }
 
 async fn load_day(day: NaiveDate) -> anyhow::Result<Loaded> {
-    match Session::load() {
-        Err(LoadError::NoSession) => return Ok(Loaded::NeedsLogin),
-        Ok(session) if session.is_expired() => return Ok(Loaded::NeedsLogin),
-        _ => {}
+    if !shared::has_session() {
+        return Ok(Loaded::NeedsLogin);
     }
-    let config = AppConfig::load()?;
-    let client = RolxClient::new(&config).await?;
+    let client = shared::client().await?;
     let user = format!(
         "{} {}",
         client.session.user_first_name, client.session.user_last_name
     );
-    let entries = records::fetch_day(&client, day).await?;
+    let entries = load_day_entries(&client, day).await?;
     Ok(Loaded::Day { user, entries })
 }
 
 async fn log_in() -> anyhow::Result<()> {
-    let config = AppConfig::load()?;
+    let config = AppConfig::load_with_env()?;
     login::run(&config, AuthFlow::NativeApp).await?;
     Ok(())
 }
@@ -52,19 +57,60 @@ fn App() -> Element {
     let mut day = use_signal(|| Local::now().date_naive());
     let mut refresh = use_signal(|| 0u32);
     let mut login_busy = use_signal(|| false);
-    let mut login_error = use_signal(|| None::<String>);
+    let mut notice = use_signal(|| None::<String>);
+
+    let stamp_state = use_signal(|| StampState::load().unwrap_or_default());
+    let mut activities = use_signal(|| activities::load_cached().unwrap_or_default());
+    let selected = use_signal(|| None::<i32>);
 
     let loaded = use_resource(move || async move {
         refresh();
         load_day(day()).await
     });
 
+    let on_favourite = move |(id, favourite): (i32, bool)| {
+        let found = activities.read().iter().find(|a| a.id == id).cloned();
+        let Some(activity): Option<Activity> = found else {
+            return;
+        };
+        spawn(async move {
+            match shared::set_favourite(activity, favourite).await {
+                Ok(()) => {
+                    notice.set(None);
+                    activities.set(activities::load_cached().unwrap_or_default());
+                }
+                Err(e) => notice.set(Some(format!("Could not change the favourite: {e}"))),
+            }
+        });
+    };
+
+    let on_reload = move |_| {
+        spawn(async move {
+            match shared::reload_activities().await {
+                Ok(list) => {
+                    notice.set(None);
+                    activities.set(list);
+                }
+                Err(e) => notice.set(Some(format!("Could not reload the activities: {e}"))),
+            }
+        });
+    };
+
+    // Keep the list complete without the user having to ask: once at start, if logged in.
+    use_future(move || async move {
+        if shared::has_session()
+            && let Ok(list) = shared::reload_activities().await
+        {
+            activities.set(list);
+        }
+    });
+
     let on_login = move |_| {
         spawn(async move {
             login_busy.set(true);
-            login_error.set(None);
+            notice.set(None);
             if let Err(e) = log_in().await {
-                login_error.set(Some(e.to_string()));
+                notice.set(Some(e.to_string()));
             }
             login_busy.set(false);
             refresh += 1;
@@ -72,8 +118,8 @@ fn App() -> Element {
     };
 
     let on_logout = move |_| {
-        if let Err(e) = Session::delete() {
-            login_error.set(Some(e.to_string()));
+        if let Err(e) = rolx_core::session::Session::delete() {
+            notice.set(Some(e.to_string()));
         }
         refresh += 1;
     };
@@ -90,17 +136,6 @@ fn App() -> Element {
             }
         },
         Some(Ok(Loaded::Day { user, entries })) => {
-            let rows: Vec<_> = entries
-                .iter()
-                .map(|e| {
-                    (
-                        e.full_activity_number.clone(),
-                        fmt_duration(e.duration),
-                        e.comment.clone().unwrap_or_default(),
-                    )
-                })
-                .collect();
-            let total = fmt_duration(entries.iter().map(|e| e.duration).sum::<Duration>());
             let date_label = day().format("%a %d.%m.%Y").to_string();
             rsx! {
                 p { class: "user", "Signed in as {user}" }
@@ -111,23 +146,16 @@ fn App() -> Element {
                     button { class: "secondary", onclick: move |_| day.set(Local::now().date_naive()), "Today" }
                     button { onclick: move |_| refresh += 1, "Refresh" }
                 }
-                div { class: "card",
-                    if rows.is_empty() {
-                        p { class: "empty", "No entries for this day." }
-                    } else {
-                        table {
-                            thead { tr { th { "Activity" } th { "Time" } th { "Comment" } } }
-                            tbody {
-                                for (activity, time, comment) in rows {
-                                    tr {
-                                        td { "{activity}" }
-                                        td { class: "num", "{time}" }
-                                        td { "{comment}" }
-                                    }
-                                }
-                                tr { class: "total", td { "Total" } td { class: "num", "{total}" } td {} }
-                            }
-                        }
+                for d in [day()] {
+                    DayView {
+                        key: "{d}",
+                        day: d,
+                        entries: entries.clone(),
+                        state: stamp_state,
+                        activities,
+                        on_favourite,
+                        on_reload,
+                        on_changed: move |_| refresh += 1,
                     }
                 }
             }
@@ -145,8 +173,16 @@ fn App() -> Element {
                     button { class: "secondary", onclick: on_logout, "Log out" }
                 }
             }
-            if let Some(e) = login_error() {
+            if let Some(e) = notice() {
                 p { class: "error", "{e}" }
+            }
+            StampPanel {
+                state: stamp_state,
+                activities,
+                selected,
+                on_uploaded: move |_| refresh += 1,
+                on_favourite,
+                on_reload,
             }
             {content}
         }
