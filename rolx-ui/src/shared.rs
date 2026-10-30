@@ -2,12 +2,11 @@
 
 use rolx_core::activities::{self, Activity};
 use rolx_core::client::RolxClient;
-use rolx_core::config::AppConfig;
 use rolx_core::session::{LoadError, Session};
 
 /// A client for the logged-in user. Fails if there is no valid session.
 pub async fn client() -> anyhow::Result<RolxClient> {
-    let config = AppConfig::load_with_env()?;
+    let config = crate::config()?;
     RolxClient::new(&config).await
 }
 

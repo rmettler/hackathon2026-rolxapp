@@ -13,7 +13,6 @@ use dioxus::desktop::{
 };
 use dioxus::prelude::*;
 use rolx_core::activities::{self, Activity};
-use rolx_core::config::AppConfig;
 use rolx_core::dayedit::{load_day as load_day_entries, undo_last};
 use rolx_core::dayplan::DayEntry;
 use rolx_core::idle::{Away, IdleTracker};
@@ -24,16 +23,15 @@ use rolx_ui::day_view::DayView;
 use rolx_ui::shared;
 use rolx_ui::stamp_panel::StampPanel;
 use rolx_ui::stamper::Stamper;
+use rolx_ui::week_panel::WeekPanel;
 use tokio::sync::mpsc;
 
 mod icon;
 mod os_idle;
 mod palette;
 mod settings;
-mod week_panel;
 use palette::Palette;
 use settings::{Settings, WindowGeometry};
-use week_panel::WeekPanel;
 
 /// Desktop-only styles, on top of `rolx_ui::CSS`.
 const CSS: &str = include_str!("app.css");
@@ -93,7 +91,7 @@ async fn load_day(day: NaiveDate) -> anyhow::Result<Loaded> {
 
 /// Logs in via the browser; `manual_url` receives the login URL if the browser could not be opened.
 async fn log_in(mut manual_url: Signal<Option<String>>) -> anyhow::Result<()> {
-    let config = AppConfig::load_with_env()?;
+    let config = rolx_ui::config()?;
     login::run(
         &config,
         AuthFlow::NativeApp { return_url: None },
@@ -321,6 +319,13 @@ fn App() -> Element {
         (tx, Rc::new(RefCell::new(Some(rx))))
     });
     let settings = use_hook(Settings::load);
+    let show_chart = use_signal(|| settings.show_chart);
+    use_effect(move || {
+        let show = show_chart();
+        if show != Settings::load().show_chart {
+            Settings::update(|s| s.show_chart = show);
+        }
+    });
 
     let tray = use_hook(|| {
         let icon = TrayIcon::from_rgba(icon::rgba(32), 32, 32).ok();
@@ -546,7 +551,7 @@ fn App() -> Element {
                     }
                     button { onclick: move |_| refresh += 1, "Refresh" }
                 }
-                WeekPanel { day, refresh, state: stamp_state }
+                WeekPanel { day, refresh, state: stamp_state, show_chart }
                 for d in [day()] {
                     DayView {
                         key: "{d}",

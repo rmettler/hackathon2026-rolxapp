@@ -5,9 +5,8 @@ use dioxus::prelude::*;
 use rolx_core::dayplan::fmt_hm;
 use rolx_core::stamp::{StampState, Status};
 use rolx_core::week::{DAILY_TARGET_SECS, WeekSummary, fetch_week, guidance, summarize};
-use rolx_ui::shared;
 
-use crate::settings::Settings;
+use crate::shared;
 
 /// One color per activity, stable between runs. Unassigned entries are gray.
 fn color(activity_id: i32) -> String {
@@ -41,13 +40,14 @@ fn percent(part: i64, whole: i64) -> f64 {
 }
 
 /// The selected week: booked against target with what is left, and an optional chart.
+/// `show_chart` is toggled here; keeping it between runs is up to the app.
 #[component]
 pub fn WeekPanel(
     mut day: Signal<NaiveDate>,
     refresh: Signal<u32>,
     state: Signal<StampState>,
+    mut show_chart: Signal<bool>,
 ) -> Element {
-    let mut show_chart = use_signal(|| Settings::load().show_chart);
     let mut now = use_signal(|| Local::now().naive_local());
 
     // Minute-level is enough: guidance talks about hours.
@@ -65,11 +65,7 @@ pub fn WeekPanel(
         fetch_week(&client, day).await
     });
 
-    let toggle = move |_| {
-        let next = !show_chart();
-        show_chart.set(next);
-        Settings::update(|s| s.show_chart = next);
-    };
+    let toggle = move |_| show_chart.set(!show_chart());
 
     let body = match &*week.read() {
         None => rsx! { p { class: "muted", "Loading week…" } },
