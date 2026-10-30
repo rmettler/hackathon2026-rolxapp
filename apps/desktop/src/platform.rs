@@ -76,7 +76,7 @@ struct UiPrompt {
 
 impl AuthPrompt for UiPrompt {
     fn open_url(&self, url: &str) -> bool {
-        open::that(url).is_ok()
+        open::that_detached(url).is_ok()
     }
 
     fn show_manual_url(&self, url: &str) {
@@ -153,6 +153,12 @@ impl Platform for DesktopPlatform {
     }
 
     fn open_external(&self, url: &str) -> bool {
-        open::that(url).is_ok()
+        open::that_detached(url).is_ok()
+    }
+
+    fn copy_text(&self, text: &str) -> bool {
+        arboard::Clipboard::new()
+            .and_then(|mut clipboard| clipboard.set_text(text))
+            .is_ok()
     }
 }

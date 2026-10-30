@@ -4,6 +4,7 @@
 mod oauth2;
 
 use std::fmt;
+use std::time::Duration;
 
 use oauth2::{device_flow, native_app_flow};
 
@@ -95,6 +96,8 @@ fn build_http_client(https_only: bool) -> reqwest::Result<reqwest::Client> {
         .redirect(reqwest::redirect::Policy::none())
         .https_only(https_only)
         .tls_version_min(reqwest::tls::Version::TLS_1_2)
+        // Per request, so it does not limit how long the user takes to sign in.
+        .timeout(Duration::from_secs(30))
         .build()
 }
 

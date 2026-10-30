@@ -4,6 +4,7 @@ name              = "rolxapp-desktop"
 version.workspace = true
 
 [dependencies]
+arboard       = { version = "3", default-features = false }
 dioxus        = { workspace = true, features = ["launch", "logger", "native"] }
 open.workspace = true
 reqwest       = { workspace = true, features = ["json", "rustls"] }

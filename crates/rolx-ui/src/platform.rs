@@ -47,6 +47,9 @@ pub trait Platform {
 
     /// Opens `url` outside the app. Returns whether that worked.
     fn open_external(&self, url: &str) -> bool;
+
+    /// Puts `text` on the clipboard. Returns whether that worked.
+    fn copy_text(&self, text: &str) -> bool;
 }
 
 /// A shared [`Platform`], usable as a component prop and as a context.

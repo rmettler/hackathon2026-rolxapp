@@ -119,8 +119,8 @@ pub enum AuthResponseError {
     #[error("endpoint responded with error: {0}")]
     EndpointError(AuthErrorResponse),
 
-    #[error("invalid state: expected '{0}', received '{1:?}'")]
-    InvalidState(String, Option<String>),
+    #[error("invalid state in the authorization response")]
+    InvalidState,
 
     #[error("authorization code missing")]
     AuthCodeMissing,
@@ -153,10 +153,7 @@ pub async fn retrieve_auth_code(
 
     let parsed = parse_auth_response(&response)?;
     if Some(state) != parsed.state.as_deref() {
-        return Err(AuthResponseError::InvalidState(
-            state.to_string(),
-            parsed.state,
-        ));
+        return Err(AuthResponseError::InvalidState);
     }
     if let Some(e) = parsed.error {
         return Err(AuthResponseError::EndpointError(e));
@@ -210,8 +207,8 @@ pub enum AuthResponseParseError {
     #[error("invalid query")]
     InvalidQuery,
 
-    #[error("invalid encoding of query param: {0}")]
-    InvalidQueryParamEnc(String),
+    #[error("invalid encoding of a query param")]
+    InvalidQueryParamEnc,
 }
 
 /// Parses the authorization response. First line should look like:  
@@ -241,10 +238,8 @@ fn parse_auth_response(response: &str) -> Result<AuthResponse, AuthResponseParse
         let (key, val) = param
             .split_once('=')
             .ok_or(AuthResponseParseError::InvalidQuery)?;
-        let decode_val = || {
-            urlencoding::decode(val)
-                .map_err(|_| AuthResponseParseError::InvalidQueryParamEnc(val.to_string()))
-        };
+        let decode_val =
+            || urlencoding::decode(val).map_err(|_| AuthResponseParseError::InvalidQueryParamEnc);
         match key {
             "state" => resp.state = Some(decode_val()?.into()),
             "code" => resp.code = Some(decode_val()?.into()),
@@ -311,7 +306,7 @@ mod tests {
         ));
         assert!(matches!(
             parse_auth_response("GET /?code=%FF HTTP/1.1"),
-            Err(AuthResponseParseError::InvalidQueryParamEnc(_))
+            Err(AuthResponseParseError::InvalidQueryParamEnc)
         ));
     }
 }

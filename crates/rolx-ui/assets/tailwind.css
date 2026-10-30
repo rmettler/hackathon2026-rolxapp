@@ -245,6 +245,9 @@
     --tw-font-weight: var(--font-weight-bold);
     font-weight: var(--font-weight-bold);
   }
+  .break-all {
+    word-break: break-all;
+  }
   .text-red-700 {
     color: var(--color-red-700);
   }

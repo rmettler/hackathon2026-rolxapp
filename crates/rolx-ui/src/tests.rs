@@ -12,7 +12,7 @@ use rolx_core::store::{SessionStore, StoreError};
 use crate::day_model::{LoadError, fresh_session, load_day};
 use crate::state::tests::session_expiring_in;
 use crate::state::{AppState, Route};
-use crate::views::end_session;
+use crate::views::{LoginPhase, LoginStatus, end_session};
 use crate::{App, LoginFuture, LoginMethod, LoginPrompt, Platform, PlatformHandle};
 
 struct FakePlatform {
@@ -75,6 +75,10 @@ impl Platform for FakePlatform {
     }
 
     fn open_external(&self, _url: &str) -> bool {
+        false
+    }
+
+    fn copy_text(&self, _text: &str) -> bool {
         false
     }
 }
@@ -261,4 +265,48 @@ fn ending_a_session_keeps_a_newer_one_in_the_store() {
     let newer = mock_session("signed-in-again".to_string(), Duration::hours(1));
     let stored = end_session_in_runtime(newer, valid_mock_session()).unwrap();
     assert_eq!(stored.bearer_token.as_str(), "signed-in-again");
+}
+
+fn render_login_status(phase: LoginPhase) -> String {
+    #[component]
+    fn Root(phase: LoginPhase) -> Element {
+        use_context_provider(|| PlatformHandle::new(FakePlatform::new(None)));
+        rsx! { LoginStatus { phase } }
+    }
+
+    let mut dom = VirtualDom::new_with_props(Root, RootProps { phase });
+    dom.rebuild_in_place();
+    dioxus_ssr::render(&dom)
+}
+
+#[test]
+fn login_status_shows_each_phase() {
+    let idle = render_login_status(LoginPhase::Idle { error: None });
+    assert!(idle.contains("Sign in to see"), "{idle}");
+
+    let failed = render_login_status(LoginPhase::Idle {
+        error: Some("denied".to_string()),
+    });
+    assert!(failed.contains("Sign-in failed: denied"), "{failed}");
+
+    let waiting = render_login_status(LoginPhase::Waiting { prompt: None });
+    assert!(waiting.contains("Waiting for you"), "{waiting}");
+
+    let manual = render_login_status(LoginPhase::Waiting {
+        prompt: Some(LoginPrompt::ManualUrl(
+            "http://example.invalid/a".to_string(),
+        )),
+    });
+    assert!(manual.contains("http://example.invalid/a"), "{manual}");
+
+    let device = render_login_status(LoginPhase::Waiting {
+        prompt: Some(LoginPrompt::DeviceCode {
+            uri: "http://example.invalid/device".to_string(),
+            code: "ABC-DEF".to_string(),
+        }),
+    });
+    assert!(device.contains("ABC-DEF"), "{device}");
+    assert!(device.contains("http://example.invalid/device"), "{device}");
+    assert!(device.contains("Copy code"), "{device}");
+    assert!(device.contains("Open browser"), "{device}");
 }
