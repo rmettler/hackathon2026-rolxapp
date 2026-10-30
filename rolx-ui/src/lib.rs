@@ -9,14 +9,16 @@ use rolx_core::config::AppConfig;
 pub mod activity_picker;
 pub mod app_state;
 pub mod day_view;
+pub mod lucide;
 pub mod shared;
 pub mod stamp_panel;
 pub mod stamper;
 pub mod undo;
 pub mod week_panel;
 
-/// The styles the components need; render it with `style { "{rolx_ui::CSS}" }` before the app's own.
-pub const CSS: &str = include_str!("style.css");
+/// The styles the components need: the Cudos design tokens, then the skin built on them. Render it with
+/// `style { "{rolx_ui::CSS}" }` before the app's own.
+pub const CSS: &str = concat!(include_str!("tokens.css"), "\n", include_str!("style.css"));
 
 type ConfigSource = fn() -> anyhow::Result<AppConfig>;
 

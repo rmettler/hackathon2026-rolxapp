@@ -21,14 +21,16 @@ use rolx_ui::undo::{UndoLine, use_undo};
 use rolx_ui::week_panel::WeekPanel;
 use tokio::sync::mpsc;
 
+mod fonts;
 mod icon;
 mod os_idle;
 mod palette;
 mod settings;
 use palette::Palette;
+use rolx_ui::lucide::{Glyph, Icon};
 use settings::{Settings, WindowGeometry};
 
-/// Desktop-only styles, on top of `rolx_ui::CSS`.
+/// Desktop-only styles, on top of `rolx_ui::CSS` (which starts with the design tokens).
 const CSS: &str = include_str!("app.css");
 
 // Window defaults (logical pixels), used until a position and size were saved. The position is
@@ -306,14 +308,14 @@ fn App() -> Element {
                 let text = {
                     let state = stamp_state.read();
                     match state.status(Local::now().naive_local()) {
-                        rolx_core::stamp::Status::StampedOut => "RolX — stamped out".to_string(),
+                        rolx_core::stamp::Status::StampedOut => "RolX: stamped out".to_string(),
                         rolx_core::stamp::Status::StampedIn {
                             activity,
                             worked,
                             on_break,
                             ..
                         } => format!(
-                            "RolX — {}:{:02} worked{}{}",
+                            "RolX: {}:{:02} worked{}{}",
                             worked.num_hours(),
                             worked.num_minutes() % 60,
                             if on_break { " (on break)" } else { "" },
@@ -436,16 +438,18 @@ fn App() -> Element {
                     div { class: "stepper",
                         button {
                             class: "icon",
-                            title: "Previous day (Alt+←)",
+                            title: "Previous day (Alt+Left)",
+                            "aria-label": "Previous day",
                             onclick: move |_| day.set(day() - Duration::days(1)),
-                            "◀"
+                            Icon { glyph: Glyph::ChevronLeft, size: 20 }
                         }
                         span { class: "date", "{date_label}" }
                         button {
                             class: "icon",
-                            title: "Next day (Alt+→)",
+                            title: "Next day (Alt+Right)",
+                            "aria-label": "Next day",
                             onclick: move |_| day.set(day() + Duration::days(1)),
-                            "▶"
+                            Icon { glyph: Glyph::ChevronRight, size: 20 }
                         }
                     }
                     button {
@@ -458,7 +462,8 @@ fn App() -> Element {
                         class: "secondary",
                         title: "Reload from the server",
                         onclick: move |_| refresh += 1,
-                        "↻ Refresh"
+                        Icon { glyph: Glyph::RefreshCw }
+                        "Refresh"
                     }
                 }
                 WeekPanel { day, refresh, state: stamp_state, show_chart }
@@ -484,9 +489,10 @@ fn App() -> Element {
     };
     let logged_in = user_name.is_some();
 
+    let brand_css = use_hook(|| format!("{}{}{CSS}", fonts::font_face_css(), rolx_ui::CSS));
+
     rsx! {
-        style { "{rolx_ui::CSS}" }
-        style { "{CSS}" }
+        style { "{brand_css}" }
         main {
             header {
                 div { class: "brand",
@@ -500,7 +506,8 @@ fn App() -> Element {
                         class: "secondary",
                         title: "Ctrl+K",
                         onclick: move |_| palette_open.set(true),
-                        "⌘ Quick actions"
+                        Icon { glyph: Glyph::Command }
+                        "Quick actions"
                     }
                     if logged_in {
                         button { class: "secondary", onclick: on_logout, "Log out" }

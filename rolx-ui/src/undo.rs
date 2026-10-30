@@ -5,6 +5,7 @@ use rolx_core::dayedit::undo_last;
 use rolx_core::undo::{UndoRecord, UndoStore};
 
 use crate::app_state::AppState;
+use crate::lucide::{Glyph, Icon};
 use crate::shared;
 use crate::stamper::spawn_in_app;
 
@@ -66,7 +67,7 @@ pub fn use_undo(app: AppState) -> Undo {
     }
 }
 
-/// "Last change: … ↩ Undo", or nothing if there is nothing to undo.
+/// "Last change: …" with an Undo button, or nothing if there is nothing to undo.
 #[component]
 pub fn UndoLine(undo: Undo) -> Element {
     let line = undo.last.read().as_ref().map(|u| {
@@ -83,7 +84,10 @@ pub fn UndoLine(undo: Undo) -> Element {
     rsx! {
         p { class: "status-line",
             span { "{line}" }
-            button { class: "secondary small", onclick: move |_| undo.do_undo.call(()), "↩ Undo" }
+            button { class: "secondary small", onclick: move |_| undo.do_undo.call(()),
+                Icon { glyph: Glyph::Undo2 }
+                "Undo"
+            }
         }
     }
 }

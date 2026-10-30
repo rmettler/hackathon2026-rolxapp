@@ -18,6 +18,12 @@ Base project for the custom client apps of the [RolX time tracking server](https
 - RolX server version:  
   The app is built against the version in `Cargo.toml` metadata.  
   Run `cargo xtask fetch-server` to clone it to `./rolx-server`.
+- Cudos design system (company style guide):  
+  Run `cargo xtask fetch-design-system` to clone it to `./design-system` (needs Azure DevOps access).
+  The desktop app follows it: `rolxapp-dioxus/src/tokens.css` holds the tokens it uses (copied from the pinned
+  version, re-sync by hand), icons are Lucide (`lucide.rs`), no Unicode glyph icons, no em dashes in UI text.
+  The KMR Apparat font is licensed separately, so it is not in this repo: the app loads it from
+  `design-system/public/fonts` (or `ROLX_FONT_DIR`) at start-up and falls back to Helvetica Neue without it.
 - Lint/format:  
   cargo clippy, cargo fmt
 - Apps:  

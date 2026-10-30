@@ -10,6 +10,7 @@ use rolx_core::stamp::StampState;
 use rolx_core::week::DAILY_TARGET_SECS;
 
 use crate::activity_picker::ActivityPicker;
+use crate::lucide::{Glyph, Icon};
 use crate::{shared, use_compact};
 
 /// How far back "copy the last working day" looks.
@@ -556,7 +557,8 @@ pub fn DayView(
                             mode.set(Mode::Add);
                         }
                     },
-                    "+ Add entry"
+                    Icon { glyph: Glyph::Plus }
+                    "Add entry"
                 }
             }
             if all.is_empty() {
@@ -837,10 +839,9 @@ pub fn DayView(
                     for (n , (issue , text , gap)) in issues.into_iter().enumerate() {
                         div { key: "i{n}", class: if issue.is_overlap() { "issue warn" } else { "issue" },
                             if issue.is_overlap() {
-                                "⚠ {text}"
-                            } else {
-                                "· {text}"
+                                Icon { glyph: Glyph::TriangleAlert }
                             }
+                            span { "{text}" }
                             if let Some((from, to)) = gap {
                                 button {
                                     class: "secondary",

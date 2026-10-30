@@ -8,26 +8,26 @@ main {
     calc(80px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
 }
 h1 { margin: 0; font-size: 1.35rem; line-height: 1.1; }
-a { color: var(--primary); word-break: break-all; }
+a { color: var(--brand-ink); word-break: break-all; }
 .hidden { display: none; }
 
 /* Header */
 header { position: sticky; top: 0; z-index: 5; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0 4px; background: var(--bg); }
 .brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
-.user { color: var(--muted); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user { color: var(--fg-muted); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .header-tools { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
 .settings-button { font-size: 1.3rem; padding: 6px 10px; }
-.net { padding: 5px 12px; border-radius: 999px; font-size: 0.8rem; background: var(--track); color: var(--text); }
-.net.offline { background: transparent; color: var(--warn); border-color: var(--warn); opacity: 1; }
+.net { padding: 5px 12px; border-radius: 999px; font-size: 0.8rem; background: var(--bg-alt); color: var(--fg); }
+.net.offline { background: transparent; color: var(--status-warn); border-color: var(--status-warn); opacity: 1; }
 
 /* Bottom tabs */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex;
   padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-  background: var(--card); border-top: 1px solid var(--border); box-shadow: 0 -1px 6px rgba(0, 0, 0, 0.08);
+  background: var(--surface-card); border-top: 1px solid var(--border); box-shadow: 0 -1px 6px rgba(0, 0, 0, 0.08);
 }
-.tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 0 10px; border: 0; border-radius: 0; background: transparent; color: var(--muted); font-size: 0.78rem; }
-.tabbar button.on { color: var(--primary); font-weight: 700; }
+.tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 0 10px; border: 0; border-radius: 0; background: transparent; color: var(--fg-muted); font-size: 0.78rem; }
+.tabbar button.on { color: var(--brand-ink); font-weight: 700; }
 .tab-icon { font-size: 1.35rem; line-height: 1.2; }
 
 /* Day navigation */
@@ -46,7 +46,7 @@ header { position: sticky; top: 0; z-index: 5; display: flex; justify-content: s
 /* Settings */
 .settings { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
 .setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 0; border-bottom: 1px solid var(--border); }
-.setting input[type="checkbox"] { width: 24px; height: 24px; accent-color: var(--primary); }
+.setting input[type="checkbox"] { width: 24px; height: 24px; accent-color: var(--brand-ink); }
 .setting.account .controls { flex: 1 1 100%; justify-content: stretch; margin-top: 4px; }
 .setting.account .controls button { flex: 1; }
 .sheet {

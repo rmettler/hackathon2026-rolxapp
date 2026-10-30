@@ -7,3 +7,4 @@
 
 # Release keystore of the mobile app, see `cargo xtask android apk`
 *.jks
+/design-system

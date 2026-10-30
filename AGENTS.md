@@ -15,13 +15,15 @@ all in Rust where sensible. Goals and roadmap: `README.md`. Design docs: `docs/`
   Must not print results; frontends do the presentation.
 - `.` (package `rolxapp`, `src/`) — the CLI: argument parsing (`cli.rs`) and printing (`commands/`).
 - `rolx-ui/` — Dioxus 0.7 components shared by the GUI apps, without a platform feature: stamp panel, activity
-  picker, day view, week panel, undo line (`UndoLine`) and their CSS (`rolx_ui::CSS`), plus the hooks `use_app_state`
+  picker, day view, week panel, undo line (`UndoLine`), the Lucide icons (`lucide.rs`) and their CSS (`rolx_ui::CSS`:
+  the design system tokens `tokens.css`, then `style.css` built only on them), plus the hooks `use_app_state`
   (day, stamp state, activities, messages, day resource) and `use_undo`. `set_config_source` replaces the config file
   (e.g. an embedded config); `Compact` (context) asks for a narrow layout: the CSS for it is scoped under `.compact`,
   and the markup only differs where `use_compact()` is checked (picker sheet, day cards, tappable week chart). Without
   it the desktop markup and look stay unchanged. Never loads or saves `gui.json`.
 - `rolxapp-dioxus/` — Dioxus 0.7 desktop app on top of `rolx-ui`: window, tray, hotkey, command palette, away
-  detection, login and layout; keeps its settings in `gui.json` (`settings.rs`).
+  detection, login, layout (`app.css`) and the brand font from the design system checkout (`fonts.rs`); keeps its
+  settings in `gui.json` (`settings.rs`).
 - `rolx-mobile/` — Dioxus 0.7 Android app on top of `rolx-ui` (`Compact(true)`, root class `compact`): Stamp, Day and
   Week tabs, login (browser or device code with QR), settings in `mobile.json`, page events in JS (`PAGE_EVENTS`:
   back in the foreground, online/offline, swipes). Embeds the config at build time (`build.rs`, passed on with
@@ -41,6 +43,8 @@ all in Rust where sensible. Goals and roadmap: `README.md`. Design docs: `docs/`
   `GET /` shows its state); `cargo xtask fake-session --out <path>` writes a matching `session.json`. Android:
   `cargo xtask android run --fake-server` (embeds a config for it, sets up `adb reverse`) and
   `cargo xtask android push-session`. See `docs/dev-setup.md` "Testing against the fake server".
+- Fetch the Cudos design system (company style guide) to `./design-system` (ignored): `cargo xtask fetch-design-system`.
+  It needs Azure DevOps credentials; the pin is `[package.metadata.design-system]` in `Cargo.toml`.
 - Cargo feature `uncensored_logs` disables log redaction (declared in `rolx-core`, forwarded by `rolxapp`).
 - Environment: `ROLX_SERVER` overrides `server_url` (CLI `--server`, GUI); `ROLX_DATA_DIR` moves the local
   data files (`stamps.json`, `activities.json`).
