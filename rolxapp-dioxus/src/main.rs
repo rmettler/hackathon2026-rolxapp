@@ -1,41 +1,75 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::time::Duration as StdDuration;
+
 use chrono::{Duration, Local, NaiveDate};
 use dioxus::core::Task;
-use dioxus::desktop::{Config, LogicalPosition, LogicalSize, WindowBuilder};
+use dioxus::desktop::tao::dpi::{PhysicalPosition, PhysicalSize};
+use dioxus::desktop::tao::window::Icon as WindowIcon;
+use dioxus::desktop::trayicon::menu::{Menu, MenuItem, PredefinedMenuItem};
+use dioxus::desktop::trayicon::{Icon as TrayIcon, MouseButton, MouseButtonState, TrayIconEvent};
+use dioxus::desktop::{
+    Config, HotKeyState, LogicalPosition, LogicalSize, WindowBuilder, WindowCloseBehaviour, window,
+};
 use dioxus::prelude::*;
 use rolx_core::activities::{self, Activity};
 use rolx_core::config::AppConfig;
-use rolx_core::dayedit::load_day as load_day_entries;
+use rolx_core::dayedit::{load_day as load_day_entries, undo_last};
 use rolx_core::dayplan::DayEntry;
+use rolx_core::idle::{Away, IdleTracker};
 use rolx_core::login::{self, AuthFlow, UserAction};
 use rolx_core::stamp::StampState;
+use rolx_core::undo::{UndoRecord, UndoStore};
+use tokio::sync::mpsc;
 
 mod activity_picker;
 mod day_view;
+mod icon;
+mod os_idle;
+mod palette;
 mod settings;
 mod shared;
 mod stamp_panel;
+mod stamper;
 mod week_panel;
 use day_view::DayView;
+use palette::Palette;
+use settings::{Settings, WindowGeometry};
 use stamp_panel::StampPanel;
+use stamper::Stamper;
 use week_panel::WeekPanel;
 
 const CSS: &str = include_str!("style.css");
 
-// Window defaults (logical pixels). The position is measured from the top-left corner of the primary
-// screen, so the window always opens on it.
+// Window defaults (logical pixels), used until a position and size were saved. The position is
+// measured from the top-left corner of the primary screen, so the window always opens on it.
 const WINDOW_SIZE: (f64, f64) = (900.0, 760.0);
 const WINDOW_MIN_SIZE: (f64, f64) = (480.0, 400.0);
 const WINDOW_POSITION: (f64, f64) = (60.0, 40.0);
 
+const ICON_SIZE: u32 = 64;
+
 fn main() {
     rolx_core::logging::init(0);
+    let settings = Settings::load();
+    let icon = WindowIcon::from_rgba(icon::rgba(ICON_SIZE), ICON_SIZE, ICON_SIZE).ok();
     let window = WindowBuilder::new()
         .with_title("RolX")
+        .with_window_icon(icon)
         .with_inner_size(LogicalSize::new(WINDOW_SIZE.0, WINDOW_SIZE.1))
         .with_min_inner_size(LogicalSize::new(WINDOW_MIN_SIZE.0, WINDOW_MIN_SIZE.1))
         .with_position(LogicalPosition::new(WINDOW_POSITION.0, WINDOW_POSITION.1));
+    let close = if settings.close_to_tray {
+        WindowCloseBehaviour::WindowHides
+    } else {
+        WindowCloseBehaviour::WindowCloses
+    };
     dioxus::LaunchBuilder::desktop()
-        .with_cfg(Config::new().with_window(window))
+        .with_cfg(
+            Config::new()
+                .with_window(window)
+                .with_close_behaviour(close),
+        )
         .launch(App);
 }
 
@@ -76,6 +110,120 @@ async fn log_in(mut manual_url: Signal<Option<String>>) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// What the tray menu, the global hotkey and the keyboard shortcuts ask the app to do.
+#[derive(Debug, Clone, Copy)]
+enum Request {
+    ShowWindow,
+    ToggleStamp,
+    Quit,
+    Palette,
+    PreviousDay,
+    NextDay,
+    Today,
+}
+
+type Requests = (
+    mpsc::UnboundedSender<Request>,
+    Rc<RefCell<Option<mpsc::UnboundedReceiver<Request>>>>,
+);
+
+const KEY_LISTENER: &str = r#"
+window.addEventListener('keydown', e => {
+  const key = e.key.toLowerCase();
+  const plain = !e.shiftKey;
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && plain && key === 'k') {
+    e.preventDefault(); dioxus.send('palette');
+  } else if (e.altKey && !e.ctrlKey && plain && e.key === 'ArrowLeft') {
+    e.preventDefault(); dioxus.send('previous');
+  } else if (e.altKey && !e.ctrlKey && plain && e.key === 'ArrowRight') {
+    e.preventDefault(); dioxus.send('next');
+  } else if (e.altKey && !e.ctrlKey && plain && key === 't') {
+    e.preventDefault(); dioxus.send('today');
+  }
+}, true);
+"#;
+
+fn show_window() {
+    let w = window();
+    w.set_visible(true);
+    w.set_minimized(false);
+    w.set_focus();
+}
+
+fn tray_menu() -> Menu {
+    let menu = Menu::new();
+    let _ = menu.append_items(&[
+        &MenuItem::with_id("show", "Show RolX", true, None),
+        &MenuItem::with_id("toggle", "Stamp in / out", true, None),
+        &PredefinedMenuItem::separator(),
+        &MenuItem::with_id("quit", "Quit RolX", true, None),
+    ]);
+    menu
+}
+
+fn idle_threshold(settings: &Settings) -> Duration {
+    // For trying it out without waiting minutes.
+    match std::env::var("ROLX_IDLE_SECS")
+        .ok()
+        .and_then(|s| s.parse::<i64>().ok())
+    {
+        Some(secs) => Duration::seconds(secs),
+        None => Duration::minutes(settings.idle_minutes),
+    }
+}
+
+/// Puts the window where it was last seen, if that is still on a screen.
+fn restore_window(saved: Option<WindowGeometry>) {
+    let Some(g) = saved else {
+        return;
+    };
+    let w = window();
+    let (right, bottom) = (g.x + g.width as i32, g.y + g.height as i32);
+    // A part of the title bar must be on some screen, so the window can always be grabbed.
+    let reachable = w.available_monitors().any(|m| {
+        let (p, s) = (m.position(), m.size());
+        g.x + 100 < p.x + s.width as i32
+            && right - 100 > p.x
+            && g.y >= p.y
+            && g.y + 40 < p.y + s.height as i32
+    });
+    if !reachable || bottom <= 0 {
+        return;
+    }
+    w.set_inner_size(PhysicalSize::new(g.width, g.height));
+    w.set_outer_position(PhysicalPosition::new(g.x, g.y));
+    if g.maximized {
+        w.set_maximized(true);
+    }
+}
+
+fn current_geometry(previous: Option<WindowGeometry>) -> Option<WindowGeometry> {
+    let w = window();
+    if w.is_minimized() || !w.is_visible() {
+        return None;
+    }
+    if w.is_maximized() {
+        return previous.map(|p| WindowGeometry {
+            maximized: true,
+            ..p
+        });
+    }
+    let position = w.outer_position().ok()?;
+    let size = w.inner_size();
+    // Windows reports far-off positions for windows that are being minimized.
+    (position.x > -10_000 && size.width > 0).then_some(WindowGeometry {
+        x: position.x,
+        y: position.y,
+        width: size.width,
+        height: size.height,
+        maximized: false,
+    })
+}
+
+fn read_undo() -> Option<UndoRecord> {
+    UndoStore::load().ok().and_then(|s| s.last)
+}
+
 #[component]
 fn App() -> Element {
     let mut day = use_signal(|| Local::now().date_naive());
@@ -84,10 +232,22 @@ fn App() -> Element {
     let mut login_task = use_signal(|| None::<Task>);
     let mut login_url = use_signal(|| None::<String>);
     let mut notice = use_signal(|| None::<String>);
+    let mut info = use_signal(|| None::<String>);
+    let mut palette_open = use_signal(|| false);
+    let mut away = use_signal(|| None::<Away>);
+    let mut undo = use_signal(read_undo);
 
     let stamp_state = use_signal(|| StampState::load().unwrap_or_default());
     let mut activities = use_signal(|| activities::load_cached().unwrap_or_default());
     let selected = use_signal(|| None::<i32>);
+
+    let stamper = use_context_provider(|| Stamper {
+        state: stamp_state,
+        activities,
+        refresh,
+        message: Signal::new(None),
+        syncing: Signal::new(false),
+    });
 
     let loaded = use_resource(move || async move {
         refresh();
@@ -122,12 +282,193 @@ fn App() -> Element {
         });
     };
 
+    let on_changed = move |_| {
+        info.set(None);
+        undo.set(read_undo());
+        refresh += 1;
+    };
+
+    let do_undo = move || {
+        spawn(async move {
+            let result = async {
+                let client = shared::client().await?;
+                undo_last(&client).await
+            }
+            .await;
+            match result {
+                Ok(record) => {
+                    notice.set(None);
+                    info.set(Some(format!("Undone: {}", record.what)));
+                    undo.set(read_undo());
+                    day.set(record.day);
+                    refresh += 1;
+                }
+                Err(e) => notice.set(Some(e.to_string())),
+            }
+        });
+    };
+
     // Keep the list complete without the user having to ask: once at start, if logged in.
     use_future(move || async move {
         if shared::has_session()
             && let Ok(list) = shared::reload_activities().await
         {
             activities.set(list);
+        }
+    });
+
+    // Requests from places that cannot touch signals directly (tray, hotkey, the web view) are
+    // queued here and handled in the app.
+    let (requests, receiver): Requests = use_hook(|| {
+        let (tx, rx) = mpsc::unbounded_channel();
+        (tx, Rc::new(RefCell::new(Some(rx))))
+    });
+    let settings = use_hook(Settings::load);
+
+    let tray = use_hook(|| {
+        let icon = TrayIcon::from_rgba(icon::rgba(32), 32, 32).ok();
+        dioxus::desktop::trayicon::init_tray_icon(tray_menu(), icon)
+    });
+    use_tray_events(requests.clone());
+
+    if !settings.hotkey.is_empty() {
+        let tx = requests.clone();
+        let registered =
+            dioxus::desktop::use_global_shortcut(settings.hotkey.as_str(), move |state| {
+                if state == HotKeyState::Pressed {
+                    let _ = tx.send(Request::ToggleStamp);
+                }
+            });
+        if let Err(e) = registered {
+            eprintln!("cannot register the hotkey '{}': {e:?}", settings.hotkey);
+        }
+    }
+
+    use_hook(|| restore_window(settings.window));
+
+    use_future({
+        let receiver = receiver.clone();
+        move || {
+            let receiver = receiver.clone();
+            async move {
+                let Some(mut rx) = receiver.borrow_mut().take() else {
+                    return;
+                };
+                while let Some(request) = rx.recv().await {
+                    match request {
+                        Request::ShowWindow => show_window(),
+                        Request::ToggleStamp => stamper.toggle(),
+                        Request::Quit => std::process::exit(0),
+                        Request::Palette => {
+                            show_window();
+                            palette_open.set(!palette_open());
+                        }
+                        Request::PreviousDay => day.set(day() - Duration::days(1)),
+                        Request::NextDay => day.set(day() + Duration::days(1)),
+                        Request::Today => day.set(Local::now().date_naive()),
+                    }
+                }
+            }
+        }
+    });
+
+    use_future({
+        let tx = requests.clone();
+        move || {
+            let tx = tx.clone();
+            async move {
+                let mut eval = document::eval(KEY_LISTENER);
+                while let Ok(key) = eval.recv::<String>().await {
+                    let request = match key.as_str() {
+                        "palette" => Request::Palette,
+                        "previous" => Request::PreviousDay,
+                        "next" => Request::NextDay,
+                        "today" => Request::Today,
+                        _ => continue,
+                    };
+                    let _ = tx.send(request);
+                }
+            }
+        }
+    });
+
+    // The tray tooltip shows what is running, so a glance is enough.
+    use_future(move || {
+        let tray = tray.clone();
+        async move {
+            loop {
+                let text = {
+                    let state = stamp_state.read();
+                    match state.status(Local::now().naive_local()) {
+                        rolx_core::stamp::Status::StampedOut => "RolX — stamped out".to_string(),
+                        rolx_core::stamp::Status::StampedIn {
+                            activity,
+                            worked,
+                            on_break,
+                            ..
+                        } => format!(
+                            "RolX — {}:{:02} worked{}{}",
+                            worked.num_hours(),
+                            worked.num_minutes() % 60,
+                            if on_break { " (on break)" } else { "" },
+                            activity
+                                .map(|a| format!(" on {}", a.full_number))
+                                .unwrap_or_default()
+                        ),
+                    }
+                };
+                let _ = tray.set_tooltip(Some(text));
+                tokio::time::sleep(StdDuration::from_secs(15)).await;
+            }
+        }
+    });
+
+    // Away detection: after a long stretch without input while stamped in, ask what to do with
+    // that time once the user is back.
+    use_future({
+        let threshold = idle_threshold(&settings);
+        move || async move {
+            let mut tracker = IdleTracker::new(threshold);
+            loop {
+                tokio::time::sleep(StdDuration::from_secs(3)).await;
+                let Some(idle) = os_idle::idle_time() else {
+                    continue;
+                };
+                let tracking = {
+                    let state = stamp_state.read();
+                    state
+                        .open
+                        .as_ref()
+                        .is_some_and(|o| o.break_started.is_none())
+                } && away.peek().is_none();
+                let idle = Duration::from_std(idle).unwrap_or_default();
+                if let Some(absence) = tracker.observe(Local::now().naive_local(), idle, tracking) {
+                    // The absence cannot have begun before the session did.
+                    let started = stamp_state.read().open.as_ref().map(|o| o.start);
+                    let since = started.map_or(absence.since, |s| s.max(absence.since));
+                    if since < absence.until {
+                        away.set(Some(Away {
+                            since,
+                            until: absence.until,
+                        }));
+                        show_window();
+                    }
+                }
+            }
+        }
+    });
+
+    // Remember where the window is, so it opens there next time.
+    use_future(move || async move {
+        let mut saved = Settings::load().window;
+        loop {
+            tokio::time::sleep(StdDuration::from_secs(3)).await;
+            if let Some(now) = current_geometry(saved)
+                && Some(now) != saved
+            {
+                saved = Some(now);
+                Settings::update(|s| s.window = Some(now));
+            }
         }
     });
 
@@ -160,8 +501,12 @@ fn App() -> Element {
 
     let login_busy = login_task().is_some();
     let content = match &*loaded.read() {
-        None => rsx! { p { class: "empty", "Loading…" } },
-        Some(Err(e)) => rsx! { p { class: "error", "{e}" } },
+        None => rsx! {
+            p { class: "empty", "Loading…" }
+        },
+        Some(Err(e)) => rsx! {
+            p { class: "error", "{e}" }
+        },
         Some(Ok(Loaded::NeedsLogin)) => rsx! {
             div { class: "card empty",
                 p { "You are not logged in." }
@@ -183,10 +528,25 @@ fn App() -> Element {
             rsx! {
                 p { class: "user", "Signed in as {user}" }
                 div { class: "card day-nav",
-                    button { class: "secondary", onclick: move |_| day.set(day() - Duration::days(1)), "◀" }
+                    button {
+                        class: "secondary",
+                        title: "Alt+←",
+                        onclick: move |_| day.set(day() - Duration::days(1)),
+                        "◀"
+                    }
                     span { class: "date", "{date_label}" }
-                    button { class: "secondary", onclick: move |_| day.set(day() + Duration::days(1)), "▶" }
-                    button { class: "secondary", onclick: move |_| day.set(Local::now().date_naive()), "Today" }
+                    button {
+                        class: "secondary",
+                        title: "Alt+→",
+                        onclick: move |_| day.set(day() + Duration::days(1)),
+                        "▶"
+                    }
+                    button {
+                        class: "secondary",
+                        title: "Alt+T",
+                        onclick: move |_| day.set(Local::now().date_naive()),
+                        "Today"
+                    }
                     button { onclick: move |_| refresh += 1, "Refresh" }
                 }
                 WeekPanel { day, refresh, state: stamp_state }
@@ -199,7 +559,7 @@ fn App() -> Element {
                         activities,
                         on_favourite,
                         on_reload,
-                        on_changed: move |_| refresh += 1,
+                        on_changed,
                     }
                 }
             }
@@ -207,28 +567,78 @@ fn App() -> Element {
     };
 
     let logged_in = matches!(&*loaded.read(), Some(Ok(Loaded::Day { .. })));
+    let undo_line = undo().map(|u| {
+        format!(
+            "Last change: {} ({}, {})",
+            u.what,
+            u.day.format("%a %d.%m."),
+            u.at.format("%H:%M")
+        )
+    });
 
     rsx! {
         style { "{CSS}" }
         main {
             header {
                 h1 { "RolX" }
-                if logged_in {
-                    button { class: "secondary", onclick: on_logout, "Log out" }
+                div { class: "header-tools",
+                    button {
+                        class: "secondary",
+                        title: "Ctrl+K",
+                        onclick: move |_| palette_open.set(true),
+                        "⌘ Quick actions"
+                    }
+                    if logged_in {
+                        button { class: "secondary", onclick: on_logout, "Log out" }
+                    }
                 }
             }
             if let Some(e) = notice() {
                 p { class: "error", "{e}" }
             }
-            StampPanel {
-                state: stamp_state,
-                activities,
-                selected,
-                on_uploaded: move |_| refresh += 1,
-                on_favourite,
-                on_reload,
+            if let Some(line) = undo_line {
+                p { class: "muted undo-line",
+                    "{line} "
+                    button { class: "secondary", onclick: move |_| do_undo(), "↩ Undo" }
+                }
             }
+            if let Some(text) = info() {
+                p { class: "muted", "{text}" }
+            }
+            StampPanel { selected, away, on_favourite, on_reload }
             {content}
+            if palette_open() {
+                Palette {
+                    open: palette_open,
+                    day,
+                    on_undo: move |_| do_undo(),
+                    on_reload,
+                }
+            }
         }
     }
+}
+
+/// Forwards clicks on the tray icon and its menu to the app.
+fn use_tray_events(tx: mpsc::UnboundedSender<Request>) {
+    let menu_tx = tx.clone();
+    dioxus::desktop::use_tray_menu_event_handler(move |event| {
+        let request = match event.id.0.as_str() {
+            "show" => Request::ShowWindow,
+            "toggle" => Request::ToggleStamp,
+            "quit" => Request::Quit,
+            _ => return,
+        };
+        let _ = menu_tx.send(request);
+    });
+    dioxus::desktop::use_tray_icon_event_handler(move |event| {
+        if let TrayIconEvent::Click {
+            button: MouseButton::Left,
+            button_state: MouseButtonState::Up,
+            ..
+        } = event
+        {
+            let _ = tx.send(Request::ShowWindow);
+        }
+    });
 }

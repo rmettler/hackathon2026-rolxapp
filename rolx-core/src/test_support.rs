@@ -1,5 +1,6 @@
 //! Shared helpers for tests that talk HTTP: a tiny in-process server and a client for it.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use chrono::{Duration, Utc};
@@ -17,6 +18,8 @@ pub struct Route {
     path_prefix: String,
     status: u16,
     body: String,
+    /// Bodies for successive requests (the last one repeats), with how many were served so far.
+    sequence: Option<(Arc<AtomicUsize>, Vec<String>)>,
 }
 
 impl Route {
@@ -26,6 +29,18 @@ impl Route {
             path_prefix: path_prefix.into(),
             status,
             body: body.to_string(),
+            sequence: None,
+        }
+    }
+
+    /// Answers 200 with each of `bodies` in turn, so a test can show a server whose data changes.
+    pub fn json_sequence(method: &'static str, path_prefix: &str, bodies: Vec<Value>) -> Self {
+        Self {
+            sequence: Some((
+                Arc::default(),
+                bodies.iter().map(Value::to_string).collect(),
+            )),
+            ..Self::json(method, path_prefix, 200, Value::Null)
         }
     }
 
@@ -35,6 +50,17 @@ impl Route {
             path_prefix: path_prefix.into(),
             status,
             body: String::new(),
+            sequence: None,
+        }
+    }
+
+    fn answer(&self) -> (u16, String) {
+        match &self.sequence {
+            Some((served, bodies)) => {
+                let i = served.fetch_add(1, Ordering::SeqCst).min(bodies.len() - 1);
+                (self.status, bodies[i].clone())
+            }
+            None => (self.status, self.body.clone()),
         }
     }
 }
@@ -127,7 +153,7 @@ pub async fn start_mock(routes: Vec<Route>) -> MockServer {
                 let (status, body) = routes
                     .iter()
                     .find(|r| r.method == method && path.starts_with(&r.path_prefix))
-                    .map_or((404, String::new()), |r| (r.status, r.body.clone()));
+                    .map_or((404, String::new()), Route::answer);
                 let response = format!(
                     "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                     body.len()

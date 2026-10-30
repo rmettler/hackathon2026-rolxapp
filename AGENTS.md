@@ -37,7 +37,11 @@ changes real data. Never run `entry edit|delete`, `sync` or similar write paths 
 fake server and `ROLX_DATA_DIR` at a temp folder. `cargo clippy`/`cargo test` do **not** rebuild
 `target\debug\rolxapp.exe`: run `cargo build` first, and check that the binary really honours the override (e.g. point
 `ROLX_SERVER` at a closed port and expect a connection error) before trusting a test run. Unit tests use the in-process
-mock server in `rolx-core/src/test_support.rs`.
+mock server in `rolx-core/src/test_support.rs`. For the GUI, build a copy with a different exe name (WebView2 shares one
+data folder per exe name), start it with `ROLX_SERVER`, `ROLX_DATA_DIR` and
+`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=<port>` to drive it over the DevTools protocol, and
+set `ROLX_IDLE_SECS` (threshold) and `ROLX_FAKE_IDLE_FILE` (a file holding the idle seconds to report) to try the
+away detection without sitting still.
 
 ## The server you integrate with
 
@@ -86,3 +90,6 @@ endpoints; for request/response shapes read the matching `WebApi/Resource/*.cs` 
 without network or login; `rolx-core::sync` uploads the queue per day and is idempotent (entries already on the
 server are skipped). Entries without an activity stay queued until assigned. The activity cache is
 `<data dir>/rolx/activities.json`. Never test uploads against a real server; `sync.tests.rs` has a mock server.
+A session open for `STALE_AFTER_HOURS` (12) counts as forgotten (`StampState::stale`); frontends must not close it
+silently at "now" (CLI refuses, the app shows a banner). Day changes that go through `dayedit::save_day_tracked` are
+remembered in `<data dir>/rolx/undo.json` for `undo_last`.

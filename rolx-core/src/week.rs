@@ -7,7 +7,7 @@ use chrono::{Datelike, Duration, NaiveDate};
 use serde_json::Value;
 
 use crate::client::RolxClient;
-use crate::dayplan::{DayEntry, entries_of};
+use crate::dayplan::{DayEntry, entries_of, fmt_clock, fmt_hm};
 use crate::stamp::PendingEntry;
 
 /// Target for a single day, independent of pensum: 8.4 hours.
@@ -168,6 +168,109 @@ pub fn summarize(week: &Week, queued: &[PendingEntry]) -> WeekSummary {
         pensum_percent,
         activities,
         days,
+    }
+}
+
+/// Where today stands against the daily target.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TodayGuidance {
+    /// Booked, queued and the running session.
+    pub booked_secs: i64,
+    pub target_secs: i64,
+    /// Zero once the target is reached.
+    pub left_secs: i64,
+    /// Time of day (seconds) when the target is reached if work continues without a break
+    /// from now on; `None` if that is not today or the target is already reached.
+    pub done_at_secs: Option<i64>,
+    /// Whether a session is running right now (otherwise `done_at_secs` assumes starting now).
+    pub working: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Guidance {
+    /// `None` when today is not a working day of the summarized week.
+    pub today: Option<TodayGuidance>,
+    /// Working days before today without any booking or leave.
+    pub missing_days: Vec<NaiveDate>,
+    /// Booked and leave time minus target over the days before today; negative means behind.
+    pub past_balance_secs: i64,
+}
+
+/// Advice for the week. `running_secs` is the work time of the running session, which is not
+/// part of the summary yet; `working` tells whether it is running right now (not on a break).
+pub fn guidance(
+    summary: &WeekSummary,
+    today: NaiveDate,
+    now_secs: i64,
+    running_secs: i64,
+    working: bool,
+) -> Guidance {
+    let past = || summary.days.iter().filter(|d| d.date < today);
+    let missing_days = past()
+        .filter(|d| d.nominal_secs > 0 && !d.on_leave && d.booked_secs == 0)
+        .map(|d| d.date)
+        .collect();
+    let past_balance_secs = past()
+        .filter(|d| d.nominal_secs > 0)
+        .map(|d| d.booked_secs + if d.on_leave { d.nominal_secs } else { 0 } - d.nominal_secs)
+        .sum();
+
+    let today_guidance = summary
+        .days
+        .iter()
+        .find(|d| d.date == today && d.nominal_secs > 0 && !d.on_leave)
+        .map(|d| {
+            let booked_secs = d.booked_secs + running_secs;
+            let left_secs = (DAILY_TARGET_SECS - booked_secs).max(0);
+            let done_at = now_secs + left_secs;
+            TodayGuidance {
+                booked_secs,
+                target_secs: DAILY_TARGET_SECS,
+                left_secs,
+                done_at_secs: (left_secs > 0 && done_at < 86_400).then_some(done_at),
+                working,
+            }
+        });
+
+    Guidance {
+        today: today_guidance,
+        missing_days,
+        past_balance_secs,
+    }
+}
+
+impl TodayGuidance {
+    /// One line for the user, e.g. `Today 3:12 of 8:24 · 5:12 left · at this pace done at 17:42`.
+    pub fn describe(&self) -> String {
+        if self.left_secs == 0 {
+            return format!(
+                "Today's target reached: {} of {}",
+                fmt_hm(self.booked_secs),
+                fmt_hm(self.target_secs)
+            );
+        }
+        let when = match (self.done_at_secs, self.working) {
+            (Some(t), true) => format!(" · at this pace done at {}", fmt_clock(t)),
+            (Some(t), false) => format!(" · starting now you are done at {}", fmt_clock(t)),
+            (None, _) => String::new(),
+        };
+        format!(
+            "Today {} of {} · {} left{when}",
+            fmt_hm(self.booked_secs),
+            fmt_hm(self.target_secs),
+            fmt_hm(self.left_secs)
+        )
+    }
+}
+
+impl Guidance {
+    /// How the week stands over the days before today; `None` when exactly on target.
+    pub fn balance_text(&self) -> Option<String> {
+        match self.past_balance_secs {
+            0 => None,
+            s if s > 0 => Some(format!("{} ahead on previous days", fmt_hm(s))),
+            s => Some(format!("{} behind on previous days", fmt_hm(-s))),
+        }
     }
 }
 

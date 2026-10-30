@@ -194,6 +194,123 @@ fn status_reports_worked_time_without_breaks() {
 }
 
 #[test]
+fn a_forgotten_stamp_out_can_be_ended_in_the_past() {
+    let mut s = StampState::default();
+    s.stamp_in(at(29, 8, 0, 0), Some(act(1)), Some("report".into()));
+
+    assert_eq!(
+        s.stamp_out_at(at(29, 7, 0, 0), at(30, 9, 0, 0)),
+        Err(StampError::OutOfRange),
+        "before the start"
+    );
+    assert_eq!(
+        s.stamp_out_at(at(30, 10, 0, 0), at(30, 9, 0, 0)),
+        Err(StampError::OutOfRange),
+        "in the future"
+    );
+    assert!(s.open.is_some(), "a rejected time changes nothing");
+
+    assert_eq!(s.stamp_out_at(at(29, 17, 30, 0), at(30, 9, 0, 0)), Ok(1));
+    assert_eq!(s.pending[0].duration, 9 * 3600 + 1800);
+    assert_eq!(s.pending[0].date, at(29, 0, 0, 0).date());
+}
+
+#[test]
+fn only_long_running_sessions_are_stale() {
+    let mut s = StampState::default();
+    assert_eq!(s.stale(at(30, 9, 0, 0)), None);
+    s.stamp_in(at(29, 21, 0, 0), None, None);
+    assert_eq!(s.stale(at(30, 8, 59, 0)), None);
+    let stale = s.stale(at(30, 9, 0, 0)).unwrap();
+    assert_eq!(stale.since, at(29, 21, 0, 0));
+    assert_eq!(stale.elapsed, Duration::hours(12));
+}
+
+#[test]
+fn a_session_can_be_discarded_without_booking() {
+    let mut s = StampState::default();
+    assert!(!s.discard_open());
+    s.stamp_in(at(30, 9, 0, 0), Some(act(1)), None);
+    assert!(s.discard_open());
+    assert!(s.open.is_none() && s.pending.is_empty());
+}
+
+#[test]
+fn the_report_can_be_set_while_running_and_ends_up_in_the_entry() {
+    let mut s = StampState::default();
+    assert_eq!(
+        s.set_open_comment(Some("x".into())),
+        Err(StampError::NotStampedIn)
+    );
+    s.stamp_in(at(30, 9, 0, 0), Some(act(1)), Some("old".into()));
+    s.set_open_comment(Some("  fixed login  ".into())).unwrap();
+    s.stamp_out(at(30, 10, 0, 0)).unwrap();
+    assert_eq!(s.pending[0].comment.as_deref(), Some("fixed login"));
+    assert_eq!(s.usage[&1].last_comment.as_deref(), Some("fixed login"));
+
+    s.stamp_in(at(30, 11, 0, 0), Some(act(1)), None);
+    s.set_open_comment(Some("   ".into())).unwrap();
+    assert_eq!(s.open.as_ref().unwrap().comment, None, "blank removes it");
+}
+
+#[test]
+fn last_used_is_the_most_recent_activity_with_its_report() {
+    let mut s = StampState::default();
+    assert_eq!(s.last_used(), None);
+    s.stamp_in(at(30, 9, 0, 0), Some(act(1)), Some("a".into()));
+    s.switch(at(30, 10, 0, 0), Some(act(2)), None).unwrap();
+    s.stamp_out(at(30, 11, 0, 0)).unwrap();
+    assert_eq!(s.last_used(), Some((2, None)));
+    s.stamp_in(at(30, 12, 0, 0), Some(act(1)), None);
+    assert_eq!(s.last_used(), Some((1, Some("a"))));
+}
+
+#[test]
+fn time_away_can_be_taken_off_as_a_past_break() {
+    let mut s = StampState::default();
+    s.stamp_in(at(30, 9, 0, 0), Some(act(1)), None);
+    s.add_past_break(at(30, 10, 0, 0), at(30, 10, 45, 0), at(30, 11, 0, 0))
+        .unwrap();
+    s.stamp_out(at(30, 12, 0, 0)).unwrap();
+    assert_eq!(s.pending[0].duration, 2 * 3600 + 15 * 60);
+    assert_eq!(s.pending[0].pause, 45 * 60);
+}
+
+#[test]
+fn a_past_break_must_lie_within_the_session() {
+    let mut s = StampState::default();
+    assert_eq!(
+        s.add_past_break(at(30, 10, 0, 0), at(30, 11, 0, 0), at(30, 12, 0, 0)),
+        Err(StampError::NotStampedIn)
+    );
+    s.stamp_in(at(30, 9, 0, 0), None, None);
+    let now = at(30, 12, 0, 0);
+    for (from, until) in [
+        (at(30, 8, 0, 0), at(30, 10, 0, 0)),
+        (at(30, 10, 0, 0), at(30, 13, 0, 0)),
+        (at(30, 11, 0, 0), at(30, 10, 0, 0)),
+    ] {
+        assert_eq!(
+            s.add_past_break(from, until, now),
+            Err(StampError::OutOfRange)
+        );
+    }
+    s.start_break(at(30, 11, 30, 0)).unwrap();
+    assert_eq!(
+        s.add_past_break(at(30, 10, 0, 0), at(30, 11, 0, 0), now),
+        Err(StampError::AlreadyOnBreak)
+    );
+}
+
+#[test]
+fn a_time_of_day_means_its_latest_occurrence() {
+    let now = at(30, 9, 30, 0);
+    assert_eq!(most_recent_time(9 * 3600, now), at(30, 9, 0, 0));
+    assert_eq!(most_recent_time(9 * 3600 + 1800, now), at(30, 9, 30, 0));
+    assert_eq!(most_recent_time(17 * 3600, now), at(29, 17, 0, 0));
+}
+
+#[test]
 fn state_survives_a_save_and_load_round_trip() {
     let path = std::env::temp_dir().join(format!("rolx-stamp-test-{}.json", std::process::id()));
     let mut s = StampState::default();

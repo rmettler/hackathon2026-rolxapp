@@ -368,6 +368,7 @@ mod tests {
                             .unwrap()
                             .and_hms_opt(9, 0, 0)
                             .unwrap(),
+                        last_comment: None,
                     },
                 )
             })

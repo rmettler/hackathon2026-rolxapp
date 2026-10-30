@@ -145,6 +145,16 @@ impl Issue {
         }
     }
 
+    /// For a gap: the unbooked time as `(begin, end)` in seconds since midnight.
+    pub fn gap_range(&self, entries: &[DayEntry]) -> Option<(i32, i32)> {
+        let Issue::Gap { first, second, .. } = *self else {
+            return None;
+        };
+        let begin = i32::try_from(entries.get(first)?.end()?).ok()?;
+        let end = entries.get(second)?.begin?;
+        (end > begin).then_some((begin, end))
+    }
+
     /// Identifies the issue by the entries involved, so it can be recognized after indices moved.
     fn key(&self, entries: &[DayEntry]) -> (bool, DayEntry, DayEntry) {
         let (first, second) = self.indices();
@@ -170,6 +180,8 @@ pub enum EditError {
     BreakLongerThanEntry,
     #[error("this fix does not apply to that kind of problem")]
     FixNotApplicable,
+    #[error("an entry needs an activity")]
+    NoActivity,
 }
 
 /// Finds overlaps and gaps between the entries that have a time of day.
@@ -274,6 +286,64 @@ pub fn apply_change(
 
     *entry = updated;
     Ok(())
+}
+
+/// A manually booked entry. Times are seconds since midnight; the work duration is the span
+/// between begin and end minus the break.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NewEntry {
+    pub activity: (i32, String),
+    pub begin: i32,
+    pub end: i32,
+    pub pause: i32,
+    pub comment: Option<String>,
+}
+
+/// Adds the entry and keeps the list in chronological order.
+pub fn add_entry(entries: &mut Vec<DayEntry>, new: &NewEntry) -> Result<(), EditError> {
+    if new.activity.0 == 0 {
+        return Err(EditError::NoActivity);
+    }
+    if new.begin < 0 || new.end <= new.begin || new.pause < 0 {
+        return Err(EditError::InvalidTimes);
+    }
+    if i64::from(new.end) > SECONDS_PER_DAY {
+        return Err(EditError::OutsideDay);
+    }
+    if new.pause >= new.end - new.begin {
+        return Err(EditError::BreakLongerThanEntry);
+    }
+    entries.push(DayEntry {
+        activity_id: new.activity.0,
+        full_activity_number: new.activity.1.clone(),
+        begin: Some(new.begin),
+        duration: i64::from(new.end - new.begin - new.pause),
+        pause: Some(new.pause).filter(|p| *p > 0),
+        comment: new.comment.clone().filter(|c| !c.trim().is_empty()),
+    });
+    sort_entries(entries);
+    Ok(())
+}
+
+/// Where a new entry most naturally starts: when the latest timed entry ends.
+pub fn suggest_start(entries: &[DayEntry]) -> Option<i32> {
+    entries
+        .iter()
+        .filter_map(DayEntry::end)
+        .max()
+        .and_then(|end| i32::try_from(end).ok())
+        .filter(|end| i64::from(*end) < SECONDS_PER_DAY)
+}
+
+/// The entries worth repeating on another day: everything that has an activity and a duration.
+pub fn copyable(entries: &[DayEntry]) -> Vec<DayEntry> {
+    let mut copy: Vec<DayEntry> = entries
+        .iter()
+        .filter(|e| e.activity_id != 0 && e.duration > 0)
+        .cloned()
+        .collect();
+    sort_entries(&mut copy);
+    copy
 }
 
 /// Ways to resolve an [`Issue`].

@@ -7,6 +7,7 @@ pub mod dayedit;
 pub mod dayplan;
 pub mod error;
 pub mod http;
+pub mod idle;
 pub mod logging;
 pub mod login;
 pub mod oauth2;
@@ -17,6 +18,7 @@ pub mod session;
 pub mod stamp;
 pub mod storage;
 pub mod sync;
+pub mod undo;
 pub mod week;
 
 #[cfg(test)]

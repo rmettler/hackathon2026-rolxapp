@@ -21,6 +21,19 @@ pub struct ActivityRef {
 pub struct Usage {
     pub count: u32,
     pub last_used: NaiveDateTime,
+    /// The work report of the last finished session with this activity, for "repeat last".
+    #[serde(default)]
+    pub last_comment: Option<String>,
+}
+
+/// A session that has been running this long is most likely a forgotten stamp-out.
+pub const STALE_AFTER_HOURS: i64 = 12;
+
+/// A running session that looks forgotten.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaleStamp {
+    pub since: NaiveDateTime,
+    pub elapsed: Duration,
 }
 
 /// The work session that is currently running.
@@ -78,10 +91,23 @@ pub enum StampError {
     AlreadyOnBreak,
     #[error("not on a break")]
     NotOnBreak,
+    #[error("that time is not within the running session")]
+    OutOfRange,
 }
 
 fn whole_seconds(t: NaiveDateTime) -> NaiveDateTime {
     t.with_nanosecond(0).unwrap_or(t)
+}
+
+/// The latest moment not after `now` that has the given time of day (seconds since midnight):
+/// today if that time has already passed, otherwise yesterday.
+pub fn most_recent_time(clock_secs: i32, now: NaiveDateTime) -> NaiveDateTime {
+    let today = now.date().and_time(NaiveTime::MIN) + Duration::seconds(i64::from(clock_secs));
+    if today <= now {
+        today
+    } else {
+        today - Duration::days(1)
+    }
 }
 
 impl OpenStamp {
@@ -158,6 +184,78 @@ impl StampState {
         Ok(self.close_open(whole_seconds(now)))
     }
 
+    /// Ends the session at `end`, which lies in the past (e.g. when the stamp-out was forgotten).
+    /// `end` must be within the session.
+    pub fn stamp_out_at(
+        &mut self,
+        end: NaiveDateTime,
+        now: NaiveDateTime,
+    ) -> Result<usize, StampError> {
+        let open = self.open.as_ref().ok_or(StampError::NotStampedIn)?;
+        let (end, now) = (whole_seconds(end), whole_seconds(now));
+        if end < open.start || end > now {
+            return Err(StampError::OutOfRange);
+        }
+        Ok(self.close_open(end))
+    }
+
+    /// Throws the running session away without booking anything. Returns whether there was one.
+    pub fn discard_open(&mut self) -> bool {
+        self.open.take().is_some()
+    }
+
+    /// Replaces the work report of the running session; a blank text removes it.
+    pub fn set_open_comment(&mut self, comment: Option<String>) -> Result<(), StampError> {
+        let open = self.open.as_mut().ok_or(StampError::NotStampedIn)?;
+        open.comment = comment
+            .map(|c| c.trim().to_string())
+            .filter(|c| !c.is_empty());
+        Ok(())
+    }
+
+    /// Subtracts the time between `from` and `until` from the running session as a break that
+    /// already happened (e.g. the user was away). Both must lie within the session, and no break
+    /// may be running.
+    pub fn add_past_break(
+        &mut self,
+        from: NaiveDateTime,
+        until: NaiveDateTime,
+        now: NaiveDateTime,
+    ) -> Result<(), StampError> {
+        let open = self.open.as_mut().ok_or(StampError::NotStampedIn)?;
+        if open.break_started.is_some() {
+            return Err(StampError::AlreadyOnBreak);
+        }
+        let (from, until, now) = (
+            whole_seconds(from),
+            whole_seconds(until),
+            whole_seconds(now),
+        );
+        if from < open.start || until <= from || until > now {
+            return Err(StampError::OutOfRange);
+        }
+        open.paused_secs += (until - from).num_seconds();
+        Ok(())
+    }
+
+    /// The running session, if it has been going for suspiciously long.
+    pub fn stale(&self, now: NaiveDateTime) -> Option<StaleStamp> {
+        let open = self.open.as_ref()?;
+        let elapsed = whole_seconds(now) - open.start;
+        (elapsed >= Duration::hours(STALE_AFTER_HOURS)).then_some(StaleStamp {
+            since: open.start,
+            elapsed,
+        })
+    }
+
+    /// The activity booked most recently and the work report it had, if any.
+    pub fn last_used(&self) -> Option<(i32, Option<&str>)> {
+        self.usage
+            .iter()
+            .max_by_key(|(id, u)| (u.last_used, **id))
+            .map(|(id, u)| (*id, u.last_comment.as_deref()))
+    }
+
     pub fn start_break(&mut self, now: NaiveDateTime) -> Result<(), StampError> {
         let open = self.open.as_mut().ok_or(StampError::NotStampedIn)?;
         if open.break_started.is_some() {
@@ -220,6 +318,7 @@ impl StampState {
         let usage = self.usage.entry(activity_id).or_insert(Usage {
             count: 0,
             last_used: now,
+            last_comment: None,
         });
         usage.count += 1;
         usage.last_used = now;
@@ -250,6 +349,11 @@ impl StampState {
         let Some(open) = self.open.take() else {
             return 0;
         };
+        if let (Some(activity), Some(comment)) = (&open.activity, &open.comment)
+            && let Some(usage) = self.usage.get_mut(&activity.id)
+        {
+            usage.last_comment = Some(comment.clone());
+        }
         let entries = open.close(now);
         let count = entries.len();
         self.pending.extend(entries);

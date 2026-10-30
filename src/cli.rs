@@ -118,6 +118,44 @@ pub enum EntryCommand {
         #[arg(long)]
         force: bool,
     },
+    /// Book an entry for a time that was not stamped (e.g. a forgotten stamp-in)
+    Add {
+        /// Activity: id, number or words that match exactly one activity
+        #[arg(short, long, required = true)]
+        activity: String,
+        /// Start time (HH:MM); default: when the latest entry of the day ends
+        #[arg(long)]
+        begin: Option<String>,
+        /// End time (HH:MM)
+        #[arg(long, required = true)]
+        end: String,
+        /// Break in minutes within the entry
+        #[arg(long = "break")]
+        pause: Option<u32>,
+        /// Work report
+        #[arg(short, long)]
+        comment: Option<String>,
+        /// Day to book on (yyyy-MM-dd), default today
+        #[arg(short, long)]
+        date: Option<String>,
+        /// Resolve the conflicts this entry causes
+        #[arg(long, value_enum)]
+        fix: Option<FixKind>,
+        /// Save even though the entry overlaps another
+        #[arg(long)]
+        force: bool,
+    },
+    /// Repeat the entries of the last day that had some (only onto an empty day)
+    Copy {
+        /// Day to copy from (yyyy-MM-dd); default: the latest day with entries in the last 7 days
+        #[arg(long)]
+        from: Option<String>,
+        /// Day to copy onto (yyyy-MM-dd), default today
+        #[arg(short, long)]
+        date: Option<String>,
+    },
+    /// Take back the last change made with this app
+    Undo,
     /// Delete an entry
     Delete {
         /// Entry number
@@ -155,7 +193,16 @@ pub enum StampCommand {
         comment: Option<String>,
     },
     /// Stop working
-    Out,
+    Out {
+        /// Work report for the session that ends
+        #[arg(short, long)]
+        comment: Option<String>,
+        /// Stop at an earlier time today or yesterday (HH:MM), e.g. after forgetting to stamp out
+        #[arg(long)]
+        at: Option<String>,
+    },
+    /// Throw the running session away without booking it
+    Cancel,
     /// Start a break
     Break,
     /// End a break

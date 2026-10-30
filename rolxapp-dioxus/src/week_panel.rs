@@ -1,8 +1,10 @@
-use chrono::{Datelike, NaiveDate};
+use std::time::Duration as StdDuration;
+
+use chrono::{Datelike, Local, NaiveDate, Timelike};
 use dioxus::prelude::*;
 use rolx_core::dayplan::fmt_hm;
-use rolx_core::stamp::StampState;
-use rolx_core::week::{DAILY_TARGET_SECS, WeekSummary, fetch_week, summarize};
+use rolx_core::stamp::{StampState, Status};
+use rolx_core::week::{DAILY_TARGET_SECS, WeekSummary, fetch_week, guidance, summarize};
 
 use crate::settings::Settings;
 use crate::shared;
@@ -41,11 +43,20 @@ fn percent(part: i64, whole: i64) -> f64 {
 /// The selected week: booked against target with what is left, and an optional chart.
 #[component]
 pub fn WeekPanel(
-    day: Signal<NaiveDate>,
+    mut day: Signal<NaiveDate>,
     refresh: Signal<u32>,
     state: Signal<StampState>,
 ) -> Element {
     let mut show_chart = use_signal(|| Settings::load().show_chart);
+    let mut now = use_signal(|| Local::now().naive_local());
+
+    // Minute-level is enough: guidance talks about hours.
+    use_future(move || async move {
+        loop {
+            tokio::time::sleep(StdDuration::from_secs(20)).await;
+            now.set(Local::now().naive_local());
+        }
+    });
 
     let week = use_resource(move || async move {
         refresh();
@@ -57,7 +68,7 @@ pub fn WeekPanel(
     let toggle = move |_| {
         let next = !show_chart();
         show_chart.set(next);
-        Settings { show_chart: next }.save();
+        Settings::update(|s| s.show_chart = next);
     };
 
     let body = match &*week.read() {
@@ -88,6 +99,24 @@ pub fn WeekPanel(
             let selected = day();
             let over = summary.remaining_secs < 0;
 
+            let now_dt = now();
+            let (running_secs, working) = match state.read().status(now_dt) {
+                Status::StampedIn {
+                    worked, on_break, ..
+                } => (worked.num_seconds(), !on_break),
+                Status::StampedOut => (0, false),
+            };
+            let advice = guidance(
+                &summary,
+                now_dt.date(),
+                i64::from(now_dt.time().num_seconds_from_midnight()),
+                running_secs,
+                working,
+            );
+            let today_line = advice.today.as_ref().map(|t| t.describe());
+            let balance_line = advice.balance_text();
+            let missing = advice.missing_days.clone();
+
             rsx! {
                 div { class: "week-head",
                     strong { "Week {selected.iso_week().week()}" }
@@ -101,10 +130,38 @@ pub fn WeekPanel(
                 div { class: "progress",
                     div { class: if over { "fill over" } else { "fill" }, style: "width: {filled}%" }
                 }
+                div { class: "guidance",
+                    if let Some(line) = today_line {
+                        p { class: "today", "{line}" }
+                    }
+                    if let Some(line) = balance_line {
+                        p { class: "muted", "{line}" }
+                    }
+                    if !missing.is_empty() {
+                        p { class: "warn",
+                            "⚠ Nothing booked on "
+                            for d in missing.iter().copied() {
+                                button {
+                                    key: "{d}",
+                                    class: "link",
+                                    onclick: move |_| day.set(d),
+                                    "{d.format(\"%a %d.%m.\")}"
+                                }
+                            }
+                        }
+                    }
+                }
                 if show_chart() {
                     div { class: "chart",
                         for d in days {
-                            div { key: "{d.date}", class: if d.date == selected { "col sel" } else { "col" },
+                            div {
+                                key: "{d.date}",
+                                class: match (d.date == selected, missing.contains(&d.date)) {
+                                    (true, true) => "col sel missing",
+                                    (true, false) => "col sel",
+                                    (false, true) => "col missing",
+                                    (false, false) => "col",
+                                },
                                 div { class: "bars", title: "{d.date.format(\"%a %d.%m.\")}: {fmt_hm(d.booked_secs)}",
                                     for t in d.by_activity.iter() {
                                         div {
