@@ -130,9 +130,14 @@ pub fn WeekPanel(
                 .map(|b| (b.overtime_text(), b.overtime_secs < 0, b.vacation_text()));
 
             rsx! {
-                div { class: "week-head",
-                    strong { "Week {selected.iso_week().week()}" }
-                    span { class: "muted", " {range}" }
+                div { class: "card-head",
+                    div { class: "week-head",
+                        strong { "Week {selected.iso_week().week()}" }
+                        span { class: "muted", " {range}" }
+                    }
+                    button { class: "secondary small", onclick: toggle,
+                        if show_chart() { "Hide chart" } else { "Show chart" }
+                    }
                 }
                 div { class: "week-numbers",
                     span { class: "big", "{fmt_hm(credited)}" }
@@ -144,12 +149,12 @@ pub fn WeekPanel(
                 }
                 if let Some((flextime, owed, vacation)) = balances {
                     div { class: "balances", title: "Balance as of today",
-                        span {
-                            span { class: "muted", "Flextime " }
+                        div { class: "stat",
+                            span { class: "stat-label", "Flextime" }
                             strong { class: if owed { "owed" } else { "" }, "{flextime}" }
                         }
-                        span {
-                            span { class: "muted", "Vacation " }
+                        div { class: "stat",
+                            span { class: "stat-label", "Vacation" }
                             strong { "{vacation}" }
                         }
                     }
@@ -226,13 +231,6 @@ pub fn WeekPanel(
     };
 
     rsx! {
-        div { class: "card week",
-            div { class: "week-toolbar",
-                button { class: "secondary", onclick: toggle,
-                    if show_chart() { "Hide chart" } else { "Show chart" }
-                }
-            }
-            {body}
-        }
+        div { class: "card week", {body} }
     }
 }

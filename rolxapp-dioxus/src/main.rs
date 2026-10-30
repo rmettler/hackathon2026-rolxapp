@@ -504,23 +504,24 @@ fn App() -> Element {
                 }
             }
         },
-        Some(Ok(Loaded::Day { user, entries })) => {
+        Some(Ok(Loaded::Day { entries, .. })) => {
             let date_label = day().format("%a %d.%m.%Y").to_string();
             rsx! {
-                p { class: "user", "Signed in as {user}" }
-                div { class: "card day-nav",
-                    button {
-                        class: "secondary",
-                        title: "Alt+←",
-                        onclick: move |_| day.set(day() - Duration::days(1)),
-                        "◀"
-                    }
-                    span { class: "date", "{date_label}" }
-                    button {
-                        class: "secondary",
-                        title: "Alt+→",
-                        onclick: move |_| day.set(day() + Duration::days(1)),
-                        "▶"
+                nav { class: "day-nav",
+                    div { class: "stepper",
+                        button {
+                            class: "icon",
+                            title: "Previous day (Alt+←)",
+                            onclick: move |_| day.set(day() - Duration::days(1)),
+                            "◀"
+                        }
+                        span { class: "date", "{date_label}" }
+                        button {
+                            class: "icon",
+                            title: "Next day (Alt+→)",
+                            onclick: move |_| day.set(day() + Duration::days(1)),
+                            "▶"
+                        }
                     }
                     button {
                         class: "secondary",
@@ -528,7 +529,12 @@ fn App() -> Element {
                         onclick: move |_| day.set(Local::now().date_naive()),
                         "Today"
                     }
-                    button { onclick: move |_| refresh += 1, "Refresh" }
+                    button {
+                        class: "secondary",
+                        title: "Reload from the server",
+                        onclick: move |_| refresh += 1,
+                        "↻ Refresh"
+                    }
                 }
                 WeekPanel { day, refresh, state: stamp_state }
                 for d in [day()] {
@@ -547,7 +553,11 @@ fn App() -> Element {
         }
     };
 
-    let logged_in = matches!(&*loaded.read(), Some(Ok(Loaded::Day { .. })));
+    let user_name = match &*loaded.read() {
+        Some(Ok(Loaded::Day { user, .. })) => Some(user.clone()),
+        _ => None,
+    };
+    let logged_in = user_name.is_some();
     let undo_line = undo().map(|u| {
         format!(
             "Last change: {} ({}, {})",
@@ -561,7 +571,12 @@ fn App() -> Element {
         style { "{CSS}" }
         main {
             header {
-                h1 { "RolX" }
+                div { class: "brand",
+                    h1 { "RolX" }
+                    if let Some(name) = user_name {
+                        span { class: "user", "{name}" }
+                    }
+                }
                 div { class: "header-tools",
                     button {
                         class: "secondary",
@@ -578,13 +593,13 @@ fn App() -> Element {
                 p { class: "error", "{e}" }
             }
             if let Some(line) = undo_line {
-                p { class: "muted undo-line",
-                    "{line} "
-                    button { class: "secondary", onclick: move |_| do_undo(), "↩ Undo" }
+                p { class: "status-line",
+                    span { "{line}" }
+                    button { class: "secondary small", onclick: move |_| do_undo(), "↩ Undo" }
                 }
             }
             if let Some(text) = info() {
-                p { class: "muted", "{text}" }
+                p { class: "status-line", "{text}" }
             }
             StampPanel { selected, away, on_favourite, on_reload }
             {content}
