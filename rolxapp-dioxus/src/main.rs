@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration as StdDuration;
 
-use chrono::{Duration, Local, NaiveDate};
+use chrono::{Duration, Local};
 use dioxus::core::Task;
 use dioxus::desktop::tao::dpi::{PhysicalPosition, PhysicalSize};
 use dioxus::desktop::tao::window::Icon as WindowIcon;
@@ -12,17 +12,12 @@ use dioxus::desktop::{
     Config, HotKeyState, LogicalPosition, LogicalSize, WindowBuilder, WindowCloseBehaviour, window,
 };
 use dioxus::prelude::*;
-use rolx_core::activities::{self, Activity};
-use rolx_core::dayedit::{load_day as load_day_entries, undo_last};
-use rolx_core::dayplan::DayEntry;
 use rolx_core::idle::{Away, IdleTracker};
 use rolx_core::login::{self, AuthFlow, UserAction};
-use rolx_core::stamp::StampState;
-use rolx_core::undo::{UndoRecord, UndoStore};
+use rolx_ui::app_state::{AppState, Loaded, use_app_state};
 use rolx_ui::day_view::DayView;
-use rolx_ui::shared;
 use rolx_ui::stamp_panel::StampPanel;
-use rolx_ui::stamper::Stamper;
+use rolx_ui::undo::{UndoLine, use_undo};
 use rolx_ui::week_panel::WeekPanel;
 use tokio::sync::mpsc;
 
@@ -66,27 +61,6 @@ fn main() {
                 .with_close_behaviour(close),
         )
         .launch(App);
-}
-
-enum Loaded {
-    NeedsLogin,
-    Day {
-        user: String,
-        entries: Vec<DayEntry>,
-    },
-}
-
-async fn load_day(day: NaiveDate) -> anyhow::Result<Loaded> {
-    if !shared::has_session() {
-        return Ok(Loaded::NeedsLogin);
-    }
-    let client = shared::client().await?;
-    let user = format!(
-        "{} {}",
-        client.session.user_first_name, client.session.user_last_name
-    );
-    let entries = load_day_entries(&client, day).await?;
-    Ok(Loaded::Day { user, entries })
 }
 
 /// Logs in via the browser; `manual_url` receives the login URL if the browser could not be opened.
@@ -215,102 +189,28 @@ fn current_geometry(previous: Option<WindowGeometry>) -> Option<WindowGeometry> 
     })
 }
 
-fn read_undo() -> Option<UndoRecord> {
-    UndoStore::load().ok().and_then(|s| s.last)
-}
-
 #[component]
 fn App() -> Element {
-    let mut day = use_signal(|| Local::now().date_naive());
-    let mut refresh = use_signal(|| 0u32);
+    let app = use_app_state();
+    let AppState {
+        mut day,
+        mut refresh,
+        stamp_state,
+        activities,
+        selected,
+        mut notice,
+        info,
+        stamper,
+        loaded,
+        on_favourite,
+        on_reload,
+    } = app;
+    let undo = use_undo(app);
     // The running login, if any; cancelling it drops the flow, which closes the redirect listener.
     let mut login_task = use_signal(|| None::<Task>);
     let mut login_url = use_signal(|| None::<String>);
-    let mut notice = use_signal(|| None::<String>);
-    let mut info = use_signal(|| None::<String>);
     let mut palette_open = use_signal(|| false);
     let mut away = use_signal(|| None::<Away>);
-    let mut undo = use_signal(read_undo);
-
-    let stamp_state = use_signal(|| StampState::load().unwrap_or_default());
-    let mut activities = use_signal(|| activities::load_cached().unwrap_or_default());
-    let selected = use_signal(|| None::<i32>);
-
-    let stamper = use_context_provider(|| Stamper {
-        state: stamp_state,
-        activities,
-        refresh,
-        message: Signal::new(None),
-        syncing: Signal::new(false),
-    });
-
-    let loaded = use_resource(move || async move {
-        refresh();
-        load_day(day()).await
-    });
-
-    let on_favourite = move |(id, favourite): (i32, bool)| {
-        let found = activities.read().iter().find(|a| a.id == id).cloned();
-        let Some(activity): Option<Activity> = found else {
-            return;
-        };
-        spawn(async move {
-            match shared::set_favourite(activity, favourite).await {
-                Ok(()) => {
-                    notice.set(None);
-                    activities.set(activities::load_cached().unwrap_or_default());
-                }
-                Err(e) => notice.set(Some(format!("Could not change the favourite: {e}"))),
-            }
-        });
-    };
-
-    let on_reload = move |_| {
-        spawn(async move {
-            match shared::reload_activities().await {
-                Ok(list) => {
-                    notice.set(None);
-                    activities.set(list);
-                }
-                Err(e) => notice.set(Some(format!("Could not reload the activities: {e}"))),
-            }
-        });
-    };
-
-    let on_changed = move |_| {
-        info.set(None);
-        undo.set(read_undo());
-        refresh += 1;
-    };
-
-    let do_undo = move || {
-        spawn(async move {
-            let result = async {
-                let client = shared::client().await?;
-                undo_last(&client).await
-            }
-            .await;
-            match result {
-                Ok(record) => {
-                    notice.set(None);
-                    info.set(Some(format!("Undone: {}", record.what)));
-                    undo.set(read_undo());
-                    day.set(record.day);
-                    refresh += 1;
-                }
-                Err(e) => notice.set(Some(e.to_string())),
-            }
-        });
-    };
-
-    // Keep the list complete without the user having to ask: once at start, if logged in.
-    use_future(move || async move {
-        if shared::has_session()
-            && let Ok(list) = shared::reload_activities().await
-        {
-            activities.set(list);
-        }
-    });
 
     // Requests from places that cannot touch signals directly (tray, hotkey, the web view) are
     // queued here and handled in the app.
@@ -561,7 +461,7 @@ fn App() -> Element {
                         activities,
                         on_favourite,
                         on_reload,
-                        on_changed,
+                        on_changed: undo.on_changed,
                     }
                 }
             }
@@ -569,14 +469,6 @@ fn App() -> Element {
     };
 
     let logged_in = matches!(&*loaded.read(), Some(Ok(Loaded::Day { .. })));
-    let undo_line = undo().map(|u| {
-        format!(
-            "Last change: {} ({}, {})",
-            u.what,
-            u.day.format("%a %d.%m."),
-            u.at.format("%H:%M")
-        )
-    });
 
     rsx! {
         style { "{rolx_ui::CSS}" }
@@ -599,12 +491,7 @@ fn App() -> Element {
             if let Some(e) = notice() {
                 p { class: "error", "{e}" }
             }
-            if let Some(line) = undo_line {
-                p { class: "muted undo-line",
-                    "{line} "
-                    button { class: "secondary", onclick: move |_| do_undo(), "↩ Undo" }
-                }
-            }
+            UndoLine { undo }
             if let Some(text) = info() {
                 p { class: "muted", "{text}" }
             }
@@ -614,7 +501,7 @@ fn App() -> Element {
                 Palette {
                     open: palette_open,
                     day,
-                    on_undo: move |_| do_undo(),
+                    on_undo: undo.do_undo,
                     on_reload,
                 }
             }

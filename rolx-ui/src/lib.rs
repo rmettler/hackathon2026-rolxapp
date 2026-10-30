@@ -7,10 +7,12 @@ use dioxus::prelude::*;
 use rolx_core::config::AppConfig;
 
 pub mod activity_picker;
+pub mod app_state;
 pub mod day_view;
 pub mod shared;
 pub mod stamp_panel;
 pub mod stamper;
+pub mod undo;
 pub mod week_panel;
 
 /// The styles the components need; render it with `style { "{rolx_ui::CSS}" }` before the app's own.
