@@ -8,7 +8,7 @@ where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-refer
 
 ## Layout
 
-- `crates/rolx-core`: portable client core (native and wasm32): session, `SessionStore`, config, redaction, API calls. No tokio, `std::fs` or `dirs` outside the `fs` feature; take the time from `clock::now()`.
+- `crates/rolx-core`: portable client core (native and wasm32): session, `SessionStore`, `ensure_fresh`, `RolxClient`, `DateRange`, config, redaction, API calls. No tokio, `std::fs` or `dirs` outside the `fs` feature; take the time from `clock::now()`.
 - `crates/rolx-mock`: dev/test-only mock of the RolX API and Google OAuth (lib + bin, `127.0.0.1` only, default port 8090, `cargo run -p rolx-mock`). Never a dependency of anything shipped, and no dependency on `rolx-core`. Bearer tokens carry their expiry, so a session can be seeded with `bearer_token_expiring_at` or `mock-bearer-<unix time>`.
 - `apps/cli`: `rolxcli`. `xtask`: workspace tasks.
 

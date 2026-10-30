@@ -1,5 +1,4 @@
 mod cli;
-mod client;
 mod commands;
 mod logging;
 mod oauth2;
@@ -7,7 +6,9 @@ mod oauth2;
 use clap::Parser;
 use cli::{Cli, Command, ConfigCommand, LoginFlow};
 use commands::login::AuthFlow;
+use rolx_core::client::RolxClient;
 use rolx_core::config::AppConfig;
+use rolx_core::store::FileSessionStore;
 
 #[tokio::main]
 async fn main() {
@@ -35,7 +36,9 @@ async fn run() -> anyhow::Result<()> {
         Command::Whoami => commands::whoami::run(),
         Command::Records { date } => {
             let config = load_config(cli.server)?;
-            let client = client::RolxClient::new(&config).await?;
+            let store = FileSessionStore::default_location()?;
+            let client =
+                RolxClient::from_store(reqwest::Client::new(), config.server_url, &store).await?;
             commands::records::run(&client, date).await
         }
         Command::Config { command } => match command {
