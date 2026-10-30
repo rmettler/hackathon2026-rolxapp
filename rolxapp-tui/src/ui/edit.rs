@@ -2,8 +2,9 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Clear, Paragraph};
+use ratatui::widgets::{Clear, Paragraph};
 
+use super::theme;
 use crate::app::App;
 use crate::edit::{Basis, EditForm, EditMode, Field};
 
@@ -42,7 +43,7 @@ pub(super) fn draw_edit(frame: &mut Frame, area: Rect, app: &App, form: &EditFor
         let after: String = chars.iter().skip(at + 1).collect();
         Line::from(vec![
             Span::raw(format!("{marker}{label:<10}{before}")),
-            Span::raw(under).reversed(),
+            Span::styled(under, theme::selected()),
             Span::raw(after),
         ])
         .bold()
@@ -80,15 +81,12 @@ pub(super) fn draw_edit(frame: &mut Frame, area: Rect, app: &App, form: &EditFor
                 a.full_number, a.name, a.customer_name
             ));
             lines.push(if i == form.search_sel {
-                line.reversed()
+                line.style(theme::selected())
             } else {
                 line
             });
         }
     }
     frame.render_widget(Clear, popup);
-    frame.render_widget(
-        Paragraph::new(lines).block(Block::bordered().title(title)),
-        popup,
-    );
+    frame.render_widget(Paragraph::new(lines).block(theme::panel(title)), popup);
 }

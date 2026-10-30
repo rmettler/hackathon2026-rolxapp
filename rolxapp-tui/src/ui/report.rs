@@ -2,13 +2,14 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Stylize;
 use ratatui::text::Line;
-use ratatui::widgets::{Block, Paragraph};
+use ratatui::widgets::Paragraph;
 use rolx_core::api::fmt_duration;
 
+use super::theme;
 use crate::app::App;
 
 pub(super) fn draw_report(frame: &mut Frame, area: Rect, app: &App) {
-    let block = Block::bordered().title(format!(" Report {} ", app.month_key()));
+    let block = theme::panel(format!(" Report {} ", app.month_key()));
     let Some(r) = &app.report else {
         frame.render_widget(Paragraph::new("Loading…").block(block), area);
         return;

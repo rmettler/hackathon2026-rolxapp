@@ -3,13 +3,14 @@ mod day;
 mod edit;
 mod footer;
 mod report;
+mod theme;
 mod year;
 
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
-use ratatui::style::{Style, Stylize};
+use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Paragraph, Tabs, Wrap};
+use ratatui::widgets::{Paragraph, Tabs, Wrap};
 use rolx_core::api::fmt_duration;
 
 use self::activities::draw_activities;
@@ -66,13 +67,13 @@ fn draw_main(frame: &mut Frame, area: Rect, app: &App) {
     .areas(area);
 
     frame.render_widget(
-        Paragraph::new(header_line(app)).block(Block::bordered().title(" RolX ")),
+        Paragraph::new(header_line(app)).block(theme::panel(" RolX ")),
         header,
     );
     frame.render_widget(
         Tabs::new(Tab::ALL.map(Tab::title))
             .select(app.tab.index())
-            .highlight_style(Style::new().bold().reversed()),
+            .highlight_style(theme::selected()),
         tabs,
     );
 

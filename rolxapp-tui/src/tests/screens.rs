@@ -1,8 +1,17 @@
 use chrono::NaiveDate;
+use ratatui::style::Color;
 use tokio::sync::mpsc;
 
 use crate::app::{App, Screen};
 use crate::test_support::*;
+
+#[test]
+fn brand_colours_mark_the_selection_and_table_header() {
+    let buffer = render_buffer(&main_app());
+    let has_bg = |color: Color| buffer.content().iter().any(|cell| cell.bg == color);
+    assert!(has_bg(Color::Rgb(0, 0, 255)), "selected row is brand blue");
+    assert!(has_bg(Color::Rgb(220, 220, 212)), "header is brand grey");
+}
 
 #[test]
 fn day_tab_shows_entries_and_total() {

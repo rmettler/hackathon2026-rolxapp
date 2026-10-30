@@ -1,18 +1,15 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::Stylize;
-use ratatui::widgets::{Block, List, ListItem, ListState, Paragraph, Row, Table};
+use ratatui::widgets::{List, ListItem, ListState, Paragraph, Row, Table};
 use rolx_core::api::fmt_duration;
 
+use super::theme;
 use crate::app::App;
 
 pub(super) fn draw_year(frame: &mut Frame, area: Rect, app: &App) {
     let title = format!(" {} ", app.year);
     let Some(info) = &app.year_info else {
-        frame.render_widget(
-            Paragraph::new("Loading…").block(Block::bordered().title(title)),
-            area,
-        );
+        frame.render_widget(Paragraph::new("Loading…").block(theme::panel(title)), area);
         return;
     };
     let [left, right] =
@@ -23,7 +20,7 @@ pub(super) fn draw_year(frame: &mut Frame, area: Rect, app: &App) {
         .iter()
         .map(|h| ListItem::new(format!("{}  {}", h.date, h.name)));
     frame.render_stateful_widget(
-        List::new(holidays).block(Block::bordered().title(format!("{title}Holidays "))),
+        List::new(holidays).block(theme::panel(format!("{title}Holidays "))),
         left,
         &mut ListState::default().with_offset(app.year_scroll),
     );
@@ -44,8 +41,8 @@ pub(super) fn draw_year(frame: &mut Frame, area: Rect, app: &App) {
                 Constraint::Fill(1),
             ],
         )
-        .header(Row::new(["Month", "Days", "Work time"]).bold())
-        .block(Block::bordered().title(" Monthly work time ")),
+        .header(Row::new(["Month", "Days", "Work time"]).style(theme::header()))
+        .block(theme::panel(" Monthly work time ")),
         right,
     );
 }

@@ -1,6 +1,7 @@
 use chrono::NaiveDate;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
+use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use rolx_core::api::activity::Activity;
 use rolx_core::api::records::{Record, RecordEntry};
@@ -18,6 +19,12 @@ pub(crate) fn press(app: &mut App, keys: &str) {
 
 pub(crate) fn special(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
     app.update(Msg::Key(KeyEvent::new(code, modifiers)));
+}
+
+pub(crate) fn render_buffer(app: &App) -> Buffer {
+    let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+    terminal.draw(|f| draw(f, app)).unwrap();
+    terminal.backend().buffer().clone()
 }
 
 pub(crate) fn render(app: &App) -> String {

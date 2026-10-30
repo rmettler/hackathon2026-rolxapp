@@ -1,9 +1,9 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Rect};
-use ratatui::style::{Style, Stylize};
-use ratatui::widgets::{Block, Paragraph, Row, Table, TableState};
+use ratatui::widgets::{Paragraph, Row, Table, TableState};
 use rolx_core::api::fmt_duration;
 
+use super::theme;
 use crate::app::App;
 use crate::time::{entry_end, fmt_clock};
 
@@ -13,16 +13,13 @@ pub(super) fn draw_day(frame: &mut Frame, area: Rect, app: &App) {
         title.push_str("[locked] ");
     }
     let Some(record) = &app.record else {
-        frame.render_widget(
-            Paragraph::new("Loading…").block(Block::bordered().title(title)),
-            area,
-        );
+        frame.render_widget(Paragraph::new("Loading…").block(theme::panel(title)), area);
         return;
     };
 
     let total: chrono::Duration = record.entries.iter().map(|e| e.duration).sum();
     let nominal = chrono::Duration::seconds(record.nominal_work_time);
-    let block = Block::bordered().title(title).title_bottom(format!(
+    let block = theme::panel(title).title_bottom(format!(
         " Total {} / target {} ",
         fmt_duration(total),
         fmt_duration(nominal)
@@ -65,8 +62,8 @@ pub(super) fn draw_day(frame: &mut Frame, area: Rect, app: &App) {
             Constraint::Fill(1),
         ],
     )
-    .header(Row::new(["Activity", "Name", "From", "To", "Time", "Comment"]).bold())
-    .row_highlight_style(Style::new().reversed())
+    .header(Row::new(["Activity", "Name", "From", "To", "Time", "Comment"]).style(theme::header()))
+    .row_highlight_style(theme::selected())
     .block(block);
     let mut state = TableState::default().with_selected(Some(app.sel_entry));
     frame.render_stateful_widget(table, area, &mut state);

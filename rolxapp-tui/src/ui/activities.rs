@@ -1,8 +1,8 @@
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::style::Style;
-use ratatui::widgets::{Block, List, ListItem, ListState, Paragraph};
+use ratatui::widgets::{List, ListItem, ListState, Paragraph};
 
+use super::theme;
 use crate::app::App;
 
 pub(super) fn draw_activities(frame: &mut Frame, area: Rect, app: &App) {
@@ -12,7 +12,7 @@ pub(super) fn draw_activities(frame: &mut Frame, area: Rect, app: &App) {
     } else if !app.act_search.is_empty() {
         title.push_str(&format!("/{} ", app.act_search));
     }
-    let block = Block::bordered().title(title);
+    let block = theme::panel(title);
     if app.activities.is_empty() {
         frame.render_widget(Paragraph::new("Loading…").block(block), area);
         return;
@@ -34,7 +34,7 @@ pub(super) fn draw_activities(frame: &mut Frame, area: Rect, app: &App) {
         ))
     });
     let list = List::new(items)
-        .highlight_style(Style::new().reversed())
+        .highlight_style(theme::selected())
         .block(block);
     let mut state = ListState::default().with_selected(Some(app.sel_activity));
     frame.render_stateful_widget(list, area, &mut state);
