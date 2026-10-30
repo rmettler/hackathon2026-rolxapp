@@ -87,12 +87,14 @@ pub async fn extend(State(state): State<AppState>, headers: HeaderMap) -> Respon
 }
 
 pub async fn work_record_range(
+    State(state): State<AppState>,
     headers: HeaderMap,
     Path((user_id, range)): Path<(String, String)>,
 ) -> Response {
     if let Err(status) = authorize(&headers) {
         return status.into_response();
     }
+    tokio::time::sleep(state.config.work_record_delay).await;
     let Some((begin, end)) = parse_range(&range) else {
         return StatusCode::NOT_FOUND.into_response();
     };

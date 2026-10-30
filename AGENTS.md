@@ -27,7 +27,7 @@ where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-refer
 - `ROLX_GOOGLE_BASE_URL` (debug builds only, release builds never read it) points the Google endpoints at a mock, e.g. `http://127.0.0.1:8090/google`, and allows plain HTTP for login.
 - Cargo feature `uncensored_logs` (on `rolx-core`, `rolx-auth` and `rolxcli`) disables log redaction; redaction is otherwise on in every build profile.
 - `ROLX_CONFIG_DIR` / `ROLX_CACHE_DIR` replace the default `<config dir>/rolx` and `<cache dir>/rolx` (holding `config.toml` and `session.json`). Tests must use them with temp dirs so the real session is never touched; `cargo xtask check` sets them for all tests.
-- `rolxcli config ls` prints client secrets, and `whoami` / `records` print personal data: never run them against the real config or session where the output is logged.
+- Do not log `reqwest` errors or serde messages: they can quote the URL with the user id, or parts of an answer. `rolxcli config ls` prints client secrets, and `whoami` / `records` print personal data: never run them against the real config or session where the output is logged.
 
 ## The server you integrate with
 

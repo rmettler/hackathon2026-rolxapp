@@ -4,8 +4,10 @@
 // Copied from the Dioxus components registry and only changed for Blitz, see `components/README.md`.
 #[allow(dead_code, unused_imports, clippy::all)]
 pub mod components;
+mod day_model;
 pub mod platform;
 mod preload;
+mod session_keeper;
 pub mod state;
 mod views;
 
@@ -35,6 +37,9 @@ pub fn App(platform: PlatformHandle) -> Element {
             Route::Login => rsx! { views::LoginView {} },
             Route::Day => rsx! { views::DayView {} },
             Route::Settings => rsx! { views::SettingsView {} },
+        }
+        if state.session.read().is_some() {
+            session_keeper::SessionKeeper {}
         }
         // After the views, as Blitz's Tab order also visits hidden controls.
         preload::StylePreload {}

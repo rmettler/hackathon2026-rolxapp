@@ -15,6 +15,10 @@ struct Args {
     /// Lifetime of issued bearer tokens in seconds; negative ones are expired on arrival
     #[arg(long, default_value_t = 86_400, allow_negative_numbers = true)]
     token_lifetime_secs: i64,
+
+    /// Delay of the work record answers in milliseconds, to see loading states
+    #[arg(long, default_value_t = 0)]
+    work_record_delay_ms: u64,
 }
 
 #[tokio::main]
@@ -22,6 +26,7 @@ async fn main() -> std::io::Result<()> {
     let args = Args::parse();
     let config = MockConfig {
         token_lifetime: Duration::seconds(args.token_lifetime_secs),
+        work_record_delay: std::time::Duration::from_millis(args.work_record_delay_ms),
         ..MockConfig::default()
     };
     let mock = rolx_mock::spawn_on_port(config, args.port).await?;

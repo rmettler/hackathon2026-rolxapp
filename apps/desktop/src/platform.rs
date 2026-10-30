@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::time::Duration;
 
 use rolx_auth::{AuthPrompt, Credentials, Endpoints, Flow};
 use rolx_core::api::sign_in;
@@ -11,6 +12,7 @@ use rolx_ui::{LoginFuture, LoginMethod, LoginPrompt, Platform};
 pub struct DesktopPlatform {
     store: Store,
     config: Result<AppConfig, String>,
+    http: reqwest::Client,
 }
 
 /// The session store, if the cache directory could be determined.
@@ -47,6 +49,11 @@ impl DesktopPlatform {
         Self {
             store: FileSessionStore::default_location().map_or(Store::Unavailable, Store::File),
             config: AppConfig::load().map_err(|e| e.to_string()),
+            // A hanging server must end in a retryable error, not in loading forever.
+            http: reqwest::Client::builder()
+                .timeout(Duration::from_secs(30))
+                .build()
+                .unwrap_or_default(),
         }
     }
 
@@ -142,7 +149,7 @@ impl Platform for DesktopPlatform {
     }
 
     fn http_client(&self) -> reqwest::Client {
-        reqwest::Client::new()
+        self.http.clone()
     }
 
     fn open_external(&self, url: &str) -> bool {

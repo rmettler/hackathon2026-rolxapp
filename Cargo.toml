@@ -21,6 +21,7 @@ clap               = { version = "4", features = ["derive"] }
 dioxus             = { version = "=0.8.0-alpha.3", default-features = false }
 dioxus-icons       = "=0.2.0-alpha.3"
 dioxus-primitives  = { git = "https://github.com/DioxusLabs/components", rev = "6b4a1488", default-features = false }
+dioxus-sdk-time    = "=0.8.0-alpha.3"
 dioxus-ssr         = "=0.8.0-alpha.3"
 dirs               = "7"
 enigo              = "0.6"

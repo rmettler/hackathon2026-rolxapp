@@ -8,6 +8,7 @@
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
     monospace;
     --color-red-700: oklch(50.5% 0.213 27.518);
+    --color-sky-100: oklch(95.1% 0.026 236.824);
     --color-sky-700: oklch(50% 0.134 242.749);
     --color-slate-900: oklch(20.8% 0.042 265.755);
     --spacing: 0.25rem;
@@ -175,6 +176,9 @@
   .static {
     position: static;
   }
+  .box-border {
+    box-sizing: border-box;
+  }
   .flex {
     display: flex;
   }
@@ -184,17 +188,50 @@
   .hidden {
     display: none;
   }
+  .h-screen {
+    height: 100vh;
+  }
+  .min-h-0 {
+    min-height: calc(var(--spacing) * 0);
+  }
+  .w-12 {
+    width: calc(var(--spacing) * 12);
+  }
+  .w-40 {
+    width: calc(var(--spacing) * 40);
+  }
+  .flex-1 {
+    flex: 1;
+  }
   .flex-col {
     flex-direction: column;
+  }
+  .flex-row {
+    flex-direction: row;
   }
   .items-center {
     align-items: center;
   }
+  .items-start {
+    align-items: flex-start;
+  }
+  .gap-2 {
+    gap: calc(var(--spacing) * 2);
+  }
   .gap-4 {
     gap: calc(var(--spacing) * 4);
   }
+  .overflow-y-scroll {
+    overflow-y: scroll;
+  }
+  .p-1 {
+    padding: calc(var(--spacing) * 1);
+  }
   .p-8 {
     padding: calc(var(--spacing) * 8);
+  }
+  .text-right {
+    text-align: right;
   }
   .text-2xl {
     font-size: var(--text-2xl);
@@ -220,6 +257,13 @@
   .outline {
     outline-style: var(--tw-outline-style);
     outline-width: 1px;
+  }
+  .hover\:bg-sky-100 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-sky-100);
+      }
+    }
   }
 }
 @property --tw-font-weight {

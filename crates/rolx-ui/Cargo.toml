@@ -4,14 +4,20 @@ name              = "rolx-ui"
 version.workspace = true
 
 [dependencies]
+chrono.workspace           = true
 dioxus                     = { workspace = true, features = ["lib"] }
 dioxus-icons.workspace     = true
 dioxus-primitives.workspace = true
+dioxus-sdk-time.workspace  = true
 reqwest.workspace          = true
 rolx-core                  = { path = "../rolx-core", default-features = false }
 time                       = { workspace = true, features = ["macros", "std"] }
+tracing.workspace          = true
 
 [dev-dependencies]
-chrono.workspace     = true
 dioxus-ssr.workspace = true
 serde_json.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+rolx-mock       = { path = "../rolx-mock" }
+tokio.workspace = true

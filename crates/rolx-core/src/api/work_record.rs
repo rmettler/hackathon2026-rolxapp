@@ -10,6 +10,11 @@ fn duration_from_seconds<'de, D: serde::Deserializer<'de>>(
     Ok(Duration::seconds(i64::deserialize(d)?))
 }
 
+/// Hours and minutes, like `7:05`.
+pub fn format_duration(d: Duration) -> String {
+    format!("{}:{:02}", d.num_hours(), d.num_minutes() % 60)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordEntry {
@@ -52,7 +57,8 @@ pub async fn get_range(
         "{server_url}/api/v1/WorkRecord/{}/range/{range}",
         session.user_id
     );
-    tracing::debug!(method = "GET", url, "HTTP request");
+    // Not the URL, it holds the user id.
+    tracing::debug!(method = "GET", %range, "work record request");
 
     let resp = http
         .get(&url)
@@ -109,6 +115,15 @@ mod tests {
             }
         ]
     }]"#;
+
+    #[test]
+    fn formats_durations_as_hours_and_minutes() {
+        assert_eq!(format_duration(Duration::zero()), "0:00");
+        assert_eq!(format_duration(Duration::minutes(5)), "0:05");
+        assert_eq!(format_duration(Duration::minutes(90)), "1:30");
+        assert_eq!(format_duration(Duration::hours(25)), "25:00");
+        assert_eq!(format_duration(Duration::seconds(59)), "0:00");
+    }
 
     #[test]
     fn deserializes_records_with_durations_in_seconds() {

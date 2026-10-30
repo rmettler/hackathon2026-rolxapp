@@ -44,6 +44,7 @@ applied and noted here, and all questions are asked at the end.
 | M8 | Plan deviation: `tailwind.css` uses `@import "tailwindcss" source(none)`. With automatic detection the result depended on the working directory, so `dx` and `xtask` generated different CSS. |
 | M8 | Routes are a plain `Route` enum in a signal, not `dioxus-router`: three screens need no URLs, it works the same on every renderer, and the transitions are a pure function that is easy to test. |
 | M8 | `Platform::login` takes a callback for prompts, because `rolx-ui` must compile for wasm and so cannot use `rolx-auth`'s `AuthPrompt`. The desktop app bridges the two. An unreadable session store counts as no session. |
+| M9 | Date navigation is previous, next and today, without the date picker: enough for CLI parity. A session the server rejects is deleted from the store, so the next start goes straight to Login. A failed extension of a still valid session shows an error with a retry and does not sign out. |
 
 ## Manual verification checklist
 
@@ -52,6 +53,7 @@ to expect.
 
 - [ ] M5: `rolxcli login` with real Google and stage. Expect the browser to open, Google's consent page, then `rolxcli whoami` showing your name.
 - [ ] M5: `rolxcli login device` with real Google and stage. Expect a URL and code in the terminal; after entering the code, `rolxcli whoami` shows your name.
+- [ ] M9: desktop app against stage with your real session. Expect today's entries and a total matching `rolxcli records`. Not done by the agent, so that real records stay out of its logs and screenshots.
 
 ## Review findings accepted without a fix
 
@@ -62,3 +64,4 @@ Minor findings from the per-milestone reviews that were deliberately not fixed.
 - M4: `DateRange::day` panics on the last date chrono can represent (year 262142), as the old CLI code did. Transport and JSON errors of `records` now carry an `HTTP error:` / `JSON error:` prefix.
 - M7: the scripted GUI run (coordinates and steps) is not committed, so `docs/blitz-spike.md` cannot be repeated exactly. `cargo xtask input type` handles ASCII capitals with Shift; other characters needing Shift were not tested.
 - M8: Blitz's Tab order visits the hidden controls of `StylePreload`. It comes after the views, so they are reached last, but Tab can still land on invisible controls. The apps have no keyboard requirement so far. The preload test can be fooled by a deliberate edit, such as a commented-out import.
+- M9: the selected date resets to today after a trip to Settings. The 5-minute repeat of `SessionKeeper` was not observed live; its check is the tested `fresh_session`, which also runs at the start. With a near-expiry session, "Try again" keeps showing the old error until the extension has finished (30 s at most).
