@@ -13,10 +13,11 @@ applied and noted here, and all questions are asked at the end.
 | Q4 | Scope beyond CLI parity (stamping, offline-first, bookings from `docs/user-requirements.md`) | out of scope |
 | Q5 | RISC-V box: distro, libc, access (SSH?) | static musl binary, no access assumed |
 | Q6 | LAN access to the headless host: own domain + TLS, Tailscale, or SSH tunnel only | localhost / SSH tunnel |
-| Q7 | Android minimum SDK version | dx template default |
-| Q8 | Windows bundle format | dx default |
+| Q7 | Android minimum SDK version | dx template default: `minSdk` 24, `targetSdk` 34 |
+| Q8 | Windows bundle format | dx default: NSIS installer, per user |
 | Q9 | Hackathon deadline / priority if time runs out | milestone order as in the plan |
 | Q10 | Google rejects the web sign-in button: "The given origin is not allowed for the given client ID" (HTTP 403, seen in M20) with the client in `[google_web_client]`. Please check that both `http://localhost` and `http://localhost:8080` are authorized JavaScript origins of that client, as Google asks for both, and add the production origin too. The cause is not proven until that is tried. | Everything else is tested with a stand-in for Google's script; the real button stays deferred |
+| Q11 | The screens use only `Button` and `Input`; `StylePreload` renders the other copied components just to load their styles, and those are what needs `'unsafe-eval'` in the web host's CSP. Remove them to tighten the CSP on the origin that holds the token? It would also remove the hidden Tab stops and the user name in the wasm, but the date picker and select would have to come back for bookings (Q4). Not tried in a browser. | keep them, as the plan's spike chose them |
 
 ## Decisions taken
 
@@ -73,6 +74,7 @@ to expect.
 - [ ] M15: Android device login with real Google and stage, on an emulator or phone. Put the server and device client into `apps/android/config.local.toml` and build. Expect the code on screen, Open browser to show Google's device page in the system browser, and the day view after entering the code. Also check Copy code by pasting.
 - [ ] M16: install the `aarch64` APK on a real phone (`adb install`, or copy it and allow the install). Expect the app to start and show Login; with a build holding your settings, sign in as in M15.
 - [ ] M20: web sign-in with real Google, after Q10. Start the chain from `apps/web/README.md` with `--google-client-id <web client id>` and the server of your choice. Expect Google's button, the sign-in, and the day view.
+- [ ] M21: the static Linux host against a real server: the x86_64 tarball or container with `--server https://<rolx server>`. Expect `/api/v1/SignIn/info` to answer 200. So far the musl build has only talked to the mock; TLS to stage was checked with the native build (M18).
 - [ ] M21: riscv64 container under emulation. This podman machine answers "Exec format error", as it has no riscv64 emulation; install `qemu-user-static` in it, then run the riscv64 image and expect `/config.json` and `/api/v1/SignIn/info` to respond. The binary itself was checked to be a static RISC-V ELF, and it cross-compiles with TLS.
 - [ ] M21: on the real RISC-V box, unpack `dist/web/rolxapp-webhost-riscv64gc-unknown-linux-musl.tar.gz` and run it as in `apps/webhost/README.md`. Expect the web app and a working `/api` with TLS to the RolX server.
 
@@ -87,10 +89,43 @@ Minor findings from the per-milestone reviews that were deliberately not fixed.
 - M8: Blitz's Tab order visits the hidden controls of `StylePreload`. It comes after the views, so they are reached last, but Tab can still land on invisible controls. The apps have no keyboard requirement so far. The preload test can be fooled by a deliberate edit, such as a commented-out import.
 - M9: the selected date resets to today after a trip to Settings. The 5-minute repeat of `SessionKeeper` was not observed live; its check is the tested `fresh_session`, which also runs at the start. With a near-expiry session, "Try again" keeps showing the old error until the extension has finished (30 s at most).
 - M10: `LoginView`'s task logic (success to save to Day, save failure, cancel) has no automated test, only the mock E2E runs; save failure was not run, and "Open browser" and the manual URL prompt were not clicked (the prompt has an SSR test).
-- M18: no limit on concurrent connections in the webhost; `/API/x`, `//api/x` and `/api%2fx` get the app with a 200 instead of a 404; a client abort during the body reports 413. A mid-stream upstream failure has no test.
-- M15: `dispatch` panics if no activity exists, which only a tap during activity destruction could reach. A failed Open browser shows no message; the address stays on screen.
-- M14: Android Auto Backup is left at its default, so `files/rolx/session.json` may be included in the device backup; the `dx` manifest template is not customized yet. Settings have no way back to the compiled-in server. `data_directory()` panics without an activity, which was not seen in normal use. A new APK built with another `ROLX_SERVER_URL` keeps the stored session (a developer-only case). The server file is not written atomically.
-- M21: the Windows user name stays in the web app's wasm once, as Dioxus' asset metadata embeds an absolute source path (`absolute_source_path` of the focus-trap script), which a compiler remap does not reach. The desktop and Android builds still hold the home path in panic locations. A real concern only if the build machine's account name is sensitive.
-- M20: no feedback on screen while the `POST SignIn` of the web button runs, so a second click sends a second POST and an old error stays until then.
-- M12: a panic in the release app ends it with no message anywhere (GUI subsystem, no panic hook or log file), and Blitz crashes are a known risk (`docs/blitz-spike.md`).
 - M11: if deleting the session fails at logout, the user reaches Login with only a log warning, and the next start signs them in again. The reachability check treating a 200 without JSON (such as a captive portal) as unreachable has no test, nor has the "not configured" state.
+- M12: a panic in the release app ends it with no message anywhere (GUI subsystem, no panic hook or log file), and Blitz crashes are a known risk (`docs/blitz-spike.md`).
+- M14: Android Auto Backup is left at its default, so `files/rolx/session.json` may be included in the device backup; the `dx` manifest template is not customized yet. Settings have no way back to the compiled-in server. `data_directory()` panics without an activity, which was not seen in normal use. A new APK built with another `ROLX_SERVER_URL` keeps the stored session (a developer-only case). The server file is not written atomically.
+- M15: `dispatch` panics if no activity exists, which only a tap during activity destruction could reach. A failed Open browser shows no message; the address stays on screen.
+- M18: no limit on concurrent connections in the webhost; `/API/x`, `//api/x` and `/api%2fx` get the app with a 200 instead of a 404; a client abort during the body reports 413. A mid-stream upstream failure has no test.
+- M20: no feedback on screen while the `POST SignIn` of the web button runs, so a second click sends a second POST and an old error stays until then.
+- M21: the Windows user name stays in the web app's wasm once, as Dioxus' asset metadata embeds an absolute source path (`absolute_source_path` of the focus-trap script), which a compiler remap does not reach. The desktop and Android builds still hold the home path in panic locations. A real concern only if the build machine's account name is sensitive.
+- M22: a session has no binding to its server: `rolxcli --server <address>` or an edited `server_url` sends the stored token there. Only Settings on Android guards against this.
+
+## Dependency audit
+
+`cargo audit` (M22, 2026-10-30): no vulnerabilities. Warnings, all in transitive dependencies of
+Dioxus and Blitz: unmaintained `paste`, `proc-macro-error`, `ttf-parser`, `zbus_names`, `zvariant`,
+`zvariant_derive`; unsound `glib` 0.18 (`VariantStrIter`), which comes with `wry`/`tao` for a Linux GTK target; `cargo tree`
+shows it in none of the five apps' builds that were made here. They can only be solved by updating
+Dioxus.
+
+## Things that happened during the work
+
+So that nothing surprising stays hidden:
+
+- In M1 a `secret-scan` check used a real session value, the user id, in an untracked probe file for a moment, to prove the scanner finds it. The file was deleted, and the output named no value.
+- A reviewer in M3 ran `cargo xtask secret-scan`, which reads the real `config.toml` and session even
+  with temp dirs set. It printed only "no findings". Later reviews were told not to run it.
+- In M14 a check printed the stage server's URL, a `config.toml` value, into the agent's log. The host
+  name is also in `docs/plan.md`. In the same check a leftover setting sent the fake mock token to
+  stage once, which answered 401. No real token was involved.
+- In M12 the release desktop build sent one request to real Google with the fake client id
+  `mock-client`, which proved that a release ignores `ROLX_GOOGLE_BASE_URL`. Google answered
+  `invalid_client`.
+- `rolxcli login` and the desktop login checks opened the default browser on this machine, against
+  the mock. `cargo xtask input` moved the mouse and typed on the desktop during the GUI checks.
+- Stage was contacted without a token in M11, M14 and M18 for reachability. `rolxcli records` and `whoami` ran with the real session, output discarded, and may have extended the
+  stored token.
+- Installed at user level: `dx`, Playwright and `zig` (pip), `cargo-zigbuild`, `cargo-audit`, the two musl Rust targets;
+  `dx` downloaded `tailwindcss`, `wasm-bindgen`, `esbuild` and NSIS to `~/.dx`.
+- Left on disk, all ignored by git: `dist/`, `apps/android/config.local.toml` (mock values), `screenshots/`
+  (mock data, except status-line crops that show only "The server is reachable.").
+- The podman images `rolxapp-webhost:amd64` and `:riscv64` stay in `podman-machine-rootful`, which is
+  stopped. Starting that machine printed a cgroup config error, without a visible effect.

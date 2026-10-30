@@ -9,6 +9,18 @@ Base project for the custom client apps of the [RolX time tracking server](https
 - Shall be cross-platform and support CLI, terminal UI, desktop and mobile apps.
 - Serves to test how well Rust is suited for the task, so Rust is used as far as applicable.
 
+## The apps
+
+| | Package | Docs |
+|---|---|---|
+| Command line | `rolxcli` | `apps/cli/README.md` |
+| Desktop (Dioxus Native) | `rolxapp-desktop` | `apps/desktop/README.md` |
+| Android (WebView) | `rolxapp-android` | `apps/android/README.md` |
+| Web (wasm) | `rolxapp-web` | `apps/web/README.md` |
+| Host for the web app, also for Linux and RISC-V | `rolxapp-webhost` | `apps/webhost/README.md` |
+
+How they fit together: `docs/architecture.md`. Decisions, open questions and what still needs a human: `docs/open-questions.md`.
+
 ## Development setup
 
 - Programming languages:  

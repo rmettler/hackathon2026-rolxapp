@@ -36,8 +36,7 @@ async fn run() -> anyhow::Result<()> {
         Command::Records { date } => {
             let config = load_config(cli.server)?;
             let store = FileSessionStore::default_location()?;
-            let client =
-                RolxClient::from_store(reqwest::Client::new(), config.server_url, &store).await?;
+            let client = RolxClient::from_store(http_client()?, config.server_url, &store).await?;
             commands::records::run(&client, date).await
         }
         Command::Config { command } => match command {
@@ -45,6 +44,13 @@ async fn run() -> anyhow::Result<()> {
             ConfigCommand::Path => commands::config::path(),
         },
     }
+}
+
+/// The token must not travel in clear; only a debug build may talk to the mock.
+fn http_client() -> reqwest::Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .https_only(!cfg!(debug_assertions))
+        .build()
 }
 
 /// Loads the config file, applying the `--server` override.

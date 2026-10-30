@@ -52,6 +52,8 @@ impl DesktopPlatform {
             // A hanging server must end in a retryable error, not in loading forever.
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(30))
+                // The token must not travel in clear; only a debug build may talk to the mock.
+                .https_only(!cfg!(debug_assertions))
                 .build()
                 .unwrap_or_default(),
         }
@@ -155,7 +157,10 @@ impl Platform for DesktopPlatform {
     }
 
     fn open_external(&self, url: &str) -> bool {
-        open::that_detached(url).is_ok()
+        // The URL comes from a server's answer, and another scheme would start some other program.
+        let lowercase = url.to_ascii_lowercase();
+        (lowercase.starts_with("https://") || lowercase.starts_with("http://"))
+            && open::that_detached(url).is_ok()
     }
 
     fn copy_text(&self, text: &str) -> bool {

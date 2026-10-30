@@ -3,8 +3,8 @@
 ## What this is
 
 `rolxapp` is a Rust workspace (edition **2024**) for building **custom client apps** for the
-RolX time tracking server. A slim CLI (`rolxcli`, in `apps/cli`) exists today; TUI/desktop/mobile are planned, all in Rust
-where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-reference.md`, `user-requirements.md`, server/frontend auth analyses).
+RolX time tracking server. There are a CLI, a desktop, an Android and a web app; a TUI is planned, all in Rust
+where sensible. Goals and roadmap: `README.md`. Structure: `docs/architecture.md`. Design docs: `docs/` (`api-reference.md`, `user-requirements.md`, server/frontend auth analyses). Open points and what needs a human: `docs/open-questions.md`.
 
 ## Layout
 
@@ -17,7 +17,7 @@ where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-refer
 ## Commands
 
 - Run the CLI: `cargo run -- -h` (default member `apps/cli`, binary `rolxcli`).
-- Gate before every commit: `cargo xtask check` (fmt, secret-scan, per-package clippy and tests, wasm clippy, Dioxus duplicate guard; see `docs/plan.md` §3.1). Do not use `--workspace` builds: Dioxus renderer features must not unify.
+- Gate before every commit: `cargo xtask check` (fmt, secret-scan, per-package clippy and tests, wasm clippy, Dioxus duplicate guard, fresh Tailwind CSS; see `docs/plan.md` §3.1). Do not use `--workspace` builds: Dioxus renderer features must not unify.
 - Secrets check alone: `cargo xtask secret-scan` (staged diff and untracked files).
 - Format: `cargo fmt --all`.
 - Desktop app: `dx build -p rolxapp-desktop --renderer native` (run `dx` from the workspace root), output in `target/dx/rolxapp-desktop/debug/windows/app`. Launch it with `CARGO_MANIFEST_DIR` unset, otherwise the window stays blank.
@@ -29,7 +29,7 @@ where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-refer
 - GUI checks (unlocked, awake desktop): `cargo xtask screenshot --window <title> --out screenshots/x.png`, `cargo xtask input click --window <title> --x <x> --y <y>`, `input type <text>`, `input scroll <lines>`. `/screenshots/` is ignored.
 - Fetch the pinned server checkout: `cargo xtask fetch-server` (workspace member `xtask/`).
 - `ROLX_GOOGLE_BASE_URL` (debug builds only, release builds never read it) points the Google endpoints at a mock, e.g. `http://127.0.0.1:8090/google`, and allows plain HTTP for login.
-- Cargo feature `uncensored_logs` (on `rolx-core`, `rolx-auth` and `rolxcli`) disables log redaction; redaction is otherwise on in every build profile.
+- Cargo feature `uncensored_logs` (on `rolx-core`, `rolx-auth`, `rolxcli` and `rolxapp-desktop`) disables log redaction; redaction is otherwise on in every build profile.
 - `ROLX_CONFIG_DIR` / `ROLX_CACHE_DIR` replace the default `<config dir>/rolx` and `<cache dir>/rolx` (holding `config.toml` and `session.json`). Tests must use them with temp dirs so the real session is never touched; `cargo xtask check` sets them for all tests.
 - Do not log `reqwest` errors or serde messages: they can quote the URL with the user id, or parts of an answer. `rolxcli config ls` prints client secrets, and `whoami` / `records` print personal data: never run them against the real config or session where the output is logged.
 
@@ -50,7 +50,7 @@ endpoints; for request/response shapes read the matching `WebApi/Resource/*.cs` 
 - Protected endpoints use `[Authorize(Policy = "ActiveUser")]`.
 
 ### Authentication
-1. **JWT Bearer (interactive, used by the CLI)**
+1. **JWT Bearer (interactive, used by all apps)**
    - `GET SignIn/info` → `{ googleClientId, installationId }`.
    - `POST SignIn` with `{ "googleIdToken": ... }` → `{ user, bearerToken, expires }`
      (HS256 JWT, default lifetime 1 day). `user.id` (GUID) is used in record/user routes.
@@ -62,6 +62,6 @@ endpoints; for request/response shapes read the matching `WebApi/Resource/*.cs` 
    `Supervisor` role. Not used by the app.
 
 ### Endpoints in use / likely next
-- `GET WorkRecord/{userId}/range/{begin}..{end}` — used by `records`. Users may read only
+- `GET WorkRecord/{userId}/range/{begin}..{end}` — used by the CLI's `records` and the day view. Users may read only
   their own records unless role is `>= Supervisor`.
 - `GET User` / `GET User/{id}` — elevated roles only.

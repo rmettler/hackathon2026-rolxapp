@@ -29,6 +29,8 @@ Findings from reading `./rolx-server/source/RolXServer` and `./rolx-server/sourc
 
 ## File / Module Structure
 
+This is the original layout of the CLI, before the workspace. The flows now live in `crates/rolx-auth`, sign-in in `crates/rolx-core/src/api/sign_in.rs`; see `docs/architecture.md`.
+
 ```
 src/
   main.rs              -- clap dispatch, load config once
