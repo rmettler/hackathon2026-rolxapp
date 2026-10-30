@@ -4,9 +4,10 @@ use rolx_core::activities::Activity;
 use rolx_core::dayedit::save_day;
 use rolx_core::dayplan::{
     DayEntry, EntryChange, Fix, Issue, analyze, apply_change, apply_fix, fix_new_issues, fmt_clock,
-    fmt_hm, new_issues, parse_clock,
+    fmt_hm, new_issues, parse_clock, sort_entries,
 };
 use rolx_core::stamp::StampState;
+use rolx_core::week::DAILY_TARGET_SECS;
 
 use crate::activity_picker::ActivityPicker;
 use crate::shared;
@@ -48,6 +49,8 @@ pub fn DayView(
     let mut form_comment = use_signal(String::new);
     let mut form_begin = use_signal(String::new);
     let mut form_end = use_signal(String::new);
+    let mut form_pause = use_signal(String::new);
+    let mut form_pause_initial = use_signal(String::new);
     let mut conflict = use_signal(|| None::<Conflict>);
     let mut message = use_signal(|| None::<String>);
     let mut busy = use_signal(|| false);
@@ -74,13 +77,14 @@ pub fn DayView(
         });
     };
 
-    let queued: Vec<DayEntry> = state
+    let mut queued: Vec<DayEntry> = state
         .read()
         .pending
         .iter()
         .filter(|p| p.date == day)
         .map(DayEntry::from)
         .collect();
+    sort_entries(&mut queued);
     let server_len = entries.len();
     let all: Vec<DayEntry> = entries.iter().chain(&queued).cloned().collect();
     let label = move |i: usize| {
@@ -95,14 +99,29 @@ pub fn DayView(
         .map(|i| (i, i.describe(&label)))
         .collect();
 
-    let total = fmt_hm(all.iter().map(|e| e.duration).sum());
+    let total_secs: i64 = all.iter().map(|e| e.duration).sum();
+    let total = fmt_hm(total_secs);
+    // The day target is always 8.4 h, independent of pensum.
+    let target_note = if total_secs <= DAILY_TARGET_SECS {
+        format!(
+            "{} left of {}",
+            fmt_hm(DAILY_TARGET_SECS - total_secs),
+            fmt_hm(DAILY_TARGET_SECS)
+        )
+    } else {
+        format!(
+            "{} over {}",
+            fmt_hm(total_secs - DAILY_TARGET_SECS),
+            fmt_hm(DAILY_TARGET_SECS)
+        )
+    };
 
     let rows: Vec<(usize, DayEntry)> = entries.iter().cloned().enumerate().collect();
 
     rsx! {
         div { class: "card",
             if all.is_empty() {
-                p { class: "empty", "No entries for this day." }
+                p { class: "empty", "No entries for this day. Target {fmt_hm(DAILY_TARGET_SECS)}." }
             } else {
                 table {
                     thead {
@@ -142,6 +161,17 @@ pub fn DayView(
                                                     oninput: move |ev| form_end.set(ev.value()),
                                                 }
                                             }
+                                            label { "Break "
+                                                input {
+                                                    class: "short",
+                                                    r#type: "number",
+                                                    min: "0",
+                                                    placeholder: "0",
+                                                    value: "{form_pause}",
+                                                    oninput: move |ev| form_pause.set(ev.value()),
+                                                }
+                                                " min"
+                                            }
                                             input {
                                                 placeholder: "Work report",
                                                 value: "{form_comment}",
@@ -179,11 +209,28 @@ pub fn DayView(
                                                                     .find(|a| a.id == id)
                                                                     .map(|a| (a.id, a.full_number.clone()))
                                                             });
+                                                        // Only touch the break if the field was changed, so a break with
+                                                        // odd seconds survives an unrelated edit.
+                                                        let pause = if form_pause().trim() == form_pause_initial().trim() {
+                                                            None
+                                                        } else {
+                                                            match form_pause().trim() {
+                                                                "" => Some(0),
+                                                                text => match text.parse::<u32>() {
+                                                                    Ok(minutes) if minutes < 24 * 60 => Some(minutes as i32 * 60),
+                                                                    _ => {
+                                                                        message.set(Some("The break must be a number of minutes below 24 h".into()));
+                                                                        return;
+                                                                    }
+                                                                },
+                                                            }
+                                                        };
                                                         let change = EntryChange {
                                                             activity,
                                                             comment: Some(Some(form_comment())),
                                                             begin,
                                                             end,
+                                                            pause,
                                                         };
                                                         let mut new = base.clone();
                                                         if let Err(err) = apply_change(&mut new, i, &change) {
@@ -282,14 +329,14 @@ pub fn DayView(
                                 tr { key: "r{i}",
                                     td { class: "num", "#{i + 1}" }
                                     td { class: "num", "{time_range(&e)}" }
-                                    td { title: "{e.full_activity_number}", "{e.full_activity_number}" }
+                                    td { class: "activity", title: "{e.full_activity_number}", "{e.full_activity_number}" }
                                     td { class: "num",
                                         "{fmt_hm(e.duration)}"
                                         if let Some(p) = e.pause.filter(|p| *p > 0) {
                                             span { class: "muted", " +{fmt_hm(i64::from(p))} break" }
                                         }
                                     }
-                                    td { "{e.comment.clone().unwrap_or_default()}" }
+                                    td { class: "comment", "{e.comment.clone().unwrap_or_default()}" }
                                     td { class: "actions",
                                         if confirm_delete() == Some(i) {
                                             "Delete? "
@@ -322,6 +369,13 @@ pub fn DayView(
                                                         form_comment.set(e.comment.clone().unwrap_or_default());
                                                         form_begin.set(clock_or_empty(e.begin.map(i64::from)));
                                                         form_end.set(clock_or_empty(e.end()));
+                                                        let minutes = e
+                                                            .pause
+                                                            .filter(|p| *p > 0)
+                                                            .map(|p| ((p + 30) / 60).to_string())
+                                                            .unwrap_or_default();
+                                                        form_pause_initial.set(minutes.clone());
+                                                        form_pause.set(minutes);
                                                         conflict.set(None);
                                                         message.set(None);
                                                         confirm_delete.set(None);
@@ -366,7 +420,7 @@ pub fn DayView(
                             td {}
                             td { "Total" }
                             td { class: "num", "{total}" }
-                            td {}
+                            td { class: "muted", "{target_note}" }
                             td {}
                         }
                     }

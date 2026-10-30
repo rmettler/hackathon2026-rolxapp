@@ -7,4 +7,5 @@ pub mod pick;
 pub mod records;
 pub mod stamp;
 pub mod sync;
+pub mod week;
 pub mod whoami;

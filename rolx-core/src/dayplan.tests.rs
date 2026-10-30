@@ -222,6 +222,92 @@ fn invalid_changes_are_rejected_and_leave_the_entry_alone() {
 }
 
 #[test]
+fn changing_the_break_keeps_the_time_span_and_adjusts_the_work_time() {
+    let mut day = vec![e(8, 0, 240, 0)]; // 8:00-12:00, no break
+    apply_change(
+        &mut day,
+        0,
+        &EntryChange {
+            pause: Some(45 * 60),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(day[0].end(), Some(12 * 3600), "span unchanged");
+    assert_eq!(day[0].pause, Some(45 * 60));
+    assert_eq!(day[0].duration, (240 - 45) * 60);
+
+    apply_change(
+        &mut day,
+        0,
+        &EntryChange {
+            pause: Some(0),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(day[0].pause, None, "a zero break is removed");
+    assert_eq!(day[0].duration, 240 * 60);
+}
+
+#[test]
+fn break_and_times_can_be_changed_together() {
+    let mut day = vec![e(8, 0, 240, 0)];
+    apply_change(
+        &mut day,
+        0,
+        &EntryChange {
+            end: at(13, 0),
+            pause: Some(60 * 60),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(day[0].begin, at(8, 0));
+    assert_eq!(day[0].duration, 4 * 3600, "5h span minus 1h break");
+    assert_eq!(day[0].pause, Some(3600));
+}
+
+#[test]
+fn invalid_breaks_are_rejected() {
+    let mut day = vec![e(8, 0, 60, 0)];
+    let too_long = EntryChange {
+        pause: Some(60 * 60),
+        ..Default::default()
+    };
+    assert_eq!(
+        apply_change(&mut day, 0, &too_long),
+        Err(EditError::BreakLongerThanEntry)
+    );
+    let negative = EntryChange {
+        pause: Some(-1),
+        ..Default::default()
+    };
+    assert_eq!(
+        apply_change(&mut day, 0, &negative),
+        Err(EditError::InvalidTimes)
+    );
+
+    let mut untimed = vec![DayEntry {
+        begin: None,
+        ..e(8, 0, 60, 0)
+    }];
+    let pause_only = EntryChange {
+        pause: Some(600),
+        ..Default::default()
+    };
+    assert_eq!(
+        apply_change(&mut untimed, 0, &pause_only),
+        Err(EditError::NoBeginTime),
+        "the server only allows a break on entries with a time of day"
+    );
+    assert_eq!(
+        day[0].duration, 3600,
+        "failed changes leave the entry alone"
+    );
+}
+
+#[test]
 fn truncate_ends_the_earlier_entry_where_the_later_starts() {
     let mut day = vec![e(8, 0, 120, 0), e(9, 30, 60, 0)];
     let issue = analyze(&day)[0];
@@ -310,6 +396,56 @@ fn shifting_cascades_through_following_entries() {
     assert_eq!(after[1].begin, at(9, 30));
     assert_eq!(after[2].begin, at(10, 30));
     assert!(analyze(&after).is_empty());
+}
+
+#[test]
+fn entries_are_sorted_by_time_with_untimed_entries_last() {
+    let untimed = DayEntry {
+        begin: None,
+        ..e(9, 0, 60, 0)
+    };
+    let mut day = vec![
+        untimed.clone(),
+        e(13, 0, 60, 0),
+        e(8, 0, 120, 0),
+        e(8, 0, 60, 0),
+    ];
+    sort_entries(&mut day);
+
+    assert_eq!(
+        day,
+        vec![
+            e(8, 0, 60, 0), // same start: the one that ends first
+            e(8, 0, 120, 0),
+            e(13, 0, 60, 0),
+            untimed,
+        ]
+    );
+}
+
+#[test]
+fn sorting_gives_the_same_result_whatever_the_input_order() {
+    let items = vec![
+        e(10, 0, 30, 0),
+        DayEntry {
+            activity_id: 2,
+            ..e(10, 0, 30, 0)
+        },
+        DayEntry {
+            begin: None,
+            ..e(0, 0, 60, 0)
+        },
+        e(9, 0, 30, 0),
+        DayEntry {
+            comment: Some("x".into()),
+            ..e(10, 0, 30, 0)
+        },
+    ];
+    let mut forward = items.clone();
+    let mut backward: Vec<_> = items.into_iter().rev().collect();
+    sort_entries(&mut forward);
+    sort_entries(&mut backward);
+    assert_eq!(forward, backward);
 }
 
 #[test]

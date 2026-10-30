@@ -70,6 +70,11 @@ async fn run() -> anyhow::Result<()> {
             let config = load_config(cli.server)?;
             commands::entry::run(&config, command).await
         }
+        Command::Week { date } => {
+            let config = load_config(cli.server)?;
+            let client = RolxClient::new(&config).await?;
+            commands::week::run(&client, date).await
+        }
     }
 }
 

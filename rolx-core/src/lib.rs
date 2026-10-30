@@ -15,6 +15,7 @@ pub mod session;
 pub mod stamp;
 pub mod storage;
 pub mod sync;
+pub mod week;
 
 #[cfg(test)]
 mod test_support;

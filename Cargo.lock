@@ -4226,6 +4226,7 @@ dependencies = [
  "chrono",
  "dioxus",
  "rolx-core",
+ "serde",
  "tokio",
 ]
 

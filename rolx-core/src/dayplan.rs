@@ -55,6 +55,23 @@ impl DayEntry {
     }
 }
 
+/// Puts entries in the order a person expects: by time of day (start, then end), with entries that
+/// have no time of day last. The order is total, so equal inputs always give the same result and
+/// two lists with the same entries sort identically.
+pub fn sort_entries(entries: &mut [DayEntry]) {
+    entries.sort_by(|a, b| {
+        a.begin
+            .is_none()
+            .cmp(&b.begin.is_none())
+            .then(a.begin.cmp(&b.begin))
+            .then(a.end().cmp(&b.end()))
+            .then_with(|| a.full_activity_number.cmp(&b.full_activity_number))
+            .then(a.activity_id.cmp(&b.activity_id))
+            .then(a.duration.cmp(&b.duration))
+            .then_with(|| a.comment.cmp(&b.comment))
+    });
+}
+
 /// A queued entry as it will look on the server (activity id 0 while unassigned).
 impl From<&PendingEntry> for DayEntry {
     fn from(p: &PendingEntry) -> Self {
@@ -210,10 +227,12 @@ pub struct EntryChange {
     pub comment: Option<Option<String>>,
     pub begin: Option<i32>,
     pub end: Option<i32>,
+    /// Break in seconds; `Some(0)` removes it.
+    pub pause: Option<i32>,
 }
 
-/// Applies the change to `entries[index]`. Changing begin or end keeps the pause and adjusts the
-/// duration.
+/// Applies the change to `entries[index]`. The covered time span stays as it is unless begin or end
+/// change; the work duration is always the span minus the break.
 pub fn apply_change(
     entries: &mut [DayEntry],
     index: usize,
@@ -229,7 +248,7 @@ pub fn apply_change(
     if let Some(comment) = &change.comment {
         updated.comment = comment.clone().filter(|c| !c.trim().is_empty());
     }
-    if change.begin.is_some() || change.end.is_some() {
+    if change.begin.is_some() || change.end.is_some() || change.pause.is_some() {
         let begin = i64::from(change.begin.or(entry.begin).ok_or(EditError::NoBeginTime)?);
         let end = match change.end {
             Some(end) => i64::from(end),
@@ -241,12 +260,16 @@ pub fn apply_change(
         if end > SECONDS_PER_DAY {
             return Err(EditError::OutsideDay);
         }
-        let pause = i64::from(entry.pause.unwrap_or(0));
+        let pause = i64::from(change.pause.unwrap_or_else(|| entry.pause.unwrap_or(0)));
+        if pause < 0 {
+            return Err(EditError::InvalidTimes);
+        }
         if pause >= end - begin {
             return Err(EditError::BreakLongerThanEntry);
         }
         updated.begin = Some(begin as i32);
         updated.duration = end - begin - pause;
+        updated.pause = Some(pause as i32).filter(|p| *p > 0);
     }
 
     *entry = updated;

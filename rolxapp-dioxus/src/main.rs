@@ -1,5 +1,5 @@
 use chrono::{Duration, Local, NaiveDate};
-use dioxus::desktop::{Config, WindowBuilder};
+use dioxus::desktop::{Config, LogicalPosition, LogicalSize, WindowBuilder};
 use dioxus::prelude::*;
 use rolx_core::activities::{self, Activity};
 use rolx_core::config::AppConfig;
@@ -10,16 +10,29 @@ use rolx_core::stamp::StampState;
 
 mod activity_picker;
 mod day_view;
+mod settings;
 mod shared;
 mod stamp_panel;
+mod week_panel;
 use day_view::DayView;
 use stamp_panel::StampPanel;
+use week_panel::WeekPanel;
 
 const CSS: &str = include_str!("style.css");
 
+// Window defaults (logical pixels). The position is measured from the top-left corner of the primary
+// screen, so the window always opens on it.
+const WINDOW_SIZE: (f64, f64) = (900.0, 760.0);
+const WINDOW_MIN_SIZE: (f64, f64) = (480.0, 400.0);
+const WINDOW_POSITION: (f64, f64) = (60.0, 40.0);
+
 fn main() {
     rolx_core::logging::init(0);
-    let window = WindowBuilder::new().with_title("RolX");
+    let window = WindowBuilder::new()
+        .with_title("RolX")
+        .with_inner_size(LogicalSize::new(WINDOW_SIZE.0, WINDOW_SIZE.1))
+        .with_min_inner_size(LogicalSize::new(WINDOW_MIN_SIZE.0, WINDOW_MIN_SIZE.1))
+        .with_position(LogicalPosition::new(WINDOW_POSITION.0, WINDOW_POSITION.1));
     dioxus::LaunchBuilder::desktop()
         .with_cfg(Config::new().with_window(window))
         .launch(App);
@@ -146,6 +159,7 @@ fn App() -> Element {
                     button { class: "secondary", onclick: move |_| day.set(Local::now().date_naive()), "Today" }
                     button { onclick: move |_| refresh += 1, "Refresh" }
                 }
+                WeekPanel { day, refresh, state: stamp_state }
                 for d in [day()] {
                     DayView {
                         key: "{d}",

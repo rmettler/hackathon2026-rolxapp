@@ -7,7 +7,7 @@ use chrono::NaiveDate;
 use serde::Deserialize;
 
 use crate::client::RolxClient;
-use crate::dayplan::{DayEntry, entries_of, set_entries};
+use crate::dayplan::{DayEntry, entries_of, set_entries, sort_entries};
 use crate::records;
 
 #[derive(Debug, thiserror::Error)]
@@ -28,11 +28,16 @@ pub async fn fetch_edit_lock(client: &RolxClient) -> anyhow::Result<NaiveDate> {
     Ok(client.get_json::<EditLock>("api/v1/edit-lock").await?.date)
 }
 
+/// The entries of a day in chronological order (see [`sort_entries`]). Numbers shown to the user and
+/// indices passed to [`save_day`] refer to this order.
 pub async fn load_day(client: &RolxClient, day: NaiveDate) -> anyhow::Result<Vec<DayEntry>> {
-    Ok(entries_of(&records::fetch_day_record(client, day).await?)?)
+    let mut entries = entries_of(&records::fetch_day_record(client, day).await?)?;
+    sort_entries(&mut entries);
+    Ok(entries)
 }
 
 /// Replaces the entries of `day` with `new`, provided the server still has exactly `base`.
+/// Only the entries are compared, not the order the server happens to list them in.
 pub async fn save_day(
     client: &RolxClient,
     day: NaiveDate,
@@ -47,10 +52,17 @@ pub async fn save_day(
     }
 
     let mut record = records::fetch_day_record(client, day).await?;
-    if entries_of(&record)? != base {
+    let mut current = entries_of(&record)?;
+    sort_entries(&mut current);
+    let mut base = base.to_vec();
+    sort_entries(&mut base);
+    if current != base {
         return Err(SaveError::Changed.into());
     }
-    set_entries(&mut record, new);
+
+    let mut new = new.to_vec();
+    sort_entries(&mut new);
+    set_entries(&mut record, &new);
     records::update_day_record(client, day, &record).await
 }
 

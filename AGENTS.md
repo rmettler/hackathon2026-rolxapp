@@ -10,7 +10,8 @@ where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-refer
 
 - `rolx-core/` — frontend-independent library: config, session, OAuth2 flows, RolX API calls
   (`rolx/`, `records.rs`, `activities.rs`), offline stamping (`stamp.rs`) and upload (`sync.rs`),
-  editing a day (`dayplan.rs` pure overlap/gap analysis and fixes, `dayedit.rs` safe save), logging.
+  editing a day (`dayplan.rs` pure overlap/gap analysis and fixes, `dayedit.rs` safe save), the week target and
+  booked-time summary (`week.rs`), logging.
   Must not print results; frontends do the presentation.
 - `.` (package `rolxapp`, `src/`) — the CLI: argument parsing (`cli.rs`) and printing (`commands/`).
 - `rolxapp-dioxus/` — Dioxus 0.7 desktop app on top of `rolx-core`.
@@ -64,8 +65,9 @@ endpoints; for request/response shapes read the matching `WebApi/Resource/*.cs` 
    `Supervisor` role. Not used by the app.
 
 ### Endpoints in use / likely next
-- `GET WorkRecord/{userId}/range/{begin}..{end}` — used by `records` and `sync`. Users may read only
-  their own records unless role is `>= Supervisor`.
+- `GET WorkRecord/{userId}/range/{begin}..{end}` — used by `records`, `week` and `sync`. Users may read only
+  their own records unless role is `>= Supervisor`. Each returned day has `nominalWorkTime` (seconds): 0 on
+  weekends/holidays, otherwise the server's per-day time × the part-time factor; the week target is their sum.
 - `PUT WorkRecord/{userId}/{date}` — used by `sync`. **Replaces the whole day**, so always GET the day, modify, and
   send the complete record back (`records::fetch_day_record` / `update_day_record`). Entry rules: `activityId` must
   be a valid open activity for the user, `duration` is net work time, and `begin + duration + pause` must stay

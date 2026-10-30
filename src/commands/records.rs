@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use chrono::{Duration, NaiveDate};
 use rolx_core::client::RolxClient;
 use rolx_core::dayedit::load_day;
-use rolx_core::dayplan::{DayEntry, Issue, analyze, fmt_clock, fmt_hm};
+use rolx_core::dayplan::{DayEntry, Issue, analyze, fmt_clock, fmt_hm, sort_entries};
 use rolx_core::stamp::StampState;
 
 pub fn parse_day(date: Option<String>) -> anyhow::Result<NaiveDate> {
@@ -51,7 +51,7 @@ pub fn describe_issue(issue: &Issue, label: &dyn Fn(usize) -> String) -> String 
 pub async fn run(client: &RolxClient, date: Option<String>) -> anyhow::Result<()> {
     let day = parse_day(date)?;
     let server = load_day(client, day).await?;
-    let queued: Vec<DayEntry> = match StampState::load() {
+    let mut queued: Vec<DayEntry> = match StampState::load() {
         Ok(state) => state
             .pending
             .iter()
@@ -63,6 +63,8 @@ pub async fn run(client: &RolxClient, date: Option<String>) -> anyhow::Result<()
             Vec::new()
         }
     };
+
+    sort_entries(&mut queued);
 
     if server.is_empty() && queued.is_empty() {
         println!("No entries for {day}.");

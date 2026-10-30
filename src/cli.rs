@@ -80,6 +80,11 @@ pub enum Command {
         #[command(subcommand)]
         command: EntryCommand,
     },
+    /// Show the week: booked time per day, the target and what is left
+    Week {
+        /// Any day of the week (yyyy-MM-dd), default today
+        date: Option<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -103,6 +108,9 @@ pub enum EntryCommand {
         /// New end time (HH:MM)
         #[arg(long)]
         end: Option<String>,
+        /// New break in minutes (0 removes it); start and end stay as they are
+        #[arg(long = "break")]
+        pause: Option<u32>,
         /// Resolve the conflicts this change causes
         #[arg(long, value_enum)]
         fix: Option<FixKind>,

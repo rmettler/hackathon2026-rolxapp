@@ -38,6 +38,48 @@ async fn server(entries: &[DayEntry], lock: &str) -> MockServer {
 }
 
 #[tokio::test]
+async fn days_are_listed_chronologically_with_untimed_entries_last() {
+    let late = entry(2, 50_400, 3_600);
+    let early = entry(1, 28_800, 3_600);
+    let untimed = DayEntry {
+        begin: None,
+        ..entry(3, 0, 7_200)
+    };
+    // the server lists them in its own order
+    let server = server(
+        &[late.clone(), untimed.clone(), early.clone()],
+        "2026-10-01",
+    )
+    .await;
+
+    assert_eq!(
+        load_day(&server.client(), day()).await.unwrap(),
+        vec![early, late, untimed]
+    );
+}
+
+#[tokio::test]
+async fn a_different_order_on_the_server_is_not_a_change() {
+    let a = entry(1, 28_800, 3_600);
+    let b = entry(2, 36_000, 3_600);
+    // the server lists b before a; the user saw (and saves against) the chronological list
+    let server = server(&[b.clone(), a.clone()], "2026-10-01").await;
+
+    save_day(
+        &server.client(),
+        day(),
+        &[a.clone(), b.clone()],
+        &[b.clone(), a.clone()],
+    )
+    .await
+    .unwrap();
+
+    let sent = &server.requests("PUT")[0].1["entries"];
+    assert_eq!(sent[0]["activityId"], 1, "saved in chronological order");
+    assert_eq!(sent[1]["activityId"], 2);
+}
+
+#[tokio::test]
 async fn saves_the_new_entries_and_keeps_the_rest_of_the_record() {
     let a = entry(1, 28_800, 3_600);
     let b = entry(2, 36_000, 3_600);

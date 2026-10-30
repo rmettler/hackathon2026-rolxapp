@@ -40,6 +40,7 @@ pub async fn run(config: &AppConfig, command: EntryCommand) -> anyhow::Result<()
             comment,
             begin,
             end,
+            pause,
             fix,
             force,
         } => {
@@ -53,8 +54,16 @@ pub async fn run(config: &AppConfig, command: EntryCommand) -> anyhow::Result<()
             change.comment = comment.map(|c| Some(c).filter(|c| !c.trim().is_empty()));
             change.begin = parse_time("--begin", begin)?;
             change.end = parse_time("--end", end)?;
+            change.pause = pause
+                .map(|minutes| {
+                    minutes
+                        .checked_mul(60)
+                        .and_then(|secs| i32::try_from(secs).ok())
+                        .ok_or_else(|| anyhow!("--break is too long"))
+                })
+                .transpose()?;
             if change == EntryChange::default() {
-                bail!("nothing to change, pass --activity, --comment, --begin or --end");
+                bail!("nothing to change, pass --activity, --comment, --begin, --end or --break");
             }
 
             let client = RolxClient::new(config).await?;
