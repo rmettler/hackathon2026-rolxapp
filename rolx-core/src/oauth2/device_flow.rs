@@ -23,10 +23,12 @@ pub enum Error {
     TokenExchange(#[from] token::Error),
 }
 
+/// Calls `show_user_code` with the verification URL and the user code, which the user must enter there.
 pub async fn run(
     http_client: &reqwest::Client,
     cfg: &Cfg,
     scope: &str,
+    show_user_code: impl FnOnce(&str, &str),
 ) -> Result<TokenResponse, Error> {
     let device_resp = auth::request_device_code(http_client, cfg, scope).await?;
 
@@ -35,11 +37,7 @@ pub async fn run(
         .as_ref()
         .unwrap_or(&device_resp.verification_uri);
 
-    println!(
-        "To authorize this application, visit:\n  {}",
-        verification_uri
-    );
-    println!("Then enter the following code: {}\n", device_resp.user_code);
+    show_user_code(verification_uri, &device_resp.user_code);
 
     let resp = token::poll_for_token(
         http_client,

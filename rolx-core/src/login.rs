@@ -1,4 +1,5 @@
 use crate::config::AppConfig;
+use crate::http;
 use crate::oauth2::device_flow;
 use crate::oauth2::native_app_flow;
 use crate::rolx::sign_in;
@@ -18,14 +19,29 @@ pub enum AuthFlow {
     Device,
 }
 
+/// Something the user has to do to complete the login, shown by the frontend.
+#[derive(Debug)]
+pub enum UserAction<'a> {
+    /// Opening the browser failed, so the user has to open `url` manually.
+    OpenUrl { url: &'a str },
+    /// Device flow: the user has to visit `url` and enter `code` there.
+    EnterCode { url: &'a str, code: &'a str },
+}
+
+/// Logs in and saves the session. Calls `on_user_action` if the user has to do more than log in in the browser
+/// that is opened automatically.
 #[tracing::instrument(name = "login", skip_all)]
-pub async fn run(app_cfg: &AppConfig, flow: AuthFlow) -> anyhow::Result<Session> {
+pub async fn run(
+    app_cfg: &AppConfig,
+    flow: AuthFlow,
+    on_user_action: impl FnOnce(UserAction),
+) -> anyhow::Result<Session> {
     tracing::info!(
         url = app_cfg.server_url,
         oauth_flow = ?flow,
         "Logging in to"
     );
-    let http = reqwest::Client::builder()
+    let http = http::client_builder()
         .redirect(reqwest::redirect::Policy::none())
         .https_only(true)
         .tls_version_min(reqwest::tls::Version::TLS_1_2)
@@ -44,12 +60,18 @@ pub async fn run(app_cfg: &AppConfig, flow: AuthFlow) -> anyhow::Result<Session>
                 client_secret: Some(credentials.secret.clone()),
                 user_email: session.map(|s| s.user_email),
             };
-            let resp = native_app_flow::run(&http, &mut rand::rng(), &cfg, "openid email profile")
-                .await
-                .map_err(|e| {
-                    tracing::error!(error = %e, "native app flow failed");
-                    e
-                })?;
+            let resp = native_app_flow::run(
+                &http,
+                &mut rand::rng(),
+                &cfg,
+                "openid email profile",
+                |url| on_user_action(UserAction::OpenUrl { url }),
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "native app flow failed");
+                e
+            })?;
             resp.id_token
                 .ok_or_else(|| anyhow!("id_token missing in access token response"))?
         }
@@ -63,7 +85,10 @@ pub async fn run(app_cfg: &AppConfig, flow: AuthFlow) -> anyhow::Result<Session>
                 client_id: credentials.id.clone(),
                 client_secret: Some(credentials.secret.clone()),
             };
-            let resp = device_flow::run(&http, &cfg, "openid email profile").await?;
+            let resp = device_flow::run(&http, &cfg, "openid email profile", |url, code| {
+                on_user_action(UserAction::EnterCode { url, code })
+            })
+            .await?;
             resp.id_token
                 .ok_or_else(|| anyhow!("id_token missing in device flow token response"))?
         }

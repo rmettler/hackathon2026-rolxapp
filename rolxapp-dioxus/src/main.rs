@@ -3,7 +3,7 @@ use dioxus::desktop::{Config, WindowBuilder};
 use dioxus::prelude::*;
 use rolx_core::client::RolxClient;
 use rolx_core::config::AppConfig;
-use rolx_core::login::{self, AuthFlow};
+use rolx_core::login::{self, AuthFlow, UserAction};
 use rolx_core::records::{self, RecordEntry, fmt_duration};
 use rolx_core::session::{LoadError, Session};
 
@@ -41,9 +41,15 @@ async fn load_day(day: NaiveDate) -> anyhow::Result<Loaded> {
     Ok(Loaded::Day { user, entries })
 }
 
-async fn log_in() -> anyhow::Result<()> {
+/// Logs in via the browser; `manual_url` receives the login URL if the browser could not be opened.
+async fn log_in(mut manual_url: Signal<Option<String>>) -> anyhow::Result<()> {
     let config = AppConfig::load()?;
-    login::run(&config, AuthFlow::NativeApp).await?;
+    login::run(&config, AuthFlow::NativeApp, |action| {
+        if let UserAction::OpenUrl { url } = action {
+            manual_url.set(Some(url.to_string()));
+        }
+    })
+    .await?;
     Ok(())
 }
 
@@ -53,6 +59,7 @@ fn App() -> Element {
     let mut refresh = use_signal(|| 0u32);
     let mut login_busy = use_signal(|| false);
     let mut login_error = use_signal(|| None::<String>);
+    let mut login_url = use_signal(|| None::<String>);
 
     let loaded = use_resource(move || async move {
         refresh();
@@ -63,10 +70,11 @@ fn App() -> Element {
         spawn(async move {
             login_busy.set(true);
             login_error.set(None);
-            if let Err(e) = log_in().await {
+            if let Err(e) = log_in(login_url).await {
                 login_error.set(Some(e.to_string()));
             }
             login_busy.set(false);
+            login_url.set(None);
             refresh += 1;
         });
     };
@@ -86,6 +94,11 @@ fn App() -> Element {
                 p { "You are not logged in." }
                 button { disabled: login_busy(), onclick: on_login,
                     if login_busy() { "Waiting for browser…" } else { "Log in with Google" }
+                }
+                if let Some(url) = login_url() {
+                    p { "Opening the browser failed, open this link to log in: "
+                        a { href: "{url}", "Log in" }
+                    }
                 }
             }
         },

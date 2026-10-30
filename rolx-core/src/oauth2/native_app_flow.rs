@@ -39,11 +39,13 @@ pub enum Error {
     ErrorPage(std::io::Error),
 }
 
+/// Calls `manual_auth_action` with the authorization request URL if the browser could not be opened.
 pub async fn run(
     http_client: &reqwest::Client,
     rng: &mut impl CryptoRng,
     cfg: &Cfg,
     scope: &str,
+    manual_auth_action: impl FnOnce(&str),
 ) -> Result<Response, Error> {
     let req = authorization_request::create_authorization_request(
         rng,
@@ -57,11 +59,7 @@ pub async fn run(
     let mut redirect_stream = authorization_request::open_in_browser_or(
         req.redirect_listener,
         &req.auth_request_url,
-        |auth_request_url| {
-            println!(
-                "Opening browser failed!\n\nOpen this URL in your browser:\n  {auth_request_url}"
-            )
-        },
+        manual_auth_action,
     )
     .await?;
 

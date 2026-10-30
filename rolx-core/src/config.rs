@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
+use crate::paths;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ClientCredentials {
@@ -23,12 +24,17 @@ impl AppConfig {
         let path = config_path()?;
         let text = fs::read_to_string(&path)
             .map_err(|e| Error::Config(format!("cannot deserialize {}: {}", path.display(), e)))?;
-        Ok(toml::from_str(&text)?)
+        Self::from_toml(&text)
+    }
+
+    /// Parses a config in the format of the config file, e.g. one embedded in a mobile app.
+    pub fn from_toml(text: &str) -> Result<Self> {
+        Ok(toml::from_str(text)?)
     }
 }
 
 pub fn config_path() -> Result<PathBuf> {
-    let base = dirs::config_dir()
+    let dir = paths::config_dir()
         .ok_or_else(|| Error::Config("cannot determine config directory".into()))?;
-    Ok(base.join("rolx").join("config.toml"))
+    Ok(dir.join("config.toml"))
 }

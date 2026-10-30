@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::paths;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BearerToken(String);
 
@@ -118,7 +120,7 @@ impl Session {
 }
 
 fn session_path() -> std::result::Result<PathBuf, CacheDirNotFoundError> {
-    dirs::cache_dir()
-        .map(|p| p.join("rolx").join("session.json"))
+    paths::cache_dir()
+        .map(|p| p.join("session.json"))
         .ok_or(CacheDirNotFoundError {})
 }

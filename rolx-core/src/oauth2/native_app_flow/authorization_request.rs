@@ -96,7 +96,7 @@ pub async fn open_in_browser_or(
         url = auth_request_url,
         "request user authorization"
     );
-    match open::that(auth_request_url) {
+    match webbrowser::open(auth_request_url) {
         Ok(()) => tracing::info!("Opened browser for user authorization…"),
         Err(e) => {
             tracing::warn!(error = %e, "Opening browser failed; open URL manually");

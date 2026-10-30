@@ -5,7 +5,7 @@ use clap::Parser;
 use cli::{Cli, Command, ConfigCommand, LoginFlow};
 use rolx_core::client::RolxClient;
 use rolx_core::config::AppConfig;
-use rolx_core::login::AuthFlow;
+use rolx_core::login::{AuthFlow, UserAction};
 
 #[tokio::main]
 async fn main() {
@@ -27,7 +27,16 @@ async fn run() -> anyhow::Result<()> {
                 None => AuthFlow::NativeApp,
             };
             let config = load_config(cli.server)?;
-            rolx_core::login::run(&config, auth_flow).await?;
+            rolx_core::login::run(&config, auth_flow, |action| match action {
+                UserAction::OpenUrl { url } => {
+                    println!("Opening browser failed!\n\nOpen this URL in your browser:\n  {url}")
+                }
+                UserAction::EnterCode { url, code } => {
+                    println!("To authorize this application, visit:\n  {url}");
+                    println!("Then enter the following code: {code}\n");
+                }
+            })
+            .await?;
             Ok(())
         }
         Command::Logout => commands::logout::run(),

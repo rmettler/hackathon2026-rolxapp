@@ -3,9 +3,11 @@
 pub mod client;
 pub mod config;
 pub mod error;
+pub mod http;
 pub mod logging;
 pub mod login;
 pub mod oauth2;
+pub mod paths;
 pub mod records;
 pub mod rolx;
 pub mod session;

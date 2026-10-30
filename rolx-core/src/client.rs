@@ -1,4 +1,5 @@
 use crate::config::AppConfig;
+use crate::http;
 use crate::rolx::sign_in;
 use crate::session::{LoadError, Session};
 use anyhow::bail;
@@ -11,7 +12,7 @@ pub struct RolxClient {
 
 impl RolxClient {
     pub async fn new(config: &AppConfig) -> anyhow::Result<Self> {
-        let http = reqwest::Client::new();
+        let http = http::client_builder().build()?;
         let mut session = match Session::load() {
             Ok(session) => session,
             Err(LoadError::NoSession) => bail!("no session found — log in first"),
