@@ -24,7 +24,8 @@ Base project for the custom client apps of the [RolX time tracking server](https
   CLI: `cargo run -- -h`  
   Desktop (Dioxus): `cargo run -p rolxapp-dioxus` — log in once via the CLI or the app's login button.  
   Mobile (Dioxus, Android): `cargo xtask android run`, see [docs/dev-setup.md](docs/dev-setup.md).  
-  All apps share the `rolx-core` library and need `config.toml` (`cargo run -- config path`): the server URL and
+  All apps share the `rolx-core` library (the desktop app's components are in `rolx-ui`, to be shared with the mobile
+  app) and need `config.toml` (`cargo run -- config path`): the server URL and
   your Google OAuth clients, format in [docs/auth-plan.md](docs/auth-plan.md#config-file-config-dirrolxconfigtoml).
   The mobile build embeds it into the app.
 - Stamping (works offline, no login needed):  

@@ -14,7 +14,12 @@ all in Rust where sensible. Goals and roadmap: `README.md`. Design docs: `docs/`
   booked-time summary (`week.rs`), logging.
   Must not print results; frontends do the presentation.
 - `.` (package `rolxapp`, `src/`) — the CLI: argument parsing (`cli.rs`) and printing (`commands/`).
-- `rolxapp-dioxus/` — Dioxus 0.7 desktop app on top of `rolx-core`.
+- `rolx-ui/` — Dioxus 0.7 components shared by the GUI apps, without a platform feature: stamp panel, activity
+  picker, day view, week panel, undo line (`UndoLine`) and their CSS (`rolx_ui::CSS`), plus the hooks `use_app_state`
+  (day, stamp state, activities, messages, day resource) and `use_undo`. `set_config_source` replaces the config file
+  (e.g. an embedded config); `Compact` (context) asks for a narrow layout. Never loads or saves `gui.json`.
+- `rolxapp-dioxus/` — Dioxus 0.7 desktop app on top of `rolx-ui`: window, tray, hotkey, command palette, away
+  detection, login and layout; keeps its settings in `gui.json` (`settings.rs`).
 - `rolx-mobile/` — Dioxus 0.7 Android app on top of `rolx-core`; embeds the config at build time
   (`build.rs`) and stores session and data files in the app's files dir (`rolx_core::paths::set_base_dir`).
 - `xtask/` — workspace tasks.
