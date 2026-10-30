@@ -1,4 +1,24 @@
 .ai
 .idea
+.jj/
 /target
 /rolx-server
+
+# build output
+dist/
+/apps/*/dist
+node_modules/
+__pycache__/
+
+# test output and scratch captures (only mock-data screenshots under docs/ are committed)
+/screenshots/
+playwright-report/
+test-results/
+
+# local, machine specific or secret configuration
+*.local.toml
+
+# Android / Gradle build output
+/apps/android/**/gen/
+/apps/android/**/.gradle/
+/apps/android/**/build/
