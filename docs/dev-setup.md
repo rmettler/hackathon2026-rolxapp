@@ -266,6 +266,18 @@ The forward is lost when the emulator or adb restarts; `adb reverse tcp:5080 tcp
 `run --fake-server` restores it. To use a config of your own instead, set `ROLX_CONFIG` and run
 without `--fake-server`.
 
+With several emulators running, name the one to use everywhere, e.g.
+`cargo xtask android run --avd <AVD> --fake-server 5081 -- --port 8091 --interactive=false` (`--port` keeps `dx` off
+the dev-server port of other runs) and `cargo xtask android push-session --device emulator-5556`. If `dx` keeps
+"Waiting for android emulator to be ready" after the build, install
+`target/dx/rolx-mobile/debug/android/app/app/build/outputs/apk/debug/app-debug.apk` with
+`adb -s <serial> install -r` and start the app.
+
+To try the forgotten-stamp banner, write a `stamps.json` with a session that started 13 hours ago into the app
+while it is in the background (Git Bash: `adb exec-in "run-as ch.cudos.RolxMobile sh -c 'cat > files/stamps.json'" < stamps.json`)
+and bring the app back: it reloads the stamps when it comes to the foreground. Airplane mode shows "Offline";
+note that `adb reverse` keeps the fake server reachable even then.
+
 `push-session` writes the fake session into the app's files dir with `adb shell run-as`, which
 works for debug builds. A different session that is already there (a real login) is backed up to
 `%TEMP%\rolx-mobile-session-backup-<time>.json` first; the command prints the path. To get the

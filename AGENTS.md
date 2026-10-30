@@ -17,11 +17,17 @@ all in Rust where sensible. Goals and roadmap: `README.md`. Design docs: `docs/`
 - `rolx-ui/` — Dioxus 0.7 components shared by the GUI apps, without a platform feature: stamp panel, activity
   picker, day view, week panel, undo line (`UndoLine`) and their CSS (`rolx_ui::CSS`), plus the hooks `use_app_state`
   (day, stamp state, activities, messages, day resource) and `use_undo`. `set_config_source` replaces the config file
-  (e.g. an embedded config); `Compact` (context) asks for a narrow layout. Never loads or saves `gui.json`.
+  (e.g. an embedded config); `Compact` (context) asks for a narrow layout: the CSS for it is scoped under `.compact`,
+  and the markup only differs where `use_compact()` is checked (picker sheet, day cards, tappable week chart). Without
+  it the desktop markup and look stay unchanged. Never loads or saves `gui.json`.
 - `rolxapp-dioxus/` — Dioxus 0.7 desktop app on top of `rolx-ui`: window, tray, hotkey, command palette, away
   detection, login and layout; keeps its settings in `gui.json` (`settings.rs`).
-- `rolx-mobile/` — Dioxus 0.7 Android app on top of `rolx-core`; embeds the config at build time
-  (`build.rs`) and stores session and data files in the app's files dir (`rolx_core::paths::set_base_dir`).
+- `rolx-mobile/` — Dioxus 0.7 Android app on top of `rolx-ui` (`Compact(true)`, root class `compact`): Stamp, Day and
+  Week tabs, login (browser or device code with QR), settings in `mobile.json`, page events in JS (`PAGE_EVENTS`:
+  back in the foreground, online/offline, swipes). Embeds the config at build time (`build.rs`, passed on with
+  `rolx_ui::set_config_source`) and stores session and data files in the app's files dir
+  (`rolx_core::paths::set_base_dir`). `android/AndroidManifest.xml` sets a DayNight theme (else the web view is
+  never dark) and `ACCESS_NETWORK_STATE` (else `navigator.onLine` never changes).
 - `xtask/` — workspace tasks.
 
 ## Commands
