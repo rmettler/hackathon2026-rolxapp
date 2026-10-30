@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use super::tailwind;
 use crate::secret_scan;
 use crate::util::{check_cmd_output, read_cargo_metadata, run_cmd};
 
@@ -52,7 +53,37 @@ pub fn run(root: &Path) -> Result<String, String> {
 
     check_single_dioxus(root)?;
 
+    if packages.iter().any(|p| p == "rolx-ui") {
+        check_tailwind_fresh(root)?;
+    }
+
     Ok("check: all gates passed".to_string())
+}
+
+/// The generated CSS is committed because `asset!` needs it at compile time, so it must be tracked
+/// and match the sources. Compares with the index, so it works before the milestone commit.
+fn check_tailwind_fresh(root: &Path) -> Result<(), String> {
+    println!("check: tailwind CSS is fresh");
+    println!("{}", tailwind::run(root)?);
+
+    let tracked = run_cmd(
+        "git",
+        &["ls-files", "--error-unmatch", tailwind::CSS_FILE],
+        root,
+    )?;
+    check_cmd_output(&tracked, "generated CSS tracked by git")?;
+
+    let diff = run_cmd(
+        "git",
+        &["diff", "--exit-code", "--quiet", "--", tailwind::CSS_FILE],
+        root,
+    )?;
+    diff.status.success().then_some(()).ok_or_else(|| {
+        format!(
+            "{} is stale: stage the regenerated file",
+            tailwind::CSS_FILE
+        )
+    })
 }
 
 /// Scratch dirs handed to tests, so none of them can reach the real config or session.
@@ -115,11 +146,22 @@ fn check_single_dioxus(root: &Path) -> Result<(), String> {
 }
 
 /// The duplicates themselves are the unindented lines of `cargo tree -d`; indented ones are their
-/// dependents, which may well be Dioxus crates without being duplicated.
+/// dependents, which may well be Dioxus crates without being duplicated. A crate listed twice with
+/// the same version and source is one package built with different features, which is fine.
 fn duplicate_dioxus_crates(tree: &str) -> Vec<String> {
-    tree.lines()
+    let mut packages: Vec<String> = tree
+        .lines()
         .filter(|line| line.starts_with("dioxus"))
-        .map(str::to_string)
+        .map(|line| line.replace(" (proc-macro)", "").replace(" (*)", ""))
+        .collect();
+    packages.sort();
+    packages.dedup();
+
+    let name = |package: &str| package.split(' ').next().unwrap_or_default().to_string();
+    packages
+        .iter()
+        .filter(|package| packages.iter().filter(|p| name(p) == name(package)).count() > 1)
+        .cloned()
         .collect()
 }
 
@@ -146,6 +188,30 @@ dioxus-core v0.8.0 (https://github.com/DioxusLabs/dioxus#abc)
                 "dioxus-core v0.8.0 (https://github.com/DioxusLabs/dioxus#abc)"
             ]
         );
+    }
+
+    #[test]
+    fn same_version_and_source_is_not_a_duplicate() {
+        let tree = "\
+dioxus-core-template v0.8.0-alpha.3
+└── a v1.0.0
+
+dioxus-core-template v0.8.0-alpha.3 (proc-macro)
+└── b v1.0.0
+";
+        assert!(duplicate_dioxus_crates(tree).is_empty());
+    }
+
+    #[test]
+    fn same_version_from_two_sources_is_a_duplicate() {
+        let tree = "\
+dioxus-html v0.8.0-alpha.3
+└── a v1.0.0
+
+dioxus-html v0.8.0-alpha.3 (https://github.com/DioxusLabs/dioxus#abc)
+└── b v1.0.0
+";
+        assert_eq!(duplicate_dioxus_crates(tree).len(), 2);
     }
 
     #[test]

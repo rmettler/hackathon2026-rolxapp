@@ -1,0 +1,7 @@
+[package]
+edition.workspace = true
+name              = "rolx-ui"
+version.workspace = true
+
+[dependencies]
+dioxus = { workspace = true, features = ["lib"] }

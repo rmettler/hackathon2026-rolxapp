@@ -18,7 +18,9 @@ axum               = "0.8"
 base64             = "0.23"
 chrono             = { version = "0.4", features = ["serde"] }
 clap               = { version = "4", features = ["derive"] }
+dioxus             = { version = "=0.8.0-alpha.3", default-features = false }
 dirs               = "7"
+enigo              = "0.6"
 open               = "5"
 rand               = "0.10"
 regex              = "1"
@@ -34,3 +36,4 @@ tracing            = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url                = "2"
 urlencoding        = "2"
+xcap               = "0.9"

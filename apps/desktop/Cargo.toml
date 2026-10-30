@@ -1,0 +1,8 @@
+[package]
+edition.workspace = true
+name              = "rolxapp-desktop"
+version.workspace = true
+
+[dependencies]
+dioxus  = { workspace = true, features = ["launch", "logger", "native"] }
+rolx-ui = { path = "../../crates/rolx-ui" }

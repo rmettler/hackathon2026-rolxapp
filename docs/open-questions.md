@@ -35,6 +35,10 @@ applied and noted here, and all questions are asked at the end.
 | M4 | `records -v` no longer logs response bodies (real work records) unless `uncensored_logs` is on. A failed extension of a still valid session stays an error, as before. |
 | M5 | Plan deviation: `login` also takes the HTTP client, because Android needs its own TLS setup (M14) and tests need plain HTTP. `rolx_auth::http_client()` is the default: HTTPS only unless the debug-build override is set. |
 | M5 | The authorization URL (state, user email) is logged only with `uncensored_logs`. |
+| M6 | Plan deviation: `dx` 0.8.0-alpha.3 has no `--native` flag. The command is `dx build -p rolxapp-desktop --renderer native`; `dx bundle` is expected to take the same flag (M12). |
+| M6 | `apps/desktop/Dioxus.toml` points `dx` at the Tailwind files of `rolx-ui`. `cargo xtask tailwind` runs the binary `dx` installed (v4.1.5) with the same arguments, so both give the same CSS. |
+| M6 | Additions to the plan: `cargo xtask tailwind` (needed by the freshness gate) and `cargo xtask input scroll` (needed by M7). `input click` positions are physical pixels on the primary monitor. |
+| M6 | The window title stays "Dioxus App" until the app shell gets its window configuration (M8–M11); GUI checks use that title meanwhile. |
 
 ## Manual verification checklist
 

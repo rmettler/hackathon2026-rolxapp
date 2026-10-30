@@ -1,9 +1,12 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::secret_scan;
 
 mod check;
 mod fetch_server;
+mod input;
+mod screenshot;
+mod tailwind;
 
 #[derive(clap::Subcommand)]
 pub enum Commands {
@@ -13,6 +16,21 @@ pub enum Commands {
     FetchServer,
     /// Look for secrets in the staged diff and the untracked files.
     SecretScan,
+    /// Regenerate the Tailwind CSS of rolx-ui.
+    Tailwind,
+    /// Save a PNG of a window.
+    Screenshot {
+        /// Part of the window title
+        #[arg(long)]
+        window: String,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    /// Send mouse or keyboard input.
+    Input {
+        #[command(subcommand)]
+        action: input::InputAction,
+    },
 }
 
 impl Commands {
@@ -21,6 +39,9 @@ impl Commands {
             Commands::Check => check::run(root),
             Commands::FetchServer => fetch_server::run(root),
             Commands::SecretScan => secret_scan::run(root),
+            Commands::Tailwind => tailwind::run(root),
+            Commands::Screenshot { window, out } => screenshot::run(window, out),
+            Commands::Input { action } => input::run(action),
         }
     }
 }
