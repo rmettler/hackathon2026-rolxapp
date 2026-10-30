@@ -6791,7 +6791,9 @@ version = "0.1.0"
 dependencies = [
  "dioxus",
  "dioxus-sdk-storage",
+ "jni 0.21.1",
  "reqwest",
+ "rolx-auth",
  "rolx-core",
  "rolx-ui",
  "toml 1.1.8+spec-1.1.0",

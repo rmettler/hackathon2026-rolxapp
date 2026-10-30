@@ -15,8 +15,6 @@ use crate::{
 
 const AUTH_CODE: &str = "mock-auth-code";
 const DEVICE_GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:device_code";
-/// How many polls answer `authorization_pending` before the grant succeeds.
-const PENDING_POLLS: u32 = 2;
 
 fn oauth_error(error: &str) -> Response {
     (StatusCode::BAD_REQUEST, Json(json!({ "error": error }))).into_response()
@@ -90,7 +88,7 @@ fn poll_device_grant(state: &AppState, device_code: &str) -> Response {
         DEVICE_CLIENT_EXPIRED => oauth_error("expired_token"),
         DEVICE_CLIENT_DENIED => oauth_error("access_denied"),
         DEVICE_CLIENT_SLOW_DOWN if poll == 1 => oauth_error("slow_down"),
-        _ if poll <= PENDING_POLLS => oauth_error("authorization_pending"),
+        _ if poll <= state.config.device_pending_polls => oauth_error("authorization_pending"),
         _ => token_response(),
     }
 }

@@ -34,6 +34,8 @@ pub struct MockConfig {
     pub token_lifetime: Duration,
     /// Poll interval the device grant asks for.
     pub device_poll_interval_secs: u64,
+    /// How many polls answer `authorization_pending` before the device grant succeeds.
+    pub device_pending_polls: u32,
     /// Delay of the work record answers, to see loading states.
     pub work_record_delay: std::time::Duration,
 }
@@ -43,6 +45,7 @@ impl Default for MockConfig {
         Self {
             token_lifetime: Duration::days(1),
             device_poll_interval_secs: 1,
+            device_pending_polls: 2,
             work_record_delay: std::time::Duration::ZERO,
         }
     }

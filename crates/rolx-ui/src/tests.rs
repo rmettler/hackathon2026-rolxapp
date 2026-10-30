@@ -370,7 +370,8 @@ fn render_login_status(phase: LoginPhase) -> String {
     #[component]
     fn Root(phase: LoginPhase) -> Element {
         use_context_provider(|| PlatformHandle::new(FakePlatform::new(None)));
-        rsx! { LoginStatus { phase } }
+        let copy_result = use_signal(|| None::<bool>);
+        rsx! { LoginStatus { phase, copy_result } }
     }
 
     let mut dom = VirtualDom::new_with_props(Root, RootProps { phase });

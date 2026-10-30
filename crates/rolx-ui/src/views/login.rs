@@ -20,6 +20,7 @@ pub fn LoginView() -> Element {
     let mut state = use_context::<AppState>();
     let mut phase = use_signal(|| LoginPhase::Idle { error: None });
     let mut task = use_signal(|| None::<Task>);
+    let mut copy_result = use_signal(|| None::<bool>);
 
     let start = {
         let platform = platform.clone();
@@ -29,6 +30,7 @@ pub fn LoginView() -> Element {
                 return;
             }
             let platform = platform.clone();
+            copy_result.set(None);
             phase.set(LoginPhase::Waiting { prompt: None });
             let on_prompt = Rc::new(move |prompt| {
                 let mut phase = phase;
@@ -65,7 +67,7 @@ pub fn LoginView() -> Element {
     rsx! {
         main { class: "flex flex-col items-center gap-4 p-8 text-slate-900",
             h1 { class: "text-3xl font-bold text-sky-700", "RolX" }
-            LoginStatus { phase: phase() }
+            LoginStatus { phase: phase(), copy_result }
             if let LoginPhase::Idle { .. } = phase() {
                 for method in platform.login_methods() {
                     Button {
@@ -100,9 +102,8 @@ pub fn LoginView() -> Element {
 
 /// What the user has to know or do in the current phase.
 #[component]
-pub fn LoginStatus(phase: LoginPhase) -> Element {
+pub fn LoginStatus(phase: LoginPhase, copy_result: Signal<Option<bool>>) -> Element {
     let platform = use_context::<PlatformHandle>();
-    let mut copy_result = use_signal(|| None::<bool>);
     let copy_message = match copy_result() {
         Some(true) => "Copied.",
         Some(false) => "Could not copy, please copy it by hand.",

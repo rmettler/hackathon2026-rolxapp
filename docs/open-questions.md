@@ -51,6 +51,7 @@ applied and noted here, and all questions are asked at the end.
 | M13 | Plan deviation: the `dx` flags are `--android --target x86_64-linux-android`. Bundle id `ch.cudos.rolxapp` (Q1 default). In the emulator the first render can take 20 s or more; checks wait for it. |
 | M14 | Plan deviation: of `dioxus-sdk-storage` only `data_directory()` is used (it resolves the app directory by JNI). The session is the shared `FileSessionStore` JSON file in `files/rolx`, because the SDK's own format is opaque, and this way a mock session can be seeded with `adb run-as`. |
 | M14 | Android settings are compiled in by `build.rs`, so the device client secret ends up in the APK. Google treats such secrets as not confidential for installed apps; do not share a build made with real values beyond your team. Only the server can be changed at run time, in Settings; that ends the session (a token must not reach another server), and release builds accept only HTTPS there and for the client. |
+| M15 | The browser and the clipboard are reached by JNI through `dispatch` on the main thread (`apps/android/src/system.rs`), with Java exceptions cleared so a failure cannot crash the app. `Endpoints::at_base_url` exists only in debug builds. `rolx-mock` gained `--device-pending-polls` to keep the code screen up. |
 
 ## Manual verification checklist
 
@@ -62,6 +63,7 @@ to expect.
 - [ ] M9: desktop app against stage with your real session. Expect today's entries and a total matching `rolxcli records`. Not done by the agent, so that real records stay out of its logs and screenshots.
 - [ ] M10: desktop app, both sign-in buttons with real Google and stage. Expect the browser sign-in to return to the app by itself, and the code sign-in to finish after you enter the code; both end on the day view.
 - [ ] M12: run `dist/desktop/RolX_0.1.0_x64-setup.exe`. Expect a SmartScreen warning (not signed), an install without administrator rights, a start-menu entry and a desktop shortcut, and the app starting with no console window. Build it first with the command in `apps/desktop/README.md`.
+- [ ] M15: Android device login with real Google and stage, on an emulator or phone. Put the server and device client into `apps/android/config.local.toml` and build. Expect the code on screen, Open browser to show Google's device page in the system browser, and the day view after entering the code. Also check Copy code by pasting.
 
 ## Review findings accepted without a fix
 
@@ -74,6 +76,7 @@ Minor findings from the per-milestone reviews that were deliberately not fixed.
 - M8: Blitz's Tab order visits the hidden controls of `StylePreload`. It comes after the views, so they are reached last, but Tab can still land on invisible controls. The apps have no keyboard requirement so far. The preload test can be fooled by a deliberate edit, such as a commented-out import.
 - M9: the selected date resets to today after a trip to Settings. The 5-minute repeat of `SessionKeeper` was not observed live; its check is the tested `fresh_session`, which also runs at the start. With a near-expiry session, "Try again" keeps showing the old error until the extension has finished (30 s at most).
 - M10: `LoginView`'s task logic (success to save to Day, save failure, cancel) has no automated test, only the mock E2E runs; save failure was not run, and "Open browser" and the manual URL prompt were not clicked (the prompt has an SSR test).
+- M15: `dispatch` panics if no activity exists, which only a tap during activity destruction could reach. A failed Open browser shows no message; the address stays on screen.
 - M14: Android Auto Backup is left at its default, so `files/rolx/session.json` may be included in the device backup; the `dx` manifest template is not customized yet. Settings have no way back to the compiled-in server. `data_directory()` panics without an activity, which was not seen in normal use. A new APK built with another `ROLX_SERVER_URL` keeps the stored session (a developer-only case). The server file is not written atomically.
 - M12: a panic in the release app ends it with no message anywhere (GUI subsystem, no panic hook or log file), and Blitz crashes are a known risk (`docs/blitz-spike.md`).
 - M11: if deleting the session fails at logout, the user reaches Login with only a log warning, and the next start signs them in again. The reachability check treating a 200 without JSON (such as a captive portal) as unreachable has no test, nor has the "not configured" state.

@@ -57,6 +57,12 @@ impl Endpoints {
         Self::resolve(base_url_override())
     }
 
+    /// All endpoints below `base`, for a mock. Not in release builds, as it would redirect tokens.
+    #[cfg(debug_assertions)]
+    pub fn at_base_url(base: &str) -> Self {
+        Self::resolve(Some(base.to_string()))
+    }
+
     fn resolve(base_url: Option<String>) -> Self {
         match base_url {
             Some(base) => Self {

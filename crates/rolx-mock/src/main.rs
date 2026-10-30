@@ -19,6 +19,10 @@ struct Args {
     /// Delay of the work record answers in milliseconds, to see loading states
     #[arg(long, default_value_t = 0)]
     work_record_delay_ms: u64,
+
+    /// How many polls of the device grant stay pending, to look at the code screen
+    #[arg(long, default_value_t = 2)]
+    device_pending_polls: u32,
 }
 
 #[tokio::main]
@@ -27,6 +31,7 @@ async fn main() -> std::io::Result<()> {
     let config = MockConfig {
         token_lifetime: Duration::seconds(args.token_lifetime_secs),
         work_record_delay: std::time::Duration::from_millis(args.work_record_delay_ms),
+        device_pending_polls: args.device_pending_polls,
         ..MockConfig::default()
     };
     let mock = rolx_mock::spawn_on_port(config, args.port).await?;
