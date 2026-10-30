@@ -2,11 +2,6 @@
 //! the app), a vibration when stamping in and out, and the share sheet with texts for a day and a week. The Android
 //! parts are in `android.rs`; on other targets the calls do nothing, so the app still builds and runs on the desktop.
 
-#![allow(
-    dead_code,
-    reason = "API for the app's stamping UI; not all of it is wired up yet"
-)]
-
 use std::cell::Cell;
 use std::rc::Rc;
 

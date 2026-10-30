@@ -11,6 +11,7 @@ use rolx_core::idle::Away;
 use rolx_core::login::{self, AuthFlow, UserAction};
 use rolx_core::session::Session;
 use rolx_core::stamp::StampState;
+use rolx_core::week::{fetch_week, summarize};
 use rolx_ui::Compact;
 use rolx_ui::app_state::{AppState, Loaded, use_app_state};
 use rolx_ui::day_view::DayView;
@@ -191,7 +192,7 @@ fn App() -> Element {
         mut stamp_state,
         activities,
         selected,
-        notice,
+        mut notice,
         info,
         stamper,
         loaded,
@@ -199,6 +200,7 @@ fn App() -> Element {
         on_reload,
     } = app;
     let undo = use_undo(app);
+    native::use_native_stamp_sync(stamp_state);
     let mut tab = use_signal(|| Tab::Stamp);
     let mut show_settings = use_signal(|| false);
     let mut confirm_logout = use_signal(|| false);
@@ -279,6 +281,31 @@ fn App() -> Element {
             }
         }
     });
+
+    let share_day = move |_| {
+        if let Some(Ok(Loaded::Day { entries, .. })) = &*loaded.read() {
+            let text = native::day_share(day(), entries, &activities.read());
+            if let Err(e) = native::share_text(&text.subject, &text.text) {
+                notice.set(Some(format!("Could not share the day: {e}")));
+            }
+        }
+    };
+    // The week panel keeps its data to itself, so the week is fetched again for the text.
+    let share_week = move |_| {
+        spawn(async move {
+            let result = async {
+                let client = rolx_ui::shared::client().await?;
+                let week = fetch_week(&client, day()).await?;
+                let summary = summarize(&week, &stamp_state.read().pending);
+                let text = native::week_share(&summary, &activities.read());
+                native::share_text(&text.subject, &text.text)
+            }
+            .await;
+            if let Err(e) = result {
+                notice.set(Some(format!("Could not share the week: {e}")));
+            }
+        });
+    };
 
     let on_logout = move |_| {
         if let Err(e) = Session::delete() {
@@ -389,6 +416,12 @@ fn App() -> Element {
                             onclick: move |_| refresh += 1,
                             "↻"
                         }
+                        button {
+                            class: "icon",
+                            title: "Share the day",
+                            onclick: share_day,
+                            "⤴"
+                        }
                     }
                     UndoLine { undo }
                     if let Some(text) = info() {
@@ -408,6 +441,9 @@ fn App() -> Element {
                             day.set(d);
                             tab.set(Tab::Day);
                         },
+                    }
+                    div { class: "controls",
+                        button { class: "secondary", onclick: share_week, "Share the week" }
                     }
                 } else {
                     {login_card(login)}
