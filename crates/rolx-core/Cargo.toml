@@ -18,8 +18,10 @@ reqwest = { workspace = true, features = ["json", "rustls"] }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 reqwest = { workspace = true, features = ["json"] }
 
-[dev-dependencies]
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+rolx-mock          = { path = "../rolx-mock" }
 tempfile.workspace = true
+tokio.workspace    = true
 
 [features]
 default         = ["fs"]
