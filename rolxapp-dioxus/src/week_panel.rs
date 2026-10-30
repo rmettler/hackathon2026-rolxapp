@@ -5,9 +5,9 @@ use dioxus::prelude::*;
 use rolx_core::dayplan::fmt_hm;
 use rolx_core::stamp::{StampState, Status};
 use rolx_core::week::{DAILY_TARGET_SECS, WeekSummary, fetch_week, guidance, summarize};
+use rolx_ui::shared;
 
 use crate::settings::Settings;
-use crate::shared;
 
 /// One color per activity, stable between runs. Unassigned entries are gray.
 fn color(activity_id: i32) -> String {

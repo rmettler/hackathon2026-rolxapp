@@ -20,26 +20,23 @@ use rolx_core::idle::{Away, IdleTracker};
 use rolx_core::login::{self, AuthFlow, UserAction};
 use rolx_core::stamp::StampState;
 use rolx_core::undo::{UndoRecord, UndoStore};
+use rolx_ui::day_view::DayView;
+use rolx_ui::shared;
+use rolx_ui::stamp_panel::StampPanel;
+use rolx_ui::stamper::Stamper;
 use tokio::sync::mpsc;
 
-mod activity_picker;
-mod day_view;
 mod icon;
 mod os_idle;
 mod palette;
 mod settings;
-mod shared;
-mod stamp_panel;
-mod stamper;
 mod week_panel;
-use day_view::DayView;
 use palette::Palette;
 use settings::{Settings, WindowGeometry};
-use stamp_panel::StampPanel;
-use stamper::Stamper;
 use week_panel::WeekPanel;
 
-const CSS: &str = include_str!("style.css");
+/// Desktop-only styles, on top of `rolx_ui::CSS`.
+const CSS: &str = include_str!("app.css");
 
 // Window defaults (logical pixels), used until a position and size were saved. The position is
 // measured from the top-left corner of the primary screen, so the window always opens on it.
@@ -577,6 +574,7 @@ fn App() -> Element {
     });
 
     rsx! {
+        style { "{rolx_ui::CSS}" }
         style { "{CSS}" }
         main {
             header {

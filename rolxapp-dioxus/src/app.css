@@ -1,0 +1,20 @@
+/* Desktop layout and the command palette; loaded after rolx_ui::CSS. */
+main { max-width: 760px; margin: 0 auto; padding: 24px; }
+header { display: flex; justify-content: space-between; align-items: center; }
+h1 { margin: 0; font-size: 1.6rem; }
+.user { opacity: 0.7; font-size: 0.9rem; }
+.day-nav { display: flex; gap: 8px; align-items: center; justify-content: center; }
+.day-nav .date { min-width: 12ch; text-align: center; font-weight: 600; }
+.header-tools { display: flex; gap: 8px; }
+
+.backdrop.dim { background: rgba(0,0,0,.35); z-index: 19; }
+.palette { position: fixed; z-index: 20; top: 70px; left: 50%; transform: translateX(-50%); width: min(600px, 92vw); background: #fff; color: #1d2330; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,.45); padding: 10px; }
+.palette > input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px; border: 1px solid #c9ceda; font-size: 1rem; }
+.palette .options { max-height: 50vh; }
+.opt .kind { flex: 0 0 1.2rem; text-align: center; opacity: 0.6; }
+
+/* Must stay last so it overrides the light defaults above. */
+@media (prefers-color-scheme: dark) {
+  .palette { background: #262c3a; color: #e6e9ef; }
+  .palette > input { background: #1b202b; color: #e6e9ef; border-color: #3a4256; }
+}

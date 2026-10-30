@@ -4723,6 +4723,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rolx-ui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "dioxus",
+ "rolx-core",
+ "tokio",
+]
+
+[[package]]
 name = "rolxapp"
 version = "0.1.0"
 dependencies = [
@@ -4742,6 +4753,7 @@ dependencies = [
  "chrono",
  "dioxus",
  "rolx-core",
+ "rolx-ui",
  "serde",
  "tokio",
 ]

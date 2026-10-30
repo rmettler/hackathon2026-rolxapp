@@ -1,0 +1,13 @@
+[package]
+edition = "2024"
+name    = "rolx-ui"
+version = "0.1.0"
+publish = false
+
+# No Dioxus platform feature: the apps pick theirs (desktop, mobile).
+[dependencies]
+anyhow    = "1"
+chrono    = "0.4"
+dioxus    = "0.7"
+rolx-core = { path = "../rolx-core" }
+tokio     = { version = "1", features = ["sync", "time"] }

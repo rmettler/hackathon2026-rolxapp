@@ -4,8 +4,7 @@
 use chrono::{Duration, NaiveDate};
 use dioxus::prelude::*;
 use rolx_core::activities::search;
-
-use crate::stamper::Stamper;
+use rolx_ui::stamper::Stamper;
 
 const MAX_ACTIVITIES: usize = 30;
 
