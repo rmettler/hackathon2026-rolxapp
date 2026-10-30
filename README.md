@@ -16,7 +16,9 @@ Base project for the custom client apps of the [RolX time tracking server](https
 - VCS:  
   git/github
 - RolX server version:  
-  The app is built against the version in `Cargo.toml` metadata.  
+  The apps are built against the version in the `[workspace.metadata.rolx-server]` section of the root `Cargo.toml`.  
   Run `cargo xtask fetch-server` to clone it to `./rolx-server`.
 - Lint/format:  
-  cargo clippy, cargo fmt
+  `cargo xtask check` runs the whole gate (fmt, secret scan, clippy and tests per package).
+- CLI:  
+  `cargo run -- -h` runs `rolxcli` from `apps/cli`.

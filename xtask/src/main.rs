@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use clap::Parser;
 
 mod commands;
+mod secret_scan;
 mod util;
 
 #[derive(Parser)]

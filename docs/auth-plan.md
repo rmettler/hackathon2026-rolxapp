@@ -7,7 +7,7 @@ The RolX server requires a Google ID token to authenticate users (`POST api/v1/S
 Solution: the user creates their own **OAuth 2.0 client** (free Google account, ~5-minute setup, no access to the production project required). Two flows are implemented in `src/oauth2/`:
 
 1. **Native app flow** (default) — authorization code + PKCE (RFC 6749/8252/9700), opens the user's browser and catches the redirect on a local loopback server.
-2. **Device flow** (`rolxapp login device`) — RFC 8628 Device Authorization Grant, for headless/SSH environments; no browser redirect involved at all.
+2. **Device flow** (`rolxcli login device`) — RFC 8628 Device Authorization Grant, for headless/SSH environments; no browser redirect involved at all.
 
 ## Server & Frontend Auth Analysis
 

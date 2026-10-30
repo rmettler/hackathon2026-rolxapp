@@ -23,14 +23,14 @@ pub fn check_cmd_output(out: &Output, command: &str) -> Result<(), String> {
 #[derive(serde::Deserialize)]
 pub struct CargoMetadata {
     pub packages: Vec<CargoPackage>,
+    /// `[workspace.metadata]`; free-form and null if absent.
+    pub metadata: serde_json::Value,
 }
 
 /// A single package entry from `cargo metadata`.
 #[derive(serde::Deserialize)]
 pub struct CargoPackage {
     pub name: String,
-    /// `[package.metadata]` — free-form; schema varies per package.
-    pub metadata: serde_json::Value,
 }
 
 /// Run `cargo metadata --no-deps` and parse the output.

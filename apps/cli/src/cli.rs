@@ -9,7 +9,7 @@ pub enum LoginFlow {
 }
 
 #[derive(Debug, Parser)]
-#[command(name = "rolxapp", about = "RolX time tracking CLI")]
+#[command(name = "rolxcli", about = "RolX time tracking CLI")]
 pub struct Cli {
     /// Override the server URL from config
     #[arg(long, global = true)]
@@ -51,6 +51,6 @@ pub enum Command {
 pub enum ConfigCommand {
     /// List the settings set in the config file
     Ls,
-    /// Print the config file path only, e.g. for `$EDITOR "$(rolxapp config path)"`
+    /// Print the config file path only, e.g. for `$EDITOR "$(rolxcli config path)"`
     Path,
 }

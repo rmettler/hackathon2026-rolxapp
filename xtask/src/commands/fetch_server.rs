@@ -3,7 +3,6 @@ use std::process::Command;
 
 use crate::util::{check_cmd_output, read_cargo_metadata, run_cmd};
 
-const PACKAGE: &str = "rolxapp";
 const PIN_KEY: &str = "rolx-server";
 
 struct Pin {
@@ -19,19 +18,14 @@ pub fn run(root: &Path) -> Result<String, String> {
 fn read_pin(root: &Path) -> Result<Pin, String> {
     let meta = read_cargo_metadata(root)?;
 
-    let pkg = meta
-        .packages
-        .into_iter()
-        .find(|p| p.name.eq(PACKAGE))
-        .ok_or_else(|| format!("package `{PACKAGE}` not found in cargo metadata"))?;
-    let pin = pkg
+    let pin = meta
         .metadata
         .get(PIN_KEY)
-        .ok_or_else(|| format!("[package.metadata.{PIN_KEY}] not found on package `{PACKAGE}`"))?;
+        .ok_or_else(|| format!("[workspace.metadata.{PIN_KEY}] not found"))?;
 
     let read_param = |param: &str| {
         pin.get(param).and_then(|v| v.as_str()).ok_or(format!(
-            "missing `{param}` in [package.metadata.rolx-server]"
+            "missing `{param}` in [workspace.metadata.{PIN_KEY}]"
         ))
     };
 

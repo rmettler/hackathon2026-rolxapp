@@ -1,3 +1,5 @@
+use std::env;
+use std::ffi::OsString;
 use std::fs;
 use std::path::PathBuf;
 
@@ -28,7 +30,23 @@ impl AppConfig {
 }
 
 pub fn config_path() -> Result<PathBuf> {
-    let base = dirs::config_dir()
+    let dir = resolve_dir(env::var_os("ROLX_CONFIG_DIR"), dirs::config_dir())
         .ok_or_else(|| Error::Config("cannot determine config directory".into()))?;
-    Ok(base.join("rolx").join("config.toml"))
+    Ok(dir.join("config.toml"))
 }
+
+/// Directory holding RolX files: a non-empty `override_dir` is used as is, otherwise `rolx` below
+/// the platform's `default_base`.
+pub fn resolve_dir(
+    override_dir: Option<OsString>,
+    default_base: Option<PathBuf>,
+) -> Option<PathBuf> {
+    match override_dir {
+        Some(dir) if !dir.is_empty() => Some(PathBuf::from(dir)),
+        _ => default_base.map(|base| base.join("rolx")),
+    }
+}
+
+#[cfg(test)]
+#[path = "config.tests.rs"]
+mod tests;

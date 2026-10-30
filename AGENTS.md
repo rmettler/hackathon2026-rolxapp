@@ -3,15 +3,19 @@
 ## What this is
 
 `rolxapp` is a Rust workspace (edition **2024**) for building **custom client apps** for the
-RolX time tracking server. Aslim CLI exists today; TUI/desktop/mobile are planned, all in Rust
+RolX time tracking server. A slim CLI (`rolxcli`, in `apps/cli`) exists today; TUI/desktop/mobile are planned, all in Rust
 where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-reference.md`, `user-requirements.md`, server/frontend auth analyses).
 
 ## Commands
 
-- Run: `cargo run -- -h`.
-- Lint: `cargo clippy`. Format: `cargo fmt`.
+- Run the CLI: `cargo run -- -h` (default member `apps/cli`, binary `rolxcli`).
+- Gate before every commit: `cargo xtask check` (fmt, secret-scan, per-package clippy and tests, wasm clippy, Dioxus duplicate guard; see `docs/plan.md` §3.1). Do not use `--workspace` builds: Dioxus renderer features must not unify.
+- Secrets check alone: `cargo xtask secret-scan` (staged diff and untracked files).
+- Format: `cargo fmt --all`.
 - Fetch the pinned server checkout: `cargo xtask fetch-server` (workspace member `xtask/`).
 - Cargo feature `uncensored_logs` disables log redaction.
+- `ROLX_CONFIG_DIR` / `ROLX_CACHE_DIR` replace the default `<config dir>/rolx` and `<cache dir>/rolx` (holding `config.toml` and `session.json`). Tests must use them with temp dirs so the real session is never touched; `cargo xtask check` sets them for all tests.
+- `rolxcli config ls` prints client secrets, and `whoami` / `records` print personal data: never run them against the real config or session where the output is logged.
 
 ## The server you integrate with
 
@@ -21,7 +25,7 @@ build it, but you must match its API. The controllers under
 `rolx-server/source/RolXServer/RolXServer/**/WebApi/*Controller.cs` are the source of truth for
 endpoints; for request/response shapes read the matching `WebApi/Resource/*.cs` and
 `WebApi/Mapping/*.cs` rather than guessing. The checkout is pinned via
-`[package.metadata.rolx-server]` in `Cargo.toml`. Brief reference: `docs/api-reference.md`.
+`[workspace.metadata.rolx-server]` in the root `Cargo.toml`. Brief reference: `docs/api-reference.md`.
 
 ### API conventions
 - Endpoints live under `api/v1/<ControllerName minus "Controller">`.
