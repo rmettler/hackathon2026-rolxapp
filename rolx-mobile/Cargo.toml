@@ -10,10 +10,12 @@ edition = "2024"
 anyhow    = "1"
 chrono    = "0.4"
 dioxus    = { version = "0.7.1" }
+qrcode    = { version = "0.14", default-features = false, features = ["svg"] }
 rolx-core = { path = "../rolx-core" }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni         = "0.21"
+manganis    = "0.7"
 ndk-context = "0.1"
 
 [build-dependencies]

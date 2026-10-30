@@ -6,6 +6,11 @@ use anyhow::Context;
 use jni::JavaVM;
 use jni::objects::{JObject, JString};
 
+// Bundles the Gradle module with the launcher icon (`@mipmap/ic_rolx`, set in `AndroidManifest.xml`): dx 0.7 has no
+// icon setting for Android and overwrites its default `ic_launcher`, but adds the modules of FFI plugins to the app.
+#[manganis::ffi("android/launcher-icon")]
+extern "Kotlin" {}
+
 /// Returns the app's private files dir (`Context.getFilesDir()`), which survives app updates.
 pub fn files_dir() -> anyhow::Result<PathBuf> {
     let ctx = ndk_context::android_context();

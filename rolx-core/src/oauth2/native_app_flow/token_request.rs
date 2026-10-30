@@ -8,7 +8,7 @@ pub async fn request_access_token(
     client_id: &str,
     client_secret: Option<&str>,
     redirect_uri: &str,
-    code_verifier: pkce::CodeVerifier,
+    code_verifier: &pkce::CodeVerifier,
     authorization_code: &str,
 ) -> Result<Response, Error> {
     let mut params = vec![

@@ -44,11 +44,15 @@ async fn load_day(day: NaiveDate) -> anyhow::Result<Loaded> {
 /// Logs in via the browser; `manual_url` receives the login URL if the browser could not be opened.
 async fn log_in(mut manual_url: Signal<Option<String>>) -> anyhow::Result<()> {
     let config = AppConfig::load()?;
-    login::run(&config, AuthFlow::NativeApp, |action| {
-        if let UserAction::OpenUrl { url } = action {
-            manual_url.set(Some(url.to_string()));
-        }
-    })
+    login::run(
+        &config,
+        AuthFlow::NativeApp { return_url: None },
+        |action| {
+            if let UserAction::OpenUrl { url } = action {
+                manual_url.set(Some(url.to_string()));
+            }
+        },
+    )
     .await?;
     Ok(())
 }

@@ -11,6 +11,9 @@ use rolx_core::records::{self, RecordEntry, fmt_duration};
 use rolx_core::session::{LoadError, Session};
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
+/// Opens the app from the browser, linked on the page shown after the Google login. The scheme is registered in
+/// `android/AndroidManifest.xml`.
+const RETURN_URL: &str = "ch.cudos.rolxmobile://login";
 /// Config embedded at build time, see `build.rs`.
 const CONFIG_TOML: &str = include_str!(concat!(env!("OUT_DIR"), "/config.toml"));
 
@@ -82,6 +85,13 @@ async fn log_in(flow: AuthFlow, mut prompt: Signal<Option<LoginPrompt>>) -> anyh
     Ok(())
 }
 
+/// Renders `url` as a QR code SVG, so the login can be done on another device by scanning it.
+fn qr_svg(url: &str) -> Option<String> {
+    use qrcode::render::svg;
+    let qr = qrcode::QrCode::new(url).ok()?;
+    Some(qr.render::<svg::Color>().min_dimensions(200, 200).build())
+}
+
 #[component]
 fn App() -> Element {
     use_hook(init_storage);
@@ -128,7 +138,7 @@ fn App() -> Element {
         Some(Ok(Loaded::NeedsLogin)) => rsx! {
             div { class: "card login",
                 p { "You are not logged in." }
-                button { disabled: login_busy(), onclick: move |_| start_login(AuthFlow::NativeApp),
+                button { disabled: login_busy(), onclick: move |_| start_login(AuthFlow::NativeApp { return_url: Some(RETURN_URL.into()) }),
                     if login_busy() { "Waiting for login…" } else { "Log in with Google" }
                 }
                 button { class: "secondary", disabled: login_busy(), onclick: move |_| start_login(AuthFlow::Device),
@@ -141,7 +151,10 @@ fn App() -> Element {
                         }
                     },
                     Some(LoginPrompt::EnterCode { url, code }) => rsx! {
-                        p { "Open " a { href: "{url}", "{url}" } " and enter this code:" }
+                        p { "Open " a { href: "{url}", "{url}" } " or scan the QR code, and enter this code:" }
+                        if let Some(svg) = qr_svg(&url) {
+                            div { class: "qr", dangerous_inner_html: svg }
+                        }
                         p { class: "code", "{code}" }
                     },
                     None => rsx! {},

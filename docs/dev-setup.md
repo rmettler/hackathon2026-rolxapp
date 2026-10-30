@@ -109,7 +109,9 @@ the build warns and the app shows an error. The embedded config, including the G
 secrets, ends up in the APK, so don't distribute builds outside the team.
 
 **Login.** *Log in with Google* opens the phone's browser; after the Google login the browser
-redirects to the app on `127.0.0.1`, then switch back to the app. *Log in with a code* uses the
+redirects to the app on `127.0.0.1` and shows *Back to RolX*, which opens the app via the
+`ch.cudos.rolxmobile` URL scheme. Android blocks the network of apps in the background, so the app
+finishes the login once it is back in the foreground. *Log in with a code* uses the
 device flow (`google_device_client`) instead: open the shown link and enter the code. The session
 is stored in the app's private files dir and survives restarts.
 

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The foreground layer is 108dp, launchers mask it to the inner 66dp: keep the watch at 60dp in the middle. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/rolx_watch"
+    android:inset="24dp" />

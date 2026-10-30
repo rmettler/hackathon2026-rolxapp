@@ -4,11 +4,18 @@ mod authorization_request;
 mod token_request;
 
 use rand::CryptoRng;
+use std::time::Duration;
 use thiserror;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
+use tokio::time::Instant;
 
 pub use token_request::Response;
+
+/// How long the access token request is retried while the network is unreachable, e.g. on Android until the user is
+/// back in the app. Google's authorization codes expire after 10 minutes.
+const TOKEN_RETRY_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+const TOKEN_RETRY_INTERVAL: Duration = Duration::from_secs(2);
 
 pub struct Cfg {
     /// URL of the authorization endpoint, authenticating the user and responding with the authorization code
@@ -21,6 +28,9 @@ pub struct Cfg {
     pub client_secret: Option<String>,
     /// The email the user wants to authenticate with. If provided, may simplify authorization in the external user-agent (browser)
     pub user_email: Option<String>,
+    /// URL that opens the app, linked from the result page in the browser so the user gets back to the app with a
+    /// tap, e.g. a custom URI scheme on mobile
+    pub return_url: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -63,57 +73,87 @@ pub async fn run(
     )
     .await?;
 
-    let token_result: Result<Response, Error> = (async move |redirect_stream| {
-        let auth_code = authorization_request::retrieve_auth_code(redirect_stream, &req.state)
+    let auth_result =
+        authorization_request::retrieve_auth_code(&mut redirect_stream, &req.state).await;
+
+    // Answers the browser before exchanging the token: on Android, the app is in the background while the user is in
+    // the browser, and Android blocks the network of background apps. The exchange succeeds once the user is back.
+    match &auth_result {
+        Ok(_) => show_success_page(redirect_stream, cfg.return_url.as_deref())
             .await
-            .map_err(Into::<authorization_request::Error>::into)?;
-        token_request::request_access_token(
+            .map_err(Error::SuccessPage)?,
+        Err(error) => show_error_page(
+            redirect_stream,
+            &error.to_string(),
+            cfg.return_url.as_deref(),
+        )
+        .await
+        .map_err(Error::ErrorPage)?,
+    };
+    let auth_code = auth_result.map_err(authorization_request::Error::from)?;
+
+    let deadline = Instant::now() + TOKEN_RETRY_TIMEOUT;
+    loop {
+        match token_request::request_access_token(
             http_client,
             &cfg.token_endpoint,
             &cfg.client_id,
             cfg.client_secret.as_deref(),
             &req.redirect_uri,
-            req.code_verifier,
+            &req.code_verifier,
             &auth_code,
         )
         .await
-        .map_err(Into::into)
-    })(&mut redirect_stream)
-    .await;
-
-    match &token_result {
-        Ok(_) => show_success_page(redirect_stream)
-            .await
-            .map_err(Error::SuccessPage)?,
-        Err(error) => show_error_page(redirect_stream, &error.to_string())
-            .await
-            .map_err(Error::ErrorPage)?,
-    };
-    token_result
+        {
+            Err(token_request::Error::Http(e))
+                if (e.is_connect() || e.is_request()) && Instant::now() < deadline =>
+            {
+                tracing::debug!(error = %e, "exchanging access token failed, retrying");
+                tokio::time::sleep(TOKEN_RETRY_INTERVAL).await;
+            }
+            result => return result.map_err(Into::into),
+        }
+    }
 }
 
-/// Writes an authentication success page to the given stream
-async fn show_success_page(mut stream: TcpStream) -> std::io::Result<()> {
-    const HTML: &[u8] = concat!(
+/// Writes an authentication success page to the given stream, linking `return_url` if given
+async fn show_success_page(mut stream: TcpStream, return_url: Option<&str>) -> std::io::Result<()> {
+    const HTML: &str = concat!(
         "HTTP/1.1 200 OK\r\n",
         "Content-Type: text/html; charset=utf-8\r\n\r\n",
         include_str!("native_app_flow/success_page.html")
-    )
-    .as_bytes();
-    stream.write_all(HTML).await?;
+    );
+    let html = HTML.replace("{{return_link}}", &return_link(return_url));
+    stream.write_all(html.as_bytes()).await?;
     Ok(())
 }
 
-/// Writes an error page showing the given error message to the given stream
-async fn show_error_page(mut stream: TcpStream, error: &str) -> std::io::Result<()> {
+/// Writes an error page showing the given error message to the given stream, linking `return_url` if given
+async fn show_error_page(
+    mut stream: TcpStream,
+    error: &str,
+    return_url: Option<&str>,
+) -> std::io::Result<()> {
     const HTML: &str = concat!(
         "HTTP/1.1 200 OK\r\n",
         "Content-Type: text/html; charset=utf-8\r\n\r\n",
         include_str!("native_app_flow/error_page.html")
     );
-    let html = HTML.replace("{{error}}", &escape_html(error));
+    let html = HTML
+        .replace("{{return_link}}", &return_link(return_url))
+        .replace("{{error}}", &escape_html(error));
     stream.write_all(html.as_bytes()).await?;
     Ok(())
+}
+
+/// Returns the "Back to RolX" button for the result pages, or nothing without a `return_url`
+fn return_link(return_url: Option<&str>) -> String {
+    return_url.map_or_else(String::new, |url| {
+        format!(
+            r#"<a class="return" href="{}">Back to RolX</a>"#,
+            escape_html(url)
+        )
+    })
 }
 
 /// Escapes the characters with special meaning in HTML text content and attribute values

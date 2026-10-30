@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>RolX Authentication Complete</title>
+  <title>RolX Login Successful</title>
   <style>
     :root {
       --bg: #f5f7fa;
@@ -74,6 +74,15 @@
       font-size: 1rem;
       line-height: 1.6;
     }
+    .return {
+      margin-top: 1.5rem;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      background: var(--icon-stroke);
+      color: var(--card-bg);
+      font-weight: 600;
+      text-decoration: none;
+    }
   </style>
 </head>
 <body>
@@ -83,8 +92,9 @@
         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
       </svg>
     </div>
-    <h1>RolX Authentication Complete</h1>
-    <p>You may close this tab and return to the application.</p>
+    <h1>Login successful</h1>
+    <p>Please switch back to the RolX app.</p>
+    {{return_link}}
   </div>
 </body>
 </html>

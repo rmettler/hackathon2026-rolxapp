@@ -10,6 +10,8 @@ h1 { margin: 0; font-size: 1.6rem; }
 .actions { display: flex; gap: 8px; margin-top: 12px; }
 .actions button { flex: 1; }
 .login { display: flex; flex-direction: column; gap: 10px; text-align: center; }
+.qr { align-self: center; line-height: 0; }
+.qr svg { width: 200px; height: 200px; }
 .code { font-size: 1.6rem; font-weight: 700; letter-spacing: 0.1em; user-select: all; }
 a { color: #3b6cf6; word-break: break-all; }
 button { border: 0; border-radius: 8px; padding: 12px 16px; background: #3b6cf6; color: #fff; font-size: 1rem; }

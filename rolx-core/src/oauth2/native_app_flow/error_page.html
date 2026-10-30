@@ -91,6 +91,15 @@
       white-space: pre-wrap;
       overflow-wrap: anywhere;
     }
+    .return {
+      margin-top: 1.5rem;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      background: var(--icon-stroke);
+      color: var(--card-bg);
+      font-weight: 600;
+      text-decoration: none;
+    }
   </style>
 </head>
 <body>
@@ -103,6 +112,7 @@
     <h1>RolX Authentication Failed</h1>
     <p>You may close this tab and return to the application.</p>
     <pre class="error">{{error}}</pre>
+    {{return_link}}
   </div>
 </body>
 </html>

@@ -22,9 +22,9 @@ async fn run() -> anyhow::Result<()> {
     match cli.command {
         Command::Login { flow } => {
             let auth_flow = match flow {
-                Some(LoginFlow::NativeApp) => AuthFlow::NativeApp,
+                Some(LoginFlow::NativeApp) => AuthFlow::NativeApp { return_url: None },
                 Some(LoginFlow::Device) => AuthFlow::Device,
-                None => AuthFlow::NativeApp,
+                None => AuthFlow::NativeApp { return_url: None },
             };
             let config = load_config(cli.server)?;
             rolx_core::login::run(&config, auth_flow, |action| match action {

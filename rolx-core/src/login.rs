@@ -15,7 +15,10 @@ const GOOGLE_DEVICE_AUTH_URL: &str = "https://oauth2.googleapis.com/device/code"
 
 #[derive(Debug)]
 pub enum AuthFlow {
-    NativeApp,
+    /// `return_url` opens the app; if given, the page shown in the browser after the login links it.
+    NativeApp {
+        return_url: Option<String>,
+    },
     Device,
 }
 
@@ -49,7 +52,7 @@ pub async fn run(
 
     let session = Session::load().ok();
     let id_token = match flow {
-        AuthFlow::NativeApp => {
+        AuthFlow::NativeApp { return_url } => {
             let credentials = app_cfg.google_desktop_client.as_ref().ok_or_else(|| {
                 anyhow!("`google_desktop_client` config missing — add it to the config")
             })?;
@@ -59,6 +62,7 @@ pub async fn run(
                 client_id: credentials.id.clone(),
                 client_secret: Some(credentials.secret.clone()),
                 user_email: session.map(|s| s.user_email),
+                return_url,
             };
             let resp = native_app_flow::run(
                 &http,
