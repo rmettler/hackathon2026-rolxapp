@@ -12,6 +12,8 @@ where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-refer
   (`rolx/`, `records.rs`), logging. Must not print results; frontends do the presentation.
 - `.` (package `rolxapp`, `src/`) — the CLI: argument parsing (`cli.rs`) and printing (`commands/`).
 - `rolxapp-dioxus/` — Dioxus 0.7 desktop app on top of `rolx-core`.
+- `rolx-mobile/` — Dioxus 0.7 Android app on top of `rolx-core`; embeds the config at build time
+  (`build.rs`) and stores the session in the app's files dir (`rolx_core::paths::set_base_dir`).
 - `xtask/` — workspace tasks.
 
 ## Commands

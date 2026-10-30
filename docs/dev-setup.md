@@ -103,6 +103,19 @@ cargo xtask android run -- --release     # pass extra arguments to `dx serve`
 build), Gradle downloads its dependencies, and ~490 crates are compiled for Android. Expect
 15–30 minutes on a slow connection; later builds take seconds.
 
+**Config.** A phone has no `config.toml` to edit, so the build embeds one into the app: the file
+at `ROLX_CONFIG` if set, else your CLI/desktop config (`cargo run -- config path`). Without one
+the build warns and the app shows an error. The embedded config, including the Google client
+secrets, ends up in the APK, so don't distribute builds outside the team.
+
+**Login.** *Log in with Google* opens the phone's browser; after the Google login the browser
+redirects to the app on `127.0.0.1`, then switch back to the app. *Log in with a code* uses the
+device flow (`google_device_client`) instead: open the shown link and enter the code. The session
+is stored in the app's private files dir and survives restarts.
+
+**Logs** of the app appear in logcat under the tag `RustStdoutStderr`
+(`adb logcat -s RustStdoutStderr`).
+
 ### 7. Run on a phone
 
 1. Enable *Developer options*: *Settings > About phone*, tap *Build number* seven times.
