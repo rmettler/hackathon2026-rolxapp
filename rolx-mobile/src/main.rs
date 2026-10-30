@@ -145,7 +145,7 @@ enum Tab {
     Week,
 }
 
-/// Page events the app reacts to: coming back to the foreground, the network, and swipes on the day.
+/// Page events the app reacts to: coming back to the foreground, the network, and swipes (to change the day).
 const PAGE_EVENTS: &str = r#"
 const send = (m) => dioxus.send(m);
 document.addEventListener('visibilitychange', () => {
@@ -158,8 +158,9 @@ send(navigator.onLine ? 'started' : 'offline');
 let swipe = null;
 document.addEventListener('touchstart', (e) => {
   const t = e.target;
-  const free = e.touches.length === 1 && t.closest && t.closest('.swipe-days')
-    && !t.closest('input, textarea, select, .popover, .editing, .conflict, .chart');
+  // Anywhere but on what scrolls or takes input sideways; the app only acts on it on the Day tab.
+  const free = e.touches.length === 1 && t.closest
+    && !t.closest('input, textarea, select, .popover, .editing, .conflict, .chart, .tabbar, .sheet');
   swipe = free ? { x: e.touches[0].clientX, y: e.touches[0].clientY, at: Date.now() } : null;
 }, { passive: true });
 document.addEventListener('touchend', (e) => {
@@ -321,7 +322,6 @@ fn App() -> Element {
             "tab-page hidden"
         }
     };
-    let day_class = format!("{} swipe-days", tab_class(Tab::Day));
     let tab_button = move |t: Tab, icon: &'static str, label: &'static str| {
         rsx! {
             button {
@@ -361,7 +361,7 @@ fn App() -> Element {
             div { class: tab_class(Tab::Stamp),
                 StampPanel { selected, away, on_favourite, on_reload }
             }
-            div { class: day_class,
+            div { class: tab_class(Tab::Day),
                 if logged_in {
                     nav { class: "day-nav",
                         button {
@@ -398,7 +398,16 @@ fn App() -> Element {
             }
             div { class: tab_class(Tab::Week),
                 if logged_in {
-                    WeekPanel { day, refresh, state: stamp_state, show_chart }
+                    WeekPanel {
+                        day,
+                        refresh,
+                        state: stamp_state,
+                        show_chart,
+                        on_open_day: move |d| {
+                            day.set(d);
+                            tab.set(Tab::Day);
+                        },
+                    }
                 } else {
                     {login_card(login)}
                 }

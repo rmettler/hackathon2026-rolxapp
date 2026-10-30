@@ -171,3 +171,96 @@ tr.editing > td { background: var(--hover); max-width: 0; }
 .issues { margin-top: 12px; text-align: left; font-size: 0.9rem; border-top: 1px solid var(--border); padding-top: 8px; }
 .issue { padding: 4px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; color: var(--muted); }
 .issue.warn { color: var(--warn); }
+
+/* Compact layout for phones: the app puts the class "compact" on its root (with `Compact(true)` as context). Desktop
+   windows never get it, however narrow, so they keep the look above. */
+.compact .card { padding: 14px; margin-top: 12px; }
+.compact .card-head { flex-wrap: wrap; }
+.compact .muted { margin-top: 8px; }
+.compact p { overflow-wrap: anywhere; }
+.compact button.small, .compact .stamp p button, .compact .queue button, .compact .issue button { padding: 8px 14px; font-size: 0.92rem; min-height: 40px; }
+.compact input, .compact select { font-size: 1rem; padding: 10px 12px; min-height: 44px; }
+.compact .timer { font-size: 2.6rem; }
+.compact .tile { padding: 9px 16px; font-size: 0.95rem; }
+.compact .actions-row { flex-wrap: wrap; }
+.compact .actions-row button { flex: 1 1 40%; padding: 14px 12px; font-size: 1rem; }
+.compact .controls { justify-content: stretch; }
+.compact .controls label { flex: 1 1 auto; }
+.compact .controls input[type="time"] { flex: 1 1 auto; min-width: 7.5rem; }
+.compact .controls > input { flex: 1 1 100%; }
+.compact .controls > button { flex: 1 1 40%; padding: 12px; font-size: 1rem; }
+.compact .banner .controls button { flex: 1 1 100%; }
+.compact .queue-row { padding: 8px 0; flex-wrap: wrap; }
+.compact .queue-row > span:first-child { flex: 1 1 60%; }
+.compact .status-line { padding: 8px 12px; }
+
+/* Activity picker: a full-screen sheet with big rows and stars that are easy to hit. */
+.compact .trigger { position: relative; min-height: 46px; padding-right: 30px; font-size: 1rem; }
+.compact button.secondary.trigger::after { float: none; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); }
+.compact .clear { min-width: 46px; }
+.compact .popover {
+  position: fixed; inset: 0; z-index: 40; margin: 0; border: 0; border-radius: 0; box-shadow: none;
+  display: flex; flex-direction: column;
+  padding: calc(10px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right))
+    calc(10px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
+}
+.compact .popover .sheet-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; font-size: 1.05rem; }
+.compact .options { flex: 1; max-height: none; }
+.compact .opt { padding: 10px 6px; min-height: 52px; gap: 8px; border-bottom: 1px solid var(--border); border-radius: 0; }
+.compact .opt:hover { background: transparent; }
+.compact .opt.cur { background: transparent; }
+.compact .opt.sel { background: var(--hover); }
+.compact .star { flex: 0 0 auto; min-width: 44px; min-height: 44px; font-size: 1.5rem; }
+.compact .group { padding: 14px 6px 4px; }
+.compact .popover-foot button { padding: 8px 14px; font-size: 0.92rem; }
+
+/* Day entries as cards */
+.compact .entries { display: flex; flex-direction: column; gap: 8px; }
+.compact .entry { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.compact .entry.queued { opacity: 0.7; font-style: italic; }
+.compact .entry.editing { background: var(--hover); border-color: var(--primary); }
+.compact .editing { scroll-margin-top: 72px; }
+.compact .entry-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-variant-numeric: tabular-nums; }
+.compact .entry-top strong { font-size: 1.1rem; }
+.compact .entry-top .muted { margin: 0; font-size: 0.85rem; }
+.compact .entry-activity { margin-top: 2px; font-weight: 600; overflow-wrap: anywhere; }
+.compact .entry-activity .muted { font-weight: 400; margin: 0; }
+.compact .entry-comment { margin-top: 2px; color: var(--muted); overflow-wrap: anywhere; }
+.compact .entry > .muted { margin-top: 2px; }
+.compact .entry-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+.compact .entry-actions button { flex: 1; min-height: 44px; }
+.compact .entry-actions .warn { flex: 1 1 100%; }
+.compact .entry-actions button.del { color: var(--danger); }
+.compact .entry-total { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; padding: 8px 4px 0; font-variant-numeric: tabular-nums; }
+.compact .entry-total .muted { margin: 0 0 0 auto; }
+.compact .conflict .controls button, .compact .entry-actions.confirm button { flex: 1 1 100%; min-height: 48px; }
+.compact .issue { padding: 8px 0; }
+.compact .issue button { flex: 1 1 auto; }
+
+/* Week: tapping a bar shows that day's bookings. */
+.compact .chart { gap: 6px; }
+.compact .chart .col { cursor: pointer; }
+.compact .chart .bars { height: 120px; }
+.compact .day-detail { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: var(--track); display: flex; flex-direction: column; gap: 6px; }
+.compact .detail-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.compact .detail-head .muted { margin: 0; }
+.compact .day-detail .legend-item { justify-content: flex-start; }
+.compact .day-detail .legend-item .num { margin-left: auto; font-variant-numeric: tabular-nums; }
+.compact .day-detail button { margin-top: 4px; min-height: 44px; }
+.compact .hint { text-align: center; font-size: 0.85rem; }
+.compact .guidance .link { padding: 6px; }
+.compact .week-numbers .big { font-size: 1.6rem; }
+.compact .balances .stat { flex-basis: 120px; }
+.compact .day-detail .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: 0 0 auto; }
+
+@media (max-width: 380px) {
+  .compact .timer { font-size: 2.2rem; }
+  .compact .chart { gap: 3px; }
+  .compact .chart .lbl, .compact .chart .val { font-size: 0.72rem; }
+}
+@media (pointer: coarse) {
+  .compact button:hover:not(:disabled) { filter: none; }
+  .compact button.secondary:hover:not(:disabled), .compact button.icon:hover:not(:disabled), .compact .tile:hover:not(:disabled) { background: transparent; }
+  .compact .tile:hover:not(:disabled) { border-color: var(--border-strong); }
+  .compact .tile.repeat:hover:not(:disabled) { border-color: var(--primary); }
+}

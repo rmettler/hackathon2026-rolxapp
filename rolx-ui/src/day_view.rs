@@ -10,7 +10,7 @@ use rolx_core::stamp::StampState;
 use rolx_core::week::DAILY_TARGET_SECS;
 
 use crate::activity_picker::ActivityPicker;
-use crate::shared;
+use crate::{shared, use_compact};
 
 /// How far back "copy the last working day" looks.
 const COPY_LOOKBACK_DAYS: i64 = 7;
@@ -317,6 +317,16 @@ pub fn DayView(
     let mut message = use_signal(|| None::<String>);
     let mut busy = use_signal(|| false);
     let mut copy_offer = use_signal(|| None::<(NaiveDate, Vec<DayEntry>)>);
+    let compact = use_compact();
+
+    // On a phone the editor may open far below where it was asked for (e.g. "Book it…"), so bring it into view.
+    use_effect(move || {
+        if compact && mode() != Mode::Idle {
+            document::eval(
+                "setTimeout(() => document.querySelector('.compact .editing')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 50)",
+            );
+        }
+    });
 
     let save = move |base: Vec<DayEntry>, new: Vec<DayEntry>, what: String| {
         spawn(async move {
@@ -433,6 +443,78 @@ pub fn DayView(
         }
     };
 
+    let mut start_edit = move |i: usize, e: &DayEntry| {
+        form.fill_from(e);
+        conflict.set(None);
+        message.set(None);
+        confirm_delete.set(None);
+        mode.set(Mode::Edit(i));
+    };
+    let mut ask_delete = move |i: usize| {
+        message.set(None);
+        mode.set(Mode::Idle);
+        confirm_delete.set(Some(i));
+    };
+    let delete = {
+        let base = entries.clone();
+        move |i: usize| {
+            let mut new = base.clone();
+            new.remove(i);
+            save(base.clone(), new, format!("Deleted #{}", i + 1));
+        }
+    };
+    let edit_editor = {
+        let base = entries.clone();
+        move |i: usize| {
+            let base = base.clone();
+            rsx! {
+                EntryEditor {
+                    form,
+                    activities,
+                    state,
+                    on_favourite,
+                    on_reload,
+                    busy: busy(),
+                    save_label: "Save",
+                    message: message(),
+                    conflict: conflict(),
+                    on_save: move |_| {
+                        let built = build_edit(&form, &activities.read(), &base, i);
+                        submit(built, base.clone(), format!("Edited #{}", i + 1));
+                    },
+                    on_cancel: move |_| {
+                        mode.set(Mode::Idle);
+                        conflict.set(None);
+                        message.set(None);
+                    },
+                    on_fix: move |fix| {
+                        if let Some(c) = conflict() {
+                            let mut new = c.new.clone();
+                            match fix_new_issues(&mut new, &c.base, fix) {
+                                Ok(()) => save(c.base.clone(), new, c.what.clone()),
+                                Err(err) => message.set(Some(err.to_string())),
+                            }
+                        }
+                    },
+                    on_save_anyway: move |_| {
+                        if let Some(c) = conflict() {
+                            save(c.base.clone(), c.new.clone(), c.what.clone());
+                        }
+                    },
+                    on_back: move |_| conflict.set(None),
+                }
+            }
+        }
+    };
+    // Cards also name the activity: there is room below the number, but no hover to explain it.
+    let activity_name = move |id: i32| {
+        activities
+            .read()
+            .iter()
+            .find(|a| a.id == id)
+            .map(Activity::short_label)
+    };
+
     let rows: Vec<(usize, DayEntry)> = entries.iter().cloned().enumerate().collect();
     let adding = mode() == Mode::Add;
 
@@ -523,6 +605,91 @@ pub fn DayView(
                         }
                     }
                 }
+            } else if compact {
+                div { class: "entries",
+                    for (i , e) in rows.clone() {
+                        if mode() == Mode::Edit(i) {
+                            div { key: "e{i}", class: "entry editing", {edit_editor(i)} }
+                        } else {
+                            div { key: "r{i}", class: "entry",
+                                div { class: "entry-top",
+                                    span { class: "num", "{time_range(&e)}" }
+                                    span { class: "num",
+                                        if let Some(p) = e.pause.filter(|p| *p > 0) {
+                                            span { class: "muted", "+{fmt_hm(i64::from(p))} break  " }
+                                        }
+                                        strong { "{fmt_hm(e.duration)}" }
+                                    }
+                                }
+                                div { class: "entry-activity",
+                                    "{e.full_activity_number}"
+                                    if let Some(name) = activity_name(e.activity_id) {
+                                        span { class: "muted", " · {name}" }
+                                    }
+                                }
+                                if let Some(c) = e.comment.clone().filter(|c| !c.is_empty()) {
+                                    div { class: "entry-comment", "{c}" }
+                                }
+                                if confirm_delete() == Some(i) {
+                                    div { class: "entry-actions confirm",
+                                        span { class: "warn", "Delete this entry?" }
+                                        button {
+                                            class: "danger",
+                                            disabled: busy(),
+                                            onclick: {
+                                                let delete = delete.clone();
+                                                move |_| delete(i)
+                                            },
+                                            "Delete"
+                                        }
+                                        button {
+                                            class: "secondary",
+                                            onclick: move |_| confirm_delete.set(None),
+                                            "Keep"
+                                        }
+                                    }
+                                } else {
+                                    div { class: "entry-actions",
+                                        button {
+                                            class: "secondary",
+                                            onclick: {
+                                                let e = e.clone();
+                                                move |_| start_edit(i, &e)
+                                            },
+                                            "Edit"
+                                        }
+                                        button {
+                                            class: "secondary del",
+                                            onclick: move |_| ask_delete(i),
+                                            "Delete"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    for (k , q) in queued.iter().enumerate() {
+                        div { key: "q{k}", class: "entry queued",
+                            div { class: "entry-top",
+                                span { class: "num", "{time_range(q)}" }
+                                strong { class: "num", "{fmt_hm(q.duration)}" }
+                            }
+                            div { class: "entry-activity",
+                                if q.full_activity_number.is_empty() {
+                                    "(no activity yet)"
+                                } else {
+                                    "{q.full_activity_number}"
+                                }
+                            }
+                            div { class: "muted", "waiting to upload" }
+                        }
+                    }
+                    div { class: "entry-total",
+                        span { "Total " }
+                        strong { class: "num", "{total}" }
+                        span { class: "muted", "{target_note}" }
+                    }
+                }
             } else {
                 table {
                     thead {
@@ -539,46 +706,7 @@ pub fn DayView(
                         for (i , e) in rows {
                             if mode() == Mode::Edit(i) {
                                 tr { key: "e{i}", class: "editing",
-                                    td { colspan: "6",
-                                        EntryEditor {
-                                            form,
-                                            activities,
-                                            state,
-                                            on_favourite,
-                                            on_reload,
-                                            busy: busy(),
-                                            save_label: "Save",
-                                            message: message(),
-                                            conflict: conflict(),
-                                            on_save: {
-                                                let base = entries.clone();
-                                                move |_| {
-                                                    let built = build_edit(&form, &activities.read(), &base, i);
-                                                    submit(built, base.clone(), format!("Edited #{}", i + 1));
-                                                }
-                                            },
-                                            on_cancel: move |_| {
-                                                mode.set(Mode::Idle);
-                                                conflict.set(None);
-                                                message.set(None);
-                                            },
-                                            on_fix: move |fix| {
-                                                if let Some(c) = conflict() {
-                                                    let mut new = c.new.clone();
-                                                    match fix_new_issues(&mut new, &c.base, fix) {
-                                                        Ok(()) => save(c.base.clone(), new, c.what.clone()),
-                                                        Err(err) => message.set(Some(err.to_string())),
-                                                    }
-                                                }
-                                            },
-                                            on_save_anyway: move |_| {
-                                                if let Some(c) = conflict() {
-                                                    save(c.base.clone(), c.new.clone(), c.what.clone());
-                                                }
-                                            },
-                                            on_back: move |_| conflict.set(None),
-                                        }
-                                    }
+                                    td { colspan: "6", {edit_editor(i)} }
                                 }
                             } else {
                                 tr { key: "r{i}",
@@ -599,12 +727,8 @@ pub fn DayView(
                                                 class: "danger",
                                                 disabled: busy(),
                                                 onclick: {
-                                                    let base = entries.clone();
-                                                    move |_| {
-                                                        let mut new = base.clone();
-                                                        new.remove(i);
-                                                        save(base.clone(), new, format!("Deleted #{}", i + 1));
-                                                    }
+                                                    let delete = delete.clone();
+                                                    move |_| delete(i)
                                                 },
                                                 "Yes"
                                             }
@@ -619,24 +743,14 @@ pub fn DayView(
                                                 class: "quiet",
                                                 onclick: {
                                                     let e = e.clone();
-                                                    move |_| {
-                                                        form.fill_from(&e);
-                                                        conflict.set(None);
-                                                        message.set(None);
-                                                        confirm_delete.set(None);
-                                                        mode.set(Mode::Edit(i));
-                                                    }
+                                                    move |_| start_edit(i, &e)
                                                 },
                                                 "Edit"
                                             }
                                             " "
                                             button {
                                                 class: "quiet del",
-                                                onclick: move |_| {
-                                                    message.set(None);
-                                                    mode.set(Mode::Idle);
-                                                    confirm_delete.set(Some(i));
-                                                },
+                                                onclick: move |_| ask_delete(i),
                                                 "Delete"
                                             }
                                         }

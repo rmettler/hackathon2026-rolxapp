@@ -2,6 +2,8 @@ use dioxus::prelude::*;
 use rolx_core::activities::{Activity, Group, search};
 use rolx_core::stamp::StampState;
 
+use crate::use_compact;
+
 /// Rows rendered at most; more than that cannot be scanned by eye anyway, so keep typing instead.
 const MAX_ROWS: usize = 100;
 const CHIPS: usize = 5;
@@ -31,6 +33,8 @@ pub fn ActivityPicker(
     let mut open = use_signal(|| false);
     let mut query = use_signal(String::new);
     let mut cursor = use_signal(|| 0usize);
+    // On a phone the list opens as a full-screen sheet; focusing the search would cover it with the keyboard.
+    let compact = use_compact();
 
     use_effect(move || {
         cursor();
@@ -124,10 +128,19 @@ pub fn ActivityPicker(
             if open() {
                 div { class: "backdrop", onclick: move |_| open.set(false) }
                 div { class: "popover",
+                    if compact {
+                        div { class: "sheet-head",
+                            strong { "Choose activity" }
+                            button { class: "secondary", onclick: move |_| open.set(false), "Close" }
+                        }
+                    }
                     input {
                         placeholder: "Search number, name, customer, project…",
                         value: "{query}",
                         onmounted: move |e| {
+                            if compact {
+                                return;
+                            }
                             spawn(async move {
                                 _ = e.set_focus(true).await;
                             });

@@ -1,7 +1,7 @@
 /* Phone layout: header, tabs, login and settings. Loaded after rolx_ui::CSS, whose colour variables it uses (light
    and dark). The component styles for small screens are in rolx_ui::CSS under `.compact`. */
 html { -webkit-text-size-adjust: 100%; }
-body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; overflow-x: hidden; }
 main {
   max-width: 640px; margin: 0 auto;
   padding: calc(4px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right))

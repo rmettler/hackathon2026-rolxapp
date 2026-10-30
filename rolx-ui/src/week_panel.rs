@@ -5,9 +5,11 @@ use dioxus::prelude::*;
 use rolx_core::balance::fetch_balance;
 use rolx_core::dayplan::fmt_hm;
 use rolx_core::stamp::{StampState, Status};
-use rolx_core::week::{DAILY_TARGET_SECS, WeekSummary, fetch_week, guidance, summarize};
+use rolx_core::week::{
+    DAILY_TARGET_SECS, DaySummary, WeekSummary, fetch_week, guidance, summarize,
+};
 
-use crate::shared;
+use crate::{shared, use_compact};
 
 /// One color per activity, stable between runs. Unassigned entries are gray.
 fn color(activity_id: i32) -> String {
@@ -40,16 +42,83 @@ fn percent(part: i64, whole: i64) -> f64 {
     }
 }
 
+/// The bars of one day in the chart, with its label and booked time below.
+fn chart_column(d: &DaySummary, scale: i64) -> Element {
+    rsx! {
+        div { class: "bars", title: "{d.date.format(\"%a %d.%m.\")}: {fmt_hm(d.booked_secs)}",
+            for t in d.by_activity.iter() {
+                div {
+                    key: "{t.activity_id}",
+                    class: "seg",
+                    style: "height: {percent(t.secs, scale)}%; background: {color(t.activity_id)}",
+                    title: "{t.number} {fmt_hm(t.secs)}",
+                }
+            }
+            if d.nominal_secs > 0 {
+                div {
+                    class: "target",
+                    style: "bottom: {percent(d.nominal_secs, scale)}%",
+                    title: "Target {fmt_hm(d.nominal_secs)}",
+                }
+            }
+        }
+        div { class: "lbl", "{d.date.format(\"%a\")}" }
+        div { class: "val", if d.on_leave { "leave" } else { "{fmt_hm(d.booked_secs)}" } }
+    }
+}
+
+/// What a tapped bar holds, as touch screens have no hover to show the bars' titles.
+fn day_breakdown(d: &DaySummary, on_open_day: Option<EventHandler<NaiveDate>>) -> Element {
+    let date = d.date;
+    let booked = if d.on_leave {
+        "on leave".to_string()
+    } else if d.nominal_secs > 0 {
+        format!("{} of {}", fmt_hm(d.booked_secs), fmt_hm(d.nominal_secs))
+    } else {
+        fmt_hm(d.booked_secs)
+    };
+    rsx! {
+        div { class: "day-detail",
+            div { class: "detail-head",
+                strong { "{date.format(\"%A %d.%m.\")}" }
+                span { class: "muted", "{booked}" }
+            }
+            if d.by_activity.is_empty() {
+                p { class: "muted", "Nothing booked" }
+            }
+            for t in d.by_activity.iter() {
+                div { key: "{t.activity_id}", class: "legend-item",
+                    span { class: "dot", style: "background: {color(t.activity_id)}" }
+                    if t.activity_id == 0 {
+                        "no activity"
+                    } else {
+                        "{t.number}"
+                    }
+                    span { class: "num", "{fmt_hm(t.secs)}" }
+                }
+            }
+            if let Some(open) = on_open_day {
+                button { class: "secondary", onclick: move |_| open.call(date), "Open this day" }
+            }
+        }
+    }
+}
+
 /// The selected week: booked against target with what is left, and an optional chart.
-/// `show_chart` is toggled here; keeping it between runs is up to the app.
+/// `show_chart` is toggled here; keeping it between runs is up to the app. In the compact layout a
+/// tapped bar shows that day's breakdown, and `on_open_day` is offered there and on the days
+/// without bookings, e.g. to switch to the day.
 #[component]
 pub fn WeekPanel(
     mut day: Signal<NaiveDate>,
     refresh: Signal<u32>,
     state: Signal<StampState>,
     mut show_chart: Signal<bool>,
+    on_open_day: Option<EventHandler<NaiveDate>>,
 ) -> Element {
     let mut now = use_signal(|| Local::now().naive_local());
+    let compact = use_compact();
+    let mut tapped = use_signal(|| None::<NaiveDate>);
 
     // Minute-level is enough: guidance talks about hours.
     use_future(move || async move {
@@ -101,6 +170,7 @@ pub fn WeekPanel(
             let legend: Vec<_> = summary.activities.iter().take(8).cloned().collect();
             let selected = day();
             let over = summary.remaining_secs < 0;
+            let tapped_day = tapped().and_then(|t| days.iter().find(|d| d.date == t).cloned());
 
             let now_dt = now();
             let (running_secs, working) = match state.read().status(now_dt) {
@@ -119,6 +189,12 @@ pub fn WeekPanel(
             let today_line = advice.today.as_ref().map(|t| t.describe());
             let balance_line = advice.balance_text();
             let missing = advice.missing_days.clone();
+            let col_class = |date: NaiveDate| match (date == selected, missing.contains(&date)) {
+                (true, true) => "col sel missing",
+                (true, false) => "col sel",
+                (false, true) => "col missing",
+                (false, false) => "col",
+            };
             let balances = balance
                 .read()
                 .as_ref()
@@ -169,7 +245,12 @@ pub fn WeekPanel(
                                 button {
                                     key: "{d}",
                                     class: "link",
-                                    onclick: move |_| day.set(d),
+                                    onclick: move |_| {
+                                        day.set(d);
+                                        if compact && let Some(open) = on_open_day {
+                                            open.call(d);
+                                        }
+                                    },
                                     "{d.format(\"%a %d.%m.\")}"
                                 }
                             }
@@ -178,35 +259,31 @@ pub fn WeekPanel(
                 }
                 if show_chart() {
                     div { class: "chart",
-                        for d in days {
-                            div {
-                                key: "{d.date}",
-                                class: match (d.date == selected, missing.contains(&d.date)) {
-                                    (true, true) => "col sel missing",
-                                    (true, false) => "col sel",
-                                    (false, true) => "col missing",
-                                    (false, false) => "col",
-                                },
-                                div { class: "bars", title: "{d.date.format(\"%a %d.%m.\")}: {fmt_hm(d.booked_secs)}",
-                                    for t in d.by_activity.iter() {
-                                        div {
-                                            key: "{t.activity_id}",
-                                            class: "seg",
-                                            style: "height: {percent(t.secs, scale)}%; background: {color(t.activity_id)}",
-                                            title: "{t.number} {fmt_hm(t.secs)}",
+                        for d in days.iter() {
+                            if compact {
+                                div {
+                                    key: "{d.date}",
+                                    class: col_class(d.date),
+                                    onclick: {
+                                        let date = d.date;
+                                        move |_| {
+                                            day.set(date);
+                                            tapped.set(Some(date));
                                         }
-                                    }
-                                    if d.nominal_secs > 0 {
-                                        div {
-                                            class: "target",
-                                            style: "bottom: {percent(d.nominal_secs, scale)}%",
-                                            title: "Target {fmt_hm(d.nominal_secs)}",
-                                        }
-                                    }
+                                    },
+                                    {chart_column(d, scale)}
                                 }
-                                div { class: "lbl", "{d.date.format(\"%a\")}" }
-                                div { class: "val", if d.on_leave { "leave" } else { "{fmt_hm(d.booked_secs)}" } }
+                            } else {
+                                div { key: "{d.date}", class: col_class(d.date), {chart_column(d, scale)} }
                             }
+                        }
+                    }
+                    if compact {
+                        match tapped_day {
+                            Some(d) => day_breakdown(&d, on_open_day),
+                            None => rsx! {
+                                p { class: "muted hint", "Tap a day for its bookings" }
+                            },
                         }
                     }
                     div { class: "legend",
