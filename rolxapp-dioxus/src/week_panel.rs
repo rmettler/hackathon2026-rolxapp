@@ -2,6 +2,7 @@ use std::time::Duration as StdDuration;
 
 use chrono::{Datelike, Local, NaiveDate, Timelike};
 use dioxus::prelude::*;
+use rolx_core::balance::fetch_balance;
 use rolx_core::dayplan::fmt_hm;
 use rolx_core::stamp::{StampState, Status};
 use rolx_core::week::{DAILY_TARGET_SECS, WeekSummary, fetch_week, guidance, summarize};
@@ -65,6 +66,12 @@ pub fn WeekPanel(
         fetch_week(&client, day).await
     });
 
+    let balance = use_resource(move || async move {
+        refresh();
+        let client = shared::client().await?;
+        fetch_balance(&client, Local::now().date_naive()).await
+    });
+
     let toggle = move |_| {
         let next = !show_chart();
         show_chart.set(next);
@@ -116,6 +123,11 @@ pub fn WeekPanel(
             let today_line = advice.today.as_ref().map(|t| t.describe());
             let balance_line = advice.balance_text();
             let missing = advice.missing_days.clone();
+            let balances = balance
+                .read()
+                .as_ref()
+                .and_then(|b| b.as_ref().ok())
+                .map(|b| (b.overtime_text(), b.overtime_secs < 0, b.vacation_text()));
 
             rsx! {
                 div { class: "week-head",
@@ -129,6 +141,18 @@ pub fn WeekPanel(
                 }
                 div { class: "progress",
                     div { class: if over { "fill over" } else { "fill" }, style: "width: {filled}%" }
+                }
+                if let Some((flextime, owed, vacation)) = balances {
+                    div { class: "balances", title: "Balance as of today",
+                        span {
+                            span { class: "muted", "Flextime " }
+                            strong { class: if owed { "owed" } else { "" }, "{flextime}" }
+                        }
+                        span {
+                            span { class: "muted", "Vacation " }
+                            strong { "{vacation}" }
+                        }
+                    }
                 }
                 div { class: "guidance",
                     if let Some(line) = today_line {

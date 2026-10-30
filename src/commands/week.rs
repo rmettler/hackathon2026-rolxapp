@@ -1,4 +1,5 @@
 use chrono::{Datelike, Local, Timelike};
+use rolx_core::balance::fetch_balance;
 use rolx_core::client::RolxClient;
 use rolx_core::dayplan::fmt_hm;
 use rolx_core::stamp::{StampState, Status};
@@ -70,8 +71,17 @@ pub async fn run(client: &RolxClient, date: Option<String>) -> anyhow::Result<()
         fmt_hm(on_day)
     );
 
-    // Guidance is about the present, so only for the week that contains today.
     let now = Local::now().naive_local();
+    match fetch_balance(client, now.date()).await {
+        Ok(b) => println!(
+            "Flextime {} · vacation left {}",
+            b.overtime_text(),
+            b.vacation_text()
+        ),
+        Err(e) => eprintln!("warning: balance unavailable: {e}"),
+    }
+
+    // Guidance is about the present, so only for the week that contains today.
     if summary.days.iter().any(|d| d.date == now.date()) {
         let (running, working) = match state.status(now) {
             Status::StampedIn {

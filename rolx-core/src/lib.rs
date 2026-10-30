@@ -1,6 +1,7 @@
 //! Frontend-independent logic shared by all RolX client apps (CLI, GUI, ...).
 
 pub mod activities;
+pub mod balance;
 pub mod client;
 pub mod config;
 pub mod dayedit;

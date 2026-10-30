@@ -101,6 +101,8 @@ button.repeat { max-width: 100%; overflow: hidden; text-overflow: ellipsis; whit
 .editing.add { border-top: 1px solid #e3e6ee; margin-top: 12px; padding-top: 4px; background: rgba(59,108,246,.06); border-radius: 8px; padding: 8px 12px; }
 .editing.add h3 { margin: 4px 0; font-size: 1rem; }
 .guidance { margin-top: 8px; }
+.balances { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(128, 128, 128, 0.25); font-variant-numeric: tabular-nums; }
+.balances .owed { color: #e67700; }
 .guidance p { margin: 4px 0; }
 .guidance .today { font-weight: 600; }
 button.link { background: transparent; color: #3b6cf6; padding: 0 6px; text-decoration: underline; }
