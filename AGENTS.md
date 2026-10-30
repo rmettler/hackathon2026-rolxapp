@@ -28,7 +28,8 @@ all in Rust where sensible. Goals and roadmap: `README.md`. Design docs: `docs/`
   Week tabs, login (browser or device code with QR), settings in `mobile.json`, page events in JS (`PAGE_EVENTS`:
   back in the foreground, online/offline, swipes). Embeds the config at build time (`build.rs`, passed on with
   `rolx_ui::set_config_source`) and stores session and data files in the app's files dir
-  (`rolx_core::paths::set_base_dir`). `android/AndroidManifest.xml` sets a DayNight theme (else the web view is
+  (`rolx_core::paths::set_base_dir`). `build.rs` also embeds the KMR Apparat brand font when the design system
+  checkout (or `ROLX_FONT_DIR`) is there at build time. `android/AndroidManifest.xml` sets a DayNight theme (else the web view is
   never dark) and `ACCESS_NETWORK_STATE` (else `navigator.onLine` never changes).
 - `xtask/` — workspace tasks.
 

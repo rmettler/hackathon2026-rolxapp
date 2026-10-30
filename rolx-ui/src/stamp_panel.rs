@@ -295,7 +295,7 @@ pub fn StampPanel(
         }
         AwayBanner { away }
         div { class: "card stamp",
-            div { class: if on_break { "timer paused" } else { "timer" }, "{timer}" }
+            div { class: if on_break { "timer paused" } else { "timer" }, role: "timer", "{timer}" }
             div { class: "status", "{headline}" }
             if !blocked {
                 if (repeat.is_some() && !stamped_in) || !tiles.is_empty() {
@@ -347,6 +347,7 @@ pub fn StampPanel(
                     show_chips: false,
                 }
                 input {
+                    "aria-label": "Work report",
                     placeholder: if stamped_in { "What did you do? (saved when you stamp out)" } else { "Work report (optional)" },
                     value: "{comment}",
                     oninput: move |e| comment.set(e.value()),
@@ -536,7 +537,7 @@ pub fn StampPanel(
                 }
             }
             if let Some(m) = (stamper.message)() {
-                p { class: "muted", "{m}" }
+                p { class: "muted", role: "status", "{m}" }
             }
         }
     }

@@ -40,6 +40,22 @@ fn percent(part: i64, whole: i64) -> f64 {
     }
 }
 
+/// What a day's column says, for screen readers (the bars themselves are only colour).
+fn column_label(d: &DaySummary) -> String {
+    let day = d.date.format("%A %d.%m.");
+    if d.on_leave {
+        format!("{day}: on leave")
+    } else if d.nominal_secs > 0 {
+        format!(
+            "{day}: {} of {} booked",
+            fmt_hm(d.booked_secs),
+            fmt_hm(d.nominal_secs)
+        )
+    } else {
+        format!("{day}: {} booked", fmt_hm(d.booked_secs))
+    }
+}
+
 /// The bars of one day in the chart, with its label and booked time below.
 fn chart_column(d: &DaySummary, scale: i64) -> Element {
     rsx! {
@@ -214,7 +230,14 @@ pub fn WeekPanel(
                     span { class: "muted", " of {fmt_hm(summary.target_secs)}{pensum}" }
                     span { class: if over { "left over" } else { "left" }, "{left}" }
                 }
-                div { class: "progress",
+                div {
+                    class: "progress",
+                    role: "progressbar",
+                    "aria-label": "Booked of the week's target",
+                    "aria-valuemin": "0",
+                    "aria-valuemax": "100",
+                    "aria-valuenow": "{filled.round() as i64}",
+                    "aria-valuetext": "{fmt_hm(credited)} of {fmt_hm(summary.target_secs)}",
                     div { class: if over { "fill over" } else { "fill" }, style: "width: {filled}%" }
                 }
                 if let Some((flextime, owed, vacation)) = balances {
@@ -263,6 +286,10 @@ pub fn WeekPanel(
                                 div {
                                     key: "{d.date}",
                                     class: col_class(d.date),
+                                    role: "button",
+                                    tabindex: "0",
+                                    "aria-label": "{column_label(d)}",
+                                    "aria-pressed": if tapped_day.as_ref().is_some_and(|t| t.date == d.date) { "true" } else { "false" },
                                     onclick: {
                                         let date = d.date;
                                         move |_| {
@@ -270,10 +297,26 @@ pub fn WeekPanel(
                                             tapped.set(Some(date));
                                         }
                                     },
+                                    onkeydown: {
+                                        let date = d.date;
+                                        move |e: KeyboardEvent| {
+                                            if matches!(e.key(), Key::Enter) || e.key() == Key::Character(" ".into()) {
+                                                e.prevent_default();
+                                                day.set(date);
+                                                tapped.set(Some(date));
+                                            }
+                                        }
+                                    },
                                     {chart_column(d, scale)}
                                 }
                             } else {
-                                div { key: "{d.date}", class: col_class(d.date), {chart_column(d, scale)} }
+                                div {
+                                    key: "{d.date}",
+                                    class: col_class(d.date),
+                                    role: "img",
+                                    "aria-label": "{column_label(d)}",
+                                    {chart_column(d, scale)}
+                                }
                             }
                         }
                     }

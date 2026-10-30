@@ -122,9 +122,10 @@ pub fn Palette(
 
     let keys_items = items.clone();
     rsx! {
-        div { class: "backdrop dim", onclick: move |_| open.set(false) }
-        div { class: "palette",
+        div { class: "backdrop dim", "aria-hidden": "true", onclick: move |_| open.set(false) }
+        div { class: "palette", role: "dialog", "aria-modal": "true", "aria-label": "Quick actions",
             input {
+                "aria-label": "Start an activity or run a command",
                 placeholder: "Start an activity or run a command…",
                 value: "{query}",
                 onmounted: move |e| {

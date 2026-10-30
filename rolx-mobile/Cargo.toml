@@ -22,7 +22,8 @@ manganis    = "0.7"
 ndk-context = "0.1"
 
 [build-dependencies]
-dirs = "7"
+base64 = "0.22"
+dirs   = "7"
 
 [features]
 default = ["mobile"]

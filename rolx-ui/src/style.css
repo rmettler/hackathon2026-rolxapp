@@ -26,7 +26,7 @@ button { display: inline-flex; align-items: center; justify-content: center; gap
 button:hover:not(:disabled) { background: var(--surface-hover); }
 button:active:not(:disabled) { transform: scale(var(--press-scale)); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
-button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; box-shadow: var(--shadow-focus); }
+button:focus-visible, input:focus-visible, select:focus-visible, [role="button"]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; box-shadow: var(--shadow-focus); }
 button.secondary { border-color: var(--border-strong); color: var(--button-secondary-fg); }
 button.quiet, button.icon { border-color: transparent; color: var(--fg-muted); }
 button.quiet:hover:not(:disabled), button.icon:hover:not(:disabled) { color: var(--fg); }
@@ -160,28 +160,32 @@ tr.editing > td { background: var(--bg-alt); max-width: 0; }
 
 /* Compact layout for phones: the app puts the class "compact" on its root (with `Compact(true)` as context). Desktop
    windows never get it, however narrow, so they keep the look above. */
+.compact { font-size: var(--type-body-size); line-height: var(--type-body-leading); }
+/* Touch targets of at least 44px (the design system's medium control); inline text links are exempt. */
+.compact button { min-height: var(--control-h-md); }
+.compact button.link { min-height: 0; }
 .compact .card { padding: 14px; margin-top: 12px; }
 .compact .card-head { flex-wrap: wrap; }
 .compact .muted { margin-top: 8px; }
 .compact p { overflow-wrap: anywhere; }
-.compact button.small, .compact .stamp p button, .compact .queue button, .compact .issue button { padding: 8px 14px; font-size: 0.92rem; min-height: 40px; }
-.compact input, .compact select { font-size: 1rem; padding: 10px 12px; min-height: 44px; }
-.compact .timer { font-size: 2.6rem; }
-.compact .tile { padding: 9px 16px; font-size: 0.95rem; }
+.compact button.small, .compact .stamp p button, .compact .queue button, .compact .issue button { padding: 8px 14px; font-size: var(--type-body-sm-size); min-height: var(--control-h-md); }
+.compact input, .compact select { font-size: var(--type-body-size); padding: 10px 12px; min-height: var(--control-h-md); }
+.compact .timer { font-size: var(--type-display-size); }
+.compact .tile { padding: 9px 16px; font-size: var(--type-body-sm-size); }
 .compact .actions-row { flex-wrap: wrap; }
-.compact .actions-row button { flex: 1 1 40%; padding: 14px 12px; font-size: 1rem; }
+.compact .actions-row button { flex: 1 1 40%; padding: 14px 12px; font-size: var(--type-body-size); }
 .compact .controls { justify-content: stretch; }
 .compact .controls label { flex: 1 1 auto; }
 .compact .controls input[type="time"] { flex: 1 1 auto; min-width: 7.5rem; }
 .compact .controls > input { flex: 1 1 100%; }
-.compact .controls > button { flex: 1 1 40%; padding: 12px; font-size: 1rem; }
+.compact .controls > button { flex: 1 1 40%; padding: 12px; font-size: var(--type-body-size); }
 .compact .banner .controls button { flex: 1 1 100%; }
 .compact .queue-row { padding: 8px 0; flex-wrap: wrap; }
 .compact .queue-row > span:first-child { flex: 1 1 60%; }
 .compact .status-line { padding: 8px 12px; }
 
 /* Activity picker: a full-screen sheet with big rows and stars that are easy to hit. */
-.compact .trigger { position: relative; min-height: 46px; padding-right: 30px; font-size: 1rem; }
+.compact .trigger { position: relative; min-height: var(--control-h-md); padding-right: 30px; font-size: var(--type-body-size); }
 .compact button.secondary.trigger::after { float: none; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); }
 .compact .clear { min-width: 46px; }
 .compact .popover {
@@ -190,31 +194,32 @@ tr.editing > td { background: var(--bg-alt); max-width: 0; }
   padding: calc(10px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right))
     calc(10px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
 }
-.compact .popover .sheet-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; font-size: 1.05rem; }
+.compact .popover .sheet-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; font-size: var(--type-body-size); }
 .compact .options { flex: 1; max-height: none; }
 .compact .opt { padding: 10px 6px; min-height: 52px; gap: 8px; border-bottom: 1px solid var(--border); border-radius: 0; }
 .compact .opt:hover { background: transparent; }
 .compact .opt.cur { background: transparent; }
 .compact .opt.sel { background: var(--surface-hover); }
-.compact .star { flex: 0 0 auto; min-width: 44px; min-height: 44px; font-size: 1.5rem; }
+.compact .star { flex: 0 0 auto; min-width: 44px; min-height: var(--control-h-md); }
 .compact .group { padding: 14px 6px 4px; }
-.compact .popover-foot button { padding: 8px 14px; font-size: 0.92rem; }
+.compact .popover-foot button { padding: 8px 14px; font-size: var(--type-body-sm-size); }
 
 /* Day entries as cards */
 .compact .entries { display: flex; flex-direction: column; gap: 8px; }
-.compact .entry { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
-.compact .entry.queued { opacity: 0.7; font-style: italic; }
+.compact .entry { border: 1px solid var(--border); border-radius: var(--surface-radius); padding: 10px 12px; }
+/* Queued entries: muted and dashed, not faded, so their text keeps its contrast. */
+.compact .entry.queued { border-style: dashed; color: var(--fg-muted); font-style: italic; }
 .compact .entry.editing { background: var(--surface-hover); border-color: var(--brand-ink); }
 .compact .editing { scroll-margin-top: 72px; }
 .compact .entry-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-variant-numeric: tabular-nums; }
-.compact .entry-top strong { font-size: 1.1rem; }
-.compact .entry-top .muted { margin: 0; font-size: 0.85rem; }
-.compact .entry-activity { margin-top: 2px; font-weight: 600; overflow-wrap: anywhere; }
-.compact .entry-activity .muted { font-weight: 400; margin: 0; }
+.compact .entry-top strong { font-size: var(--type-body-size); }
+.compact .entry-top .muted { margin: 0; font-size: var(--type-body-sm-size); }
+.compact .entry-activity { margin-top: 2px; font-weight: var(--weight-medium); overflow-wrap: anywhere; }
+.compact .entry-activity .muted { font-weight: var(--weight-regular); margin: 0; }
 .compact .entry-comment { margin-top: 2px; color: var(--fg-muted); overflow-wrap: anywhere; }
 .compact .entry > .muted { margin-top: 2px; }
 .compact .entry-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
-.compact .entry-actions button { flex: 1; min-height: 44px; }
+.compact .entry-actions button { flex: 1; min-height: var(--control-h-md); }
 .compact .entry-actions .warn { flex: 1 1 100%; }
 .compact .entry-actions button.del { color: var(--status-error); }
 .compact .entry-total { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; padding: 8px 4px 0; font-variant-numeric: tabular-nums; }
@@ -227,26 +232,32 @@ tr.editing > td { background: var(--bg-alt); max-width: 0; }
 .compact .chart { gap: 6px; }
 .compact .chart .col { cursor: pointer; }
 .compact .chart .bars { height: 120px; }
-.compact .day-detail { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: var(--bg-alt); display: flex; flex-direction: column; gap: 6px; }
+.compact .day-detail { margin-top: 12px; padding: 10px 12px; border-radius: var(--surface-radius); background: var(--bg-alt); display: flex; flex-direction: column; gap: 6px; }
 .compact .detail-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .compact .detail-head .muted { margin: 0; }
 .compact .day-detail .legend-item { justify-content: flex-start; }
 .compact .day-detail .legend-item .num { margin-left: auto; font-variant-numeric: tabular-nums; }
-.compact .day-detail button { margin-top: 4px; min-height: 44px; }
-.compact .hint { text-align: center; font-size: 0.85rem; }
+.compact .day-detail button { margin-top: 4px; min-height: var(--control-h-md); }
+.compact .hint { text-align: center; font-size: var(--type-body-sm-size); }
 .compact .guidance .link { padding: 6px; }
-.compact .week-numbers .big { font-size: 1.6rem; }
+.compact .week-numbers .big { font-size: var(--type-headline-size); }
 .compact .balances .stat { flex-basis: 120px; }
-.compact .day-detail .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: 0 0 auto; }
+.compact .day-detail .dot { width: 10px; height: 10px; border-radius: var(--cudos-radius-4); display: inline-block; flex: 0 0 auto; }
 
 @media (max-width: 380px) {
-  .compact .timer { font-size: 2.2rem; }
+  .compact .timer { font-size: var(--type-display-size); }
   .compact .chart { gap: 3px; }
-  .compact .chart .lbl, .compact .chart .val { font-size: 0.72rem; }
+  .compact .chart .lbl, .compact .chart .val { font-size: var(--type-label-size); }
 }
 @media (pointer: coarse) {
   .compact button:hover:not(:disabled) { filter: none; }
   .compact button.secondary:hover:not(:disabled), .compact button.icon:hover:not(:disabled), .compact .tile:hover:not(:disabled) { background: transparent; }
   .compact .tile:hover:not(:disabled) { border-color: var(--border-strong); }
   .compact .tile.repeat:hover:not(:disabled) { border-color: var(--brand-ink); }
+}
+
+/* Motion is decoration only: honour the system setting to reduce it. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+  button:active:not(:disabled) { transform: none; }
 }

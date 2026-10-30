@@ -1,55 +1,57 @@
-/* Phone layout: header, tabs, login and settings. Loaded after rolx_ui::CSS, whose colour variables it uses (light
-   and dark). The component styles for small screens are in rolx_ui::CSS under `.compact`. */
+/* Phone layout: header, tabs, login and settings, on the Cudos design system tokens only (loaded after rolx_ui::CSS,
+   which starts with them; light and dark follow the system). The component styles for small screens are in
+   rolx_ui::CSS under `.compact`. */
 html { -webkit-text-size-adjust: 100%; }
 body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; overflow-x: hidden; }
 main {
   max-width: 640px; margin: 0 auto;
   padding: calc(4px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right))
-    calc(80px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
+    calc(88px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
 }
-h1 { margin: 0; font-size: 1.35rem; line-height: 1.1; }
+h1 { margin: 0; font-size: var(--type-headline-size); line-height: var(--type-headline-leading); letter-spacing: var(--type-headline-tracking); font-weight: var(--weight-medium); }
 a { color: var(--brand-ink); word-break: break-all; }
 .hidden { display: none; }
 
-/* Header */
-header { position: sticky; top: 0; z-index: 5; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0 4px; background: var(--bg); }
+/* Header: the RolX wordmark in brand ink, the user next to it */
+header { position: sticky; top: 0; z-index: 5; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0 6px; background: var(--bg); border-bottom: 1px solid var(--border); }
 .brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
-.user { color: var(--fg-muted); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.brand h1 { color: var(--brand-ink); }
+.user { color: var(--fg-muted); font-size: var(--type-body-sm-size); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .header-tools { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
-.settings-button { font-size: 1.3rem; padding: 6px 10px; }
-.net { height: auto; padding: 5px 12px; border-radius: 999px; font-size: 0.8rem; background: var(--bg-alt); color: var(--fg); }
-.net.offline { background: transparent; color: var(--status-warn); border-color: var(--status-warn); opacity: 1; }
+.header-tools button.icon { width: var(--control-h-md); }
+.net { height: auto; padding: 6px 12px; font-size: var(--type-label-size); letter-spacing: var(--type-label-tracking); border-color: var(--border-strong); background: var(--bg-alt); color: var(--fg); }
+.net.offline { background: var(--status-warn-bg); color: var(--status-warn); border-color: var(--status-warn-border); opacity: 1; }
 
-/* Bottom tabs */
+/* Bottom tabs: a hairline, no shadow; the current tab in brand ink */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex;
   padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-  background: var(--surface-card); border-top: 1px solid var(--border); box-shadow: 0 -1px 6px rgba(0, 0, 0, 0.08);
+  background: var(--surface-card); border-top: 1px solid var(--border);
 }
-.tabbar button { flex: 1; height: auto; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 0 10px; border: 0; border-radius: 0; background: transparent; color: var(--fg-muted); font-size: 0.78rem; }
-.tabbar button.on { color: var(--brand-ink); font-weight: 700; }
+.tabbar button { flex: 1; height: auto; min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0 10px; border: 0; border-radius: 0; background: transparent; color: var(--fg-muted); font-size: var(--type-label-size); letter-spacing: var(--type-label-tracking); font-weight: var(--weight-regular); }
+.tabbar button[aria-current="page"] { color: var(--brand-ink); font-weight: var(--weight-medium); }
 /* A touch leaves :hover on the tapped tab; the colour already marks it. */
 .tabbar button:hover:not(:disabled) { background: transparent; }
-.tab-icon { font-size: 1.35rem; line-height: 1.2; }
+.tabbar button:focus-visible { outline-offset: -4px; }
 
 /* Day navigation */
-.day-nav { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
-.day-nav .date { flex: 1; text-align: center; font-weight: 600; font-size: 1.02rem; white-space: nowrap; }
-.day-nav button { min-height: 44px; }
-.day-nav button.icon { width: 40px; min-width: 40px; padding: 0; }
+.day-nav { display: flex; align-items: center; gap: 4px; margin-top: 10px; }
+.day-nav .date { flex: 1; text-align: center; font-weight: var(--weight-medium); font-size: var(--type-body-size); white-space: nowrap; }
+.day-nav button.icon { width: var(--control-h-md); min-width: var(--control-h-md); padding: 0; }
 .day-nav button.secondary { padding: 0 14px; }
 
 /* Login */
 .login { display: flex; flex-direction: column; gap: 10px; text-align: center; }
-.login button { padding: 12px 16px; font-size: 1rem; }
-.qr { align-self: center; line-height: 0; padding: 8px; background: #fff; border-radius: 8px; }
+.login button { height: var(--control-h-md); font-size: var(--type-body-size); }
+/* The QR code stays dark on white in dark mode too, or scanners fail. */
+.qr { align-self: center; line-height: 0; padding: 8px; background: var(--cudos-white); border-radius: var(--surface-radius); }
 .qr svg { width: 200px; height: 200px; }
-.code { font-size: 1.6rem; font-weight: 700; letter-spacing: 0.1em; user-select: all; }
+.code { font-size: var(--type-headline-size); font-weight: var(--weight-medium); letter-spacing: 0.1em; user-select: all; }
 
 /* Settings */
 .settings { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
 .setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 0; border-bottom: 1px solid var(--border); }
-.setting input[type="checkbox"] { width: 24px; height: 24px; accent-color: var(--brand-ink); }
+.setting input[type="checkbox"] { width: 24px; height: 24px; min-height: 0; accent-color: var(--brand-ink); }
 .setting.account .controls { flex: 1 1 100%; justify-content: stretch; margin-top: 4px; }
 .setting.account .controls button { flex: 1; }
 .sheet {

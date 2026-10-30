@@ -133,8 +133,8 @@ pub fn ActivityPicker(
                 }
             }
             if open() {
-                div { class: "backdrop", onclick: move |_| open.set(false) }
-                div { class: "popover",
+                div { class: "backdrop", "aria-hidden": "true", onclick: move |_| open.set(false) }
+                div { class: "popover", role: "dialog", "aria-modal": "true", "aria-label": "Choose activity",
                     if compact {
                         div { class: "sheet-head",
                             strong { "Choose activity" }
@@ -142,6 +142,7 @@ pub fn ActivityPicker(
                         }
                     }
                     input {
+                        "aria-label": "Search activities",
                         placeholder: "Search number, name, customer, project…",
                         value: "{query}",
                         onmounted: move |e| {

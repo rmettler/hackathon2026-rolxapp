@@ -240,6 +240,7 @@ fn EntryEditor(
                 " min"
             }
             input {
+                "aria-label": "Work report",
                 placeholder: "Work report",
                 value: "{comment}",
                 oninput: move |ev| comment.set(ev.value()),

@@ -5,6 +5,8 @@ h1 { margin: 0; font-size: var(--type-headline-size); line-height: var(--type-he
 /* Header */
 header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 4px; }
 .brand { display: flex; flex-direction: column; min-width: 0; }
+/* The RolX wordmark in the brand ink (Cudos blue in light, its light tint in dark). */
+.brand h1 { color: var(--brand-ink); }
 .user { color: var(--fg-subtle); font-size: var(--type-label-size); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .header-tools { display: flex; gap: 8px; }
 

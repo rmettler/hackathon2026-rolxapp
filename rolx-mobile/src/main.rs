@@ -26,6 +26,8 @@ use settings::Settings;
 
 /// Mobile layout on top of `rolx_ui::CSS`.
 const CSS: &str = include_str!("mobile.css");
+/// The brand font's `@font-face` rules, empty when its files were not there at build time (see `build.rs`).
+const FONTS_CSS: &str = include_str!(concat!(env!("OUT_DIR"), "/fonts.css"));
 /// Opens the app from the browser, linked on the page shown after the Google login. The scheme is registered in
 /// `android/AndroidManifest.xml`.
 const RETURN_URL: &str = "ch.cudos.rolxmobile://login";
@@ -128,14 +130,19 @@ fn login_card(login: LoginState) -> Element {
                 Some(LoginPrompt::EnterCode { url, code }) => rsx! {
                     p { "Open " a { href: "{url}", "{url}" } " or scan the QR code, and enter this code:" }
                     if let Some(svg) = qr_svg(&url) {
-                        div { class: "qr", dangerous_inner_html: svg }
+                        div {
+                            class: "qr",
+                            role: "img",
+                            "aria-label": "QR code of the login link",
+                            dangerous_inner_html: svg,
+                        }
                     }
                     p { class: "code", "{code}" }
                 },
                 None => rsx! {},
             }
             if let Some(e) = (login.error)() {
-                p { class: "error", "{e}" }
+                p { class: "error", role: "alert", "{e}" }
             }
         }
     }
@@ -150,6 +157,8 @@ enum Tab {
 
 /// Page events the app reacts to: coming back to the foreground, the network, and swipes (to change the day).
 const PAGE_EVENTS: &str = r#"
+// The UI is English; screen readers pick their voice from this.
+document.documentElement.lang = 'en';
 const send = (m) => dioxus.send(m);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') send('visible');
@@ -351,12 +360,12 @@ fn App() -> Element {
             "tab-page hidden"
         }
     };
-    let tab_button = move |t: Tab, icon: &'static str, label: &'static str| {
+    let tab_button = move |t: Tab, glyph: Glyph, label: &'static str| {
         rsx! {
             button {
-                class: if tab() == t { "on" } else { "" },
+                "aria-current": if tab() == t { "page" } else { "false" },
                 onclick: move |_| tab.set(t),
-                span { class: "tab-icon", "{icon}" }
+                Icon { glyph, size: 24 }
                 span { "{label}" }
             }
         }
@@ -364,6 +373,7 @@ fn App() -> Element {
 
     rsx! {
         document::Meta { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" }
+        style { "{FONTS_CSS}" }
         style { "{rolx_ui::CSS}" }
         style { "{CSS}" }
         main { class: "compact",
@@ -377,25 +387,27 @@ fn App() -> Element {
                 div { class: "header-tools",
                     {net_status(online, stamper)}
                     button {
-                        class: "icon settings-button",
+                        class: "icon",
                         title: "Settings",
+                        "aria-label": "Settings",
                         onclick: move |_| show_settings.set(true),
-                        "⚙"
+                        Icon { glyph: Glyph::Settings, size: 22 }
                     }
                 }
             }
             if let Some(e) = notice() {
-                p { class: "error", "{e}" }
+                p { class: "error", role: "alert", "{e}" }
             }
             div { class: tab_class(Tab::Stamp),
                 StampPanel { selected, away, on_favourite, on_reload }
             }
             div { class: tab_class(Tab::Day),
                 if logged_in {
-                    nav { class: "day-nav",
+                    nav { class: "day-nav", "aria-label": "Day",
                         button {
                             class: "icon",
                             title: "Previous day",
+                            "aria-label": "Previous day",
                             onclick: move |_| day.set(day() - Duration::days(1)),
                             Icon { glyph: Glyph::ChevronLeft, size: 20 }
                         }
@@ -403,6 +415,7 @@ fn App() -> Element {
                         button {
                             class: "icon",
                             title: "Next day",
+                            "aria-label": "Next day",
                             onclick: move |_| day.set(day() + Duration::days(1)),
                             Icon { glyph: Glyph::ChevronRight, size: 20 }
                         }
@@ -414,19 +427,21 @@ fn App() -> Element {
                         button {
                             class: "icon",
                             title: "Reload from the server",
+                            "aria-label": "Reload from the server",
                             onclick: move |_| refresh += 1,
                             Icon { glyph: Glyph::RefreshCw, size: 18 }
                         }
                         button {
                             class: "icon",
                             title: "Share the day",
+                            "aria-label": "Share the day",
                             onclick: share_day,
                             Icon { glyph: Glyph::Share, size: 18 }
                         }
                     }
                     UndoLine { undo }
                     if let Some(text) = info() {
-                        p { class: "status-line", "{text}" }
+                        p { class: "status-line", role: "status", "{text}" }
                     }
                 }
                 {day_content}
@@ -463,10 +478,10 @@ fn App() -> Element {
                 }
             }
         }
-        nav { class: "tabbar",
-            {tab_button(Tab::Stamp, "⏱", "Stamp")}
-            {tab_button(Tab::Day, "☰", "Day")}
-            {tab_button(Tab::Week, "▤", "Week")}
+        nav { class: "tabbar", "aria-label": "Sections",
+            {tab_button(Tab::Stamp, Glyph::Timer, "Stamp")}
+            {tab_button(Tab::Day, Glyph::CalendarDays, "Day")}
+            {tab_button(Tab::Week, Glyph::ChartColumn, "Week")}
         }
     }
 }
@@ -505,9 +520,13 @@ fn SettingsSheet(
         .map(|c| c.server_url)
         .unwrap_or_else(|e| e.to_string());
     rsx! {
-        div { class: "sheet settings",
+        div {
+            class: "sheet settings",
+            role: "dialog",
+            "aria-modal": "true",
+            "aria-labelledby": "settings-title",
             div { class: "sheet-head",
-                h2 { "Settings" }
+                h2 { id: "settings-title", "Settings" }
                 button { class: "secondary", onclick: move |_| on_close.call(()), "Done" }
             }
             label { class: "setting",

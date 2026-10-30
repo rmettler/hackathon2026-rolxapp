@@ -99,6 +99,8 @@ type Requests = (
 );
 
 const KEY_LISTENER: &str = r#"
+// The UI is English; screen readers pick their voice from this.
+document.documentElement.lang = 'en';
 window.addEventListener('keydown', e => {
   const key = e.key.toLowerCase();
   const plain = !e.shiftKey;
@@ -515,11 +517,11 @@ fn App() -> Element {
                 }
             }
             if let Some(e) = notice() {
-                p { class: "error", "{e}" }
+                p { class: "error", role: "alert", "{e}" }
             }
             UndoLine { undo }
             if let Some(text) = info() {
-                p { class: "status-line", "{text}" }
+                p { class: "status-line", role: "status", "{text}" }
             }
             StampPanel { selected, away, on_favourite, on_reload }
             {content}
