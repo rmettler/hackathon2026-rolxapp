@@ -5,3 +5,10 @@ tailwind_output = "../../crates/rolx-ui/assets/tailwind.css"
 
 [web.app]
 title = "RolX"
+
+# rolxapp-webhost in dev, see README.md.
+[[web.proxy]]
+backend = "http://127.0.0.1:8081/api/"
+
+[[web.proxy]]
+backend = "http://127.0.0.1:8081/config.json"

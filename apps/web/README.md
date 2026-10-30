@@ -10,7 +10,7 @@ workspace root:
 
 ```powershell
 cargo run -p rolx-mock
-cargo run -p rolxapp-webhost -- --server http://127.0.0.1:8090 --bundle-dir apps/web --listen 127.0.0.1:8081
+cargo run -p rolxapp-webhost -- --server http://127.0.0.1:8090 --listen 127.0.0.1:8081
 dx serve -p rolxapp-web --web --port 8080 --hot-patch false
 ```
 

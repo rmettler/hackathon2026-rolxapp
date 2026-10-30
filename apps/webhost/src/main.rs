@@ -15,9 +15,9 @@ struct Args {
     #[arg(long, env = "ROLX_SERVER_URL")]
     server: String,
 
-    /// Directory with the web app's index.html
+    /// Directory with the web app's index.html; without it only /api and /config.json are served
     #[arg(long, env = "ROLX_BUNDLE_DIR")]
-    bundle_dir: PathBuf,
+    bundle_dir: Option<PathBuf>,
 
     /// Address to listen on. Loopback by default: the app has no TLS of its own
     #[arg(long, env = "ROLX_LISTEN", default_value = "127.0.0.1:8080")]
@@ -40,8 +40,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if !args.server.starts_with("https://") && !args.server.starts_with("http://") {
         return Err("--server must be an http or https address".into());
     }
-    if !args.bundle_dir.join("index.html").is_file() {
-        return Err(format!("no index.html in {}", args.bundle_dir.display()).into());
+    if let Some(dir) = args
+        .bundle_dir
+        .as_ref()
+        .filter(|d| !d.join("index.html").is_file())
+    {
+        return Err(format!("no index.html in {}", dir.display()).into());
+    }
+
+    if args.bundle_dir.is_none() {
+        println!("no --bundle-dir: serving only /api and /config.json");
     }
 
     let app = rolxapp_webhost::app(rolxapp_webhost::Config {

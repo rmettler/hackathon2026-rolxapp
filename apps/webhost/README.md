@@ -10,7 +10,7 @@ cargo run -p rolxapp-webhost -- --server https://<rolx server> --bundle-dir <dir
 | Option | Environment | |
 |---|---|---|
 | `--server` | `ROLX_SERVER_URL` | where `/api/*` goes |
-| `--bundle-dir` | `ROLX_BUNDLE_DIR` | the web app's files |
+| `--bundle-dir` | `ROLX_BUNDLE_DIR` | the web app's files; without it only `/api` and `/config.json` are served, as behind `dx serve` |
 | `--listen` | `ROLX_LISTEN` | default `127.0.0.1:8080`; it has no TLS of its own, so keep it on loopback or put TLS in front |
 | `--google-client-id` | `ROLX_GOOGLE_CLIENT_ID` | Google client of the "Web application" type, for `/config.json` |
 

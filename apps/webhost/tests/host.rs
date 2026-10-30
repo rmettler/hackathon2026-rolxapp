@@ -35,7 +35,7 @@ async fn host(server: &str) -> (String, TempDir) {
     let dir = bundle();
     let app = rolxapp_webhost::app(Config {
         server: server.to_string(),
-        bundle_dir: dir.path().to_path_buf(),
+        bundle_dir: Some(dir.path().to_path_buf()),
         google_client_id: Some("fake-client-id".to_string()),
     })
     .unwrap();
@@ -279,6 +279,27 @@ async fn serves_files_and_falls_back_to_the_app_for_routes() {
         assert_eq!(page.status(), StatusCode::OK.as_u16(), "{path}");
         assert!(page.text().await.unwrap().contains("the app"), "{path}");
     }
+}
+
+#[tokio::test]
+async fn without_a_bundle_only_the_api_and_the_config_are_served() {
+    let mock = mock().await;
+    let app = rolxapp_webhost::app(Config {
+        server: mock.base_url().to_string(),
+        bundle_dir: None,
+        google_client_id: None,
+    })
+    .unwrap();
+    let host = format!("http://{}", serve(app).await);
+
+    let page = reqwest::get(format!("{host}/")).await.unwrap();
+    assert_eq!(page.status(), StatusCode::NOT_FOUND.as_u16());
+    let api = reqwest::get(format!("{host}/api/v1/SignIn/info"))
+        .await
+        .unwrap();
+    assert_eq!(api.status(), StatusCode::OK.as_u16());
+    let config = reqwest::get(format!("{host}/config.json")).await.unwrap();
+    assert_eq!(config.status(), StatusCode::OK.as_u16());
 }
 
 #[tokio::test]

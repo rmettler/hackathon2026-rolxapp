@@ -77,8 +77,9 @@ const FORWARDED_METHODS: [Method; 6] = [
 pub struct Config {
     /// The RolX server, like `https://rolx.example`, without a trailing slash.
     pub server: String,
-    /// The directory with the web app's `index.html`.
-    pub bundle_dir: PathBuf,
+    /// The directory with the web app's `index.html`. Without one, only the API and `/config.json`
+    /// are served, as behind `dx serve` in development.
+    pub bundle_dir: Option<PathBuf>,
     /// Handed to the browser in `/config.json`.
     pub google_client_id: Option<String>,
 }
@@ -110,9 +111,6 @@ pub fn app(config: Config) -> reqwest::Result<Router> {
     // The process-wide choice between rustls' providers; an earlier call in tests is fine.
     let _ = rustls::crypto::ring::default_provider().install_default();
 
-    let index = config.bundle_dir.join("index.html");
-    // Anything that is not a file is a client-side route of the app.
-    let files = ServeDir::new(&config.bundle_dir).fallback(ServeFile::new(index));
     let proxy = Proxy {
         client: upstream_client()?,
         server: config.server.trim_end_matches('/').to_string(),
@@ -128,9 +126,17 @@ pub fn app(config: Config) -> reqwest::Result<Router> {
             HeaderValue::from_static(API_CONTENT_SECURITY_POLICY),
         ));
 
-    Ok(api
-        .route("/config.json", get(config_json))
-        .fallback_service(files)
+    let routes = api.route("/config.json", get(config_json));
+    let routes = match &config.bundle_dir {
+        Some(dir) => {
+            // Anything that is not a file is a client-side route of the app.
+            let files = ServeDir::new(dir).fallback(ServeFile::new(dir.join("index.html")));
+            routes.fallback_service(files)
+        }
+        None => routes,
+    };
+
+    Ok(routes
         .layer(SetResponseHeaderLayer::if_not_present(
             header::CONTENT_SECURITY_POLICY,
             HeaderValue::from_static(CONTENT_SECURITY_POLICY),
