@@ -1,10 +1,11 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Rect};
+use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Paragraph, Row, Table, TableState};
 use rolx_core::api::fmt_duration;
 
 use super::theme;
-use crate::app::App;
+use crate::app::{App, absence_of, leave_time};
 use crate::time::{entry_end, fmt_clock};
 
 pub(super) fn draw_day(frame: &mut Frame, area: Rect, app: &App) {
@@ -17,23 +18,33 @@ pub(super) fn draw_day(frame: &mut Frame, area: Rect, app: &App) {
         return;
     };
 
+    let absence = absence_of(record);
+    if let Some(absence) = absence {
+        title.push_str(&format!("[{}] ", absence.label()));
+    }
     let total: chrono::Duration = record.entries.iter().map(|e| e.duration).sum();
     let nominal = chrono::Duration::seconds(record.nominal_work_time);
-    let block = theme::panel(title).title_bottom(format!(
+    let mut totals = format!(
         " Total {} / target {} ",
         fmt_duration(total),
         fmt_duration(nominal)
-    ));
+    );
+    if let Some(leave) = leave_time(record) {
+        totals = format!("{}/ leave {} ", totals, fmt_duration(leave));
+    }
+    let block = theme::panel(title).title_bottom(totals);
 
-    if record.entries.is_empty() {
-        frame.render_widget(
-            Paragraph::new("No entries for this day.").block(block),
-            area,
-        );
+    let favourites = app.unbooked_favourites();
+    if record.entries.is_empty() && favourites.is_empty() {
+        let text = match absence {
+            Some(absence) => format!("Absent: {}", absence.label()),
+            None => "No entries for this day.".into(),
+        };
+        frame.render_widget(Paragraph::new(text).block(block), area);
         return;
     }
 
-    let rows = record.entries.iter().map(|e| {
+    let entry_rows = record.entries.iter().map(|e| {
         let name = app
             .suitable
             .iter()
@@ -51,6 +62,18 @@ pub(super) fn draw_day(frame: &mut Frame, area: Rect, app: &App) {
             e.comment.clone().unwrap_or_default(),
         ])
     });
+    let favourite_rows = favourites.iter().map(|a| {
+        Row::new([
+            format!("★ {}", a.full_number),
+            a.name.clone(),
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+        ])
+        .style(Style::new().add_modifier(Modifier::DIM))
+    });
+    let rows: Vec<Row> = entry_rows.chain(favourite_rows).collect();
     let table = Table::new(
         rows,
         [

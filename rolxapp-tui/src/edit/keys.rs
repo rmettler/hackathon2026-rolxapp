@@ -31,6 +31,17 @@ impl App {
         self.edit = Some(form);
     }
 
+    /// Opens a new entry for a known activity on the selected day, e.g. from an empty grid cell.
+    pub(crate) fn open_edit_for_activity(&mut self, activity_id: i32, number: String) {
+        if !self.can_edit() {
+            return;
+        }
+        let label = self
+            .find_activity(activity_id)
+            .map_or(number, activity_label);
+        self.edit = Some(EditForm::for_cell(activity_id, label));
+    }
+
     pub(crate) fn on_edit_key(&mut self, key: KeyEvent) {
         let Some(mode) = self.edit.as_ref().map(|f| f.mode) else {
             return;

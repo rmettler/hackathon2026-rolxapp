@@ -1,5 +1,10 @@
-use chrono::Duration;
+use chrono::{Datelike, Duration, NaiveDate};
 use rolx_core::api::records::RecordEntry;
+
+/// Monday of the ISO week containing `day`.
+pub fn week_start(day: NaiveDate) -> NaiveDate {
+    day - Duration::days(i64::from(day.weekday().num_days_from_monday()))
+}
 
 /// Parses `h:mm` or `hhmm` into seconds since midnight.
 pub(crate) fn parse_clock(s: &str) -> Option<i32> {
@@ -40,6 +45,15 @@ pub fn parse_duration(s: &str) -> Option<Duration> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn week_starts_on_monday() {
+        let date = |y, m, d| NaiveDate::from_ymd_opt(y, m, d).unwrap();
+        assert_eq!(week_start(date(2026, 10, 26)), date(2026, 10, 26));
+        assert_eq!(week_start(date(2026, 10, 30)), date(2026, 10, 26));
+        assert_eq!(week_start(date(2026, 11, 1)), date(2026, 10, 26));
+        assert_eq!(week_start(date(2027, 1, 1)), date(2026, 12, 28));
+    }
 
     #[test]
     fn parses_clock_and_decimal_durations() {

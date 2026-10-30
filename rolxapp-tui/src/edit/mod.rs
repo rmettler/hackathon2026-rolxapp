@@ -137,4 +137,17 @@ impl EditForm {
             activity_label,
         )
     }
+
+    /// Form for booking time on a known activity; starts typing the duration.
+    pub(crate) fn for_cell(activity_id: i32, activity_label: String) -> Self {
+        let mut form = Self::blank(
+            None,
+            Field::Duration,
+            EditMode::Nav,
+            activity_id,
+            activity_label,
+        );
+        form.start_insert(usize::MAX);
+        form
+    }
 }

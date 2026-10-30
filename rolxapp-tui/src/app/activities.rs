@@ -1,6 +1,19 @@
 use super::{App, Msg};
+use chrono::NaiveDate;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use rolx_core::api::activity::{self, Activity};
+
+/// Whether the server accepts entries on `activity` for `date`: it has started and not yet ended.
+pub(crate) fn is_bookable(activity: &Activity, date: NaiveDate) -> bool {
+    let parse = |s: &str| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok();
+    let started = parse(&activity.start_date).is_none_or(|start| start <= date);
+    let open = activity
+        .end_date
+        .as_deref()
+        .and_then(parse)
+        .is_none_or(|end| end > date);
+    started && open
+}
 
 impl App {
     pub(crate) fn sort_suitable(&mut self) {
@@ -21,6 +34,7 @@ impl App {
         self.activities
             .iter()
             .chain(&self.suitable)
+            .chain(&self.favourite_activities)
             .find(|a| a.id == id)
     }
 

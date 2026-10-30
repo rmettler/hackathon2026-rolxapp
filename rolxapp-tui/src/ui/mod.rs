@@ -1,9 +1,11 @@
+mod absence;
 mod activities;
 mod day;
 mod edit;
 mod footer;
 mod report;
 mod theme;
+mod week;
 mod year;
 
 use ratatui::Frame;
@@ -13,13 +15,15 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Tabs, Wrap};
 use rolx_core::api::fmt_duration;
 
+use self::absence::draw_absence;
 use self::activities::draw_activities;
 use self::day::draw_day;
 use self::edit::draw_edit;
 use self::footer::help_text;
 use self::report::draw_report;
+use self::week::draw_week;
 use self::year::draw_year;
-use crate::app::{App, Screen, Tab};
+use crate::app::{App, DayView, Screen, Tab};
 
 pub fn draw(frame: &mut Frame, app: &App) {
     let area = frame.area();
@@ -78,7 +82,10 @@ fn draw_main(frame: &mut Frame, area: Rect, app: &App) {
     );
 
     match app.tab {
-        Tab::Day => draw_day(frame, body, app),
+        Tab::Day => match app.day_view {
+            DayView::Day => draw_day(frame, body, app),
+            DayView::Week => draw_week(frame, body, app),
+        },
         Tab::Activities => draw_activities(frame, body, app),
         Tab::Year => draw_year(frame, body, app),
         Tab::Report => draw_report(frame, body, app),
@@ -97,6 +104,9 @@ fn draw_main(frame: &mut Frame, area: Rect, app: &App) {
 
     if let Some(form) = &app.edit {
         draw_edit(frame, body, app, form);
+    }
+    if let Some(selected) = app.absence_menu {
+        draw_absence(frame, body, app, selected);
     }
 }
 

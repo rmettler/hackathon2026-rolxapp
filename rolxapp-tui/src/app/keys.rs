@@ -1,4 +1,4 @@
-use super::{App, Screen, Tab};
+use super::{App, DayView, Screen, Tab};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 impl App {
@@ -20,6 +20,7 @@ impl App {
                 _ => {}
             },
             Screen::Main if self.edit.is_some() => self.on_edit_key(key),
+            Screen::Main if self.absence_menu.is_some() => self.on_absence_key(key),
             Screen::Main if self.act_searching => self.on_activity_filter_key(key),
             Screen::Main => self.on_main_key(key),
         }
@@ -55,7 +56,10 @@ impl App {
             KeyCode::Char(c @ '1'..='4') => self.set_tab(c as usize - '1' as usize),
             KeyCode::Char('r') => self.refresh(),
             _ => match self.tab {
-                Tab::Day => self.on_day_key(key),
+                Tab::Day => match self.day_view {
+                    DayView::Day => self.on_day_key(key),
+                    DayView::Week => self.on_week_key(key),
+                },
                 Tab::Activities => self.on_activities_key(key),
                 Tab::Year => self.on_year_key(key),
                 Tab::Report => self.on_report_key(key),
@@ -83,7 +87,7 @@ impl App {
     pub(crate) fn refresh(&self) {
         self.load_header();
         match self.tab {
-            Tab::Day => self.load_day(),
+            Tab::Day => self.load_view(),
             Tab::Activities => self.load_activities(),
             Tab::Year => self.load_year(),
             Tab::Report => self.load_report(),

@@ -1,4 +1,4 @@
-use super::App;
+use super::{App, DayView};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
@@ -49,7 +49,8 @@ impl App {
 
     pub(crate) fn list_len(&self) -> usize {
         match self.tab {
-            Tab::Day => self.record.as_ref().map_or(0, |r| r.entries.len()),
+            Tab::Day if self.day_view == DayView::Week => self.week_grid().rows.len(),
+            Tab::Day => self.day_row_count(),
             Tab::Activities => self.filtered_activities().len(),
             Tab::Year => self.year_info.as_ref().map_or(0, |y| y.holidays.len()),
             Tab::Report => self.report_line_count(),
@@ -60,6 +61,7 @@ impl App {
     pub(crate) fn scroll(&mut self, delta: isize) {
         let max = self.list_len().saturating_sub(1) as isize;
         let position = match self.tab {
+            Tab::Day if self.day_view == DayView::Week => &mut self.sel_row,
             Tab::Day => &mut self.sel_entry,
             Tab::Activities => &mut self.sel_activity,
             Tab::Year => &mut self.year_scroll,

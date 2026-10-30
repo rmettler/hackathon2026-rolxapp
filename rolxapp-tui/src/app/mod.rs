@@ -1,3 +1,4 @@
+mod absence;
 pub(crate) mod activities;
 mod day;
 mod keys;
@@ -5,11 +6,16 @@ mod msg;
 mod overview;
 mod scroll;
 mod tasks;
+mod week;
+mod week_grid;
 
+pub use absence::{Absence, absence_of, leave_time};
 pub use msg::{Msg, Screen};
 pub use scroll::Tab;
+pub use week::DayView;
 
 use crate::edit::EditForm;
+use crate::time::week_start;
 use chrono::{Datelike, Local, NaiveDate};
 use rolx_core::api::activity::Activity;
 use rolx_core::api::balance::Balance;
@@ -34,9 +40,18 @@ pub struct App {
     pub record: Option<Record>,
     pub suitable: Vec<Activity>,
     pub sel_entry: usize,
+    pub day_view: DayView,
+    /// Records of the week of `day`, Monday first, while the week view is active.
+    pub week: Vec<Record>,
+    /// Selected activity row in the week grid.
+    pub sel_row: usize,
     pub edit: Option<EditForm>,
+    /// Selected row of the absence popup while it is open.
+    pub absence_menu: Option<usize>,
     pub activities: Vec<Activity>,
     pub favourites: Vec<i32>,
+    /// The favourites as activities, so they stay listed even when not in `activities`.
+    pub favourite_activities: Vec<Activity>,
     pub sel_activity: usize,
     /// Filter applied to the Activities tab.
     pub act_search: String,
@@ -70,9 +85,14 @@ impl App {
             record: None,
             suitable: Vec::new(),
             sel_entry: 0,
+            day_view: DayView::Day,
+            week: Vec::new(),
+            sel_row: 0,
             edit: None,
+            absence_menu: None,
             activities: Vec::new(),
             favourites: Vec::new(),
+            favourite_activities: Vec::new(),
             sel_activity: 0,
             act_search: String::new(),
             act_searching: false,
@@ -136,23 +156,39 @@ impl App {
                 day,
                 record,
                 suitable,
-            } if day == self.day => {
-                let count = record.as_ref().map_or(0, |r| r.entries.len());
-                self.sel_entry = self.sel_entry.min(count.saturating_sub(1));
+            } if day == self.day && self.day_view == DayView::Day => {
                 self.record = record;
                 self.suitable = suitable;
                 self.sort_suitable();
+                self.sel_entry = self.sel_entry.min(self.day_row_count().saturating_sub(1));
             }
             Msg::Day { .. } => {}
+            Msg::Week {
+                monday,
+                records,
+                suitable,
+            } if self.day_view == DayView::Week && monday == week_start(self.day) => {
+                self.week = records;
+                self.suitable = suitable;
+                self.sort_suitable();
+                self.sync_week_record();
+                let rows = self.week_grid().rows.len();
+                self.sel_row = self.sel_row.min(rows.saturating_sub(1));
+            }
+            Msg::Week { .. } => {}
             Msg::Activities {
                 mut all,
                 favourites,
             } => {
                 self.favourites = favourites.iter().map(|a| a.id).collect();
+                self.favourite_activities = favourites;
                 all.sort_by_key(|a| !self.favourites.contains(&a.id));
                 self.sel_activity = self.sel_activity.min(all.len().saturating_sub(1));
                 self.activities = all;
                 self.sort_suitable();
+                self.sel_entry = self.sel_entry.min(self.day_row_count().saturating_sub(1));
+                let rows = self.week_grid().rows.len();
+                self.sel_row = self.sel_row.min(rows.saturating_sub(1));
             }
             Msg::Year(year, info) if year == self.year => self.year_info = Some(info),
             Msg::Year(..) => {}
@@ -160,7 +196,7 @@ impl App {
             Msg::Report(..) => {}
             Msg::Saved => {
                 self.status = Some("Saved".into());
-                self.load_day();
+                self.load_view();
                 self.load_header();
             }
             Msg::FavouritesChanged => self.load_activities(),

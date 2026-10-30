@@ -1,4 +1,4 @@
-use crate::app::{App, Tab};
+use crate::app::{App, DayView, Tab};
 use crate::edit::EditMode;
 
 /// Key hints for the footer, depending on what has focus.
@@ -14,12 +14,17 @@ pub(super) fn help_text(app: &App) -> &'static str {
                 "type to search   Down/Up or Ctrl-n/Ctrl-p select   Ctrl-d/u jump   Enter pick   Esc back"
             }
         }
+    } else if app.absence_menu.is_some() {
+        "j/k select   1-3 pick   Enter book the rest of the day (again clears)   Esc cancel"
     } else if app.act_searching {
         "type to filter   Enter keep filter   Esc clear"
     } else {
         match app.tab {
+            Tab::Day if app.day_view == DayView::Week => {
+                "h/l day   j/k activity   e edit   n new   dd delete   a absence   [/] week   t today   w day   q quit"
+            }
             Tab::Day => {
-                "j/k select   C-d/C-u page   gg/G ends   l edit   o new   dd delete   [/] day   t today   gt/gT tab   q quit"
+                "j/k select   l edit   o new   dd delete   a absence   [/] day   t today   w week   q quit"
             }
             Tab::Activities => {
                 "j/k select   C-d/C-u page   gg/G ends   / search   f favourite   Esc clear filter   q quit"

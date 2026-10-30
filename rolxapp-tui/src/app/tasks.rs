@@ -1,5 +1,6 @@
 use super::{App, Msg, Screen};
-use chrono::Local;
+use crate::time::week_start;
+use chrono::{Duration, Local};
 use rolx_core::api::activity;
 use rolx_core::api::balance;
 use rolx_core::api::edit_lock;
@@ -63,6 +64,22 @@ impl App {
             Ok(Msg::Day {
                 day,
                 record,
+                suitable,
+            })
+        });
+    }
+
+    pub(crate) fn load_week(&self) {
+        let day = self.day;
+        let monday = week_start(day);
+        self.spawn_with_client(move |c| async move {
+            let (records, suitable) = tokio::try_join!(
+                records::fetch_range(&c, monday, monday + Duration::days(7)),
+                activity::fetch_suitable(&c, day)
+            )?;
+            Ok(Msg::Week {
+                monday,
+                records,
                 suitable,
             })
         });

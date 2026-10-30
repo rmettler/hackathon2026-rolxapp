@@ -24,6 +24,11 @@ pub enum Msg {
         record: Option<Record>,
         suitable: Vec<Activity>,
     },
+    Week {
+        monday: NaiveDate,
+        records: Vec<Record>,
+        suitable: Vec<Activity>,
+    },
     Activities {
         all: Vec<Activity>,
         favourites: Vec<Activity>,
