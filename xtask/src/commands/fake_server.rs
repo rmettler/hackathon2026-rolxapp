@@ -225,6 +225,7 @@ fn route(state: &mut State, method: &Method, uri: &Uri, headers: &HeaderMap, bod
         ("GET", ["workrecord", _, "range", _]) => state.get_range(raw[1], raw[3]),
         ("PUT", ["workrecord", _, _]) => state.put_record(raw[1], raw[2], body),
         ("GET", ["edit-lock"]) => Reply::json(json!({ "date": iso(state.edit_lock) })),
+        ("GET", ["balance", _]) => state.balance(raw[1]),
         ("GET", ["activity"]) => state.all_activities(uri.query()),
         ("GET", ["activity", "suitable", _, _]) => state.suitable_activities(raw[3]),
         ("GET", ["activity", "favourite"]) => state.favourite_activities(),
@@ -337,6 +338,17 @@ pub struct State {
     days: BTreeMap<NaiveDate, Day>,
     /// Days before this one can't be changed.
     edit_lock: NaiveDate,
+    balance: SeedBalance,
+}
+
+/// What the balance starts from; the flextime then follows the booked days.
+struct SeedBalance {
+    /// Flextime accumulated before `since`, in seconds.
+    opening_overtime: i64,
+    /// From this day on, the flextime is the booked time minus the nominal time.
+    since: NaiveDate,
+    vacation_available: i64,
+    vacation_planned: i64,
 }
 
 /// The body of `PUT WorkRecord/{userId}/{date}` (`Records/WebApi/Resource/Record.cs`); the rest is ignored like the
@@ -640,6 +652,37 @@ impl State {
             self.favourites.remove(&id);
         }
         Reply::status(StatusCode::NO_CONTENT)
+    }
+
+    /// `GET Balance/{date}` (`Records/WebApi/BalanceController.cs`): the balance by the end of `date`. Like the real
+    /// server, the flextime counts what was booked up to that day, including it, against the nominal time.
+    fn balance(&self, date: &str) -> Reply {
+        let Some(date) = parse_iso(date) else {
+            return Reply::status(StatusCode::NOT_FOUND);
+        };
+        let b = &self.balance;
+        let booked: i64 = self
+            .days
+            .range(b.since..=date)
+            .flat_map(|(_, d)| &d.entries)
+            .map(|e| e.duration)
+            .sum();
+        let nominal: i64 = b
+            .since
+            .iter_days()
+            .take_while(|d| *d <= date)
+            .filter(|d| !matches!(d.weekday(), Weekday::Sat | Weekday::Sun))
+            .map(|_| NOMINAL_WORK_TIME)
+            .sum();
+        let days = |secs: i64| secs as f64 / NOMINAL_WORK_TIME as f64;
+        Reply::json(json!({
+            "byDate": iso(date),
+            "overtime": b.opening_overtime + booked - nominal,
+            "vacationAvailable": b.vacation_available,
+            "vacationAvailableDays": days(b.vacation_available),
+            "vacationPlanned": b.vacation_planned,
+            "vacationPlannedDays": days(b.vacation_planned),
+        }))
     }
 
     /// `GET /`: what the server holds right now, to check what an app changed.

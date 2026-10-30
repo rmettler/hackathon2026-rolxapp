@@ -4,7 +4,7 @@ use chrono::{Datelike, Duration, Local, NaiveDate};
 use rolx_core::client::RolxClient;
 use rolx_core::dayplan::DayEntry;
 use rolx_core::session::Session;
-use rolx_core::{activities, dayedit, records, week};
+use rolx_core::{activities, balance, dayedit, records, week};
 use serde_json::{Value, json};
 
 use super::*;
@@ -165,6 +165,38 @@ async fn invalid_days_are_rejected_like_the_real_server_does() {
     // The closed activity was still open on the day it was booked.
     let last_friday = day - Duration::days(7);
     assert!(put(vec![e(9, 8 * 3600, 3600)], last_friday).await.is_ok());
+}
+
+#[tokio::test]
+async fn balance_follows_the_booked_time_and_keeps_the_seeded_vacation() {
+    let client = start(friday()).await;
+    let day = friday();
+
+    // 12:00 before last week, then 4530 of 5040 nominal minutes booked up to today's morning.
+    let b = balance::fetch_balance(&client, day).await.unwrap();
+    assert_eq!(b.by_date, day);
+    assert_eq!(b.overtime_text(), "+3:30 h");
+    assert_eq!(b.vacation_text(), "12.5 days (2 planned)");
+    let last_sunday = day - Duration::days(5);
+    let earlier = balance::fetch_balance(&client, last_sunday).await.unwrap();
+    assert_eq!(earlier.overtime_text(), "+10:57 h");
+
+    let base = dayedit::load_day(&client, day).await.unwrap();
+    let mut new = base.clone();
+    new.push(entry(7, 13 * 3600, 3 * 3600));
+    let undo = std::env::temp_dir().join(format!(
+        "rolx-fake-server-balance-{}.json",
+        std::process::id()
+    ));
+    dayedit::save_day_tracked_at(&client, day, &base, &new, "add", &undo)
+        .await
+        .unwrap();
+    let _ = std::fs::remove_file(undo);
+    let after = balance::fetch_balance(&client, day).await.unwrap();
+    assert_eq!(after.overtime_text(), "+6:30 h");
+
+    let invalid = client.get_json::<Value>("api/v1/Balance/not-a-date").await;
+    assert!(invalid.unwrap_err().to_string().contains("404"));
 }
 
 #[tokio::test]

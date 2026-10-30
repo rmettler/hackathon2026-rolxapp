@@ -4,10 +4,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{Datelike, Duration, NaiveDate};
 
-use super::{Activity, Day, Entry, State};
+use super::{Activity, Day, Entry, NOMINAL_WORK_TIME, SeedBalance, State};
 
-/// Builds the activities (one closed last Friday), favourites, an edit lock at the Monday of last week, and entries
-/// for last week and the current week up to `today`.
+/// Builds the activities (one closed last Friday), favourites, an edit lock at the Monday of last week, entries for
+/// last week and the current week up to `today`, and a balance of 12 h flextime before last week and 12.5 days of
+/// vacation left (2 of them planned).
 pub fn state(today: NaiveDate) -> State {
     let monday = today - Duration::days(i64::from(today.weekday().num_days_from_monday()));
     let last_friday = monday - Duration::days(3);
@@ -70,6 +71,12 @@ pub fn state(today: NaiveDate) -> State {
         favourites: BTreeSet::from([1, 5, 10]),
         days,
         edit_lock: monday - Duration::days(7),
+        balance: SeedBalance {
+            opening_overtime: 12 * 3600,
+            since: monday - Duration::days(7),
+            vacation_available: NOMINAL_WORK_TIME * 25 / 2,
+            vacation_planned: NOMINAL_WORK_TIME * 2,
+        },
     }
 }
 

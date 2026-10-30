@@ -181,8 +181,8 @@ cargo xtask fake-server --port 5081 --bind 0.0.0.0   # e.g. for a phone in the s
 ```
 
 It implements what `rolx-core` calls: `SignIn` (`info`, `POST`, `extend`), `WorkRecord`
-(`range` and `PUT`), `edit-lock`, `Activity` (list, `suitable`, by id) and `activity/favourite`
-(`GET`, `PUT`, `DELETE`), with the shapes of the real server. Any bearer token and any user id are
+(`range` and `PUT`), `edit-lock`, `Balance/{date}`, `Activity` (list, `suitable`, by id) and
+`activity/favourite` (`GET`, `PUT`, `DELETE`), with the shapes of the real server. Any bearer token and any user id are
 accepted, and all users share the same data. Writes are checked like the real server does it
 (unknown or closed activity, `begin + duration + pause` beyond the day, overlapping entries, days
 before the edit lock) and rejected with a `400` and the server's validation message.
@@ -194,6 +194,9 @@ The data is seeded relative to the day it starts and lost when it stops:
 - Entries for last week and the current week up to today (today only the morning), one of them
   without a time of day. 8:24 nominal time on weekdays, 0 on weekends.
 - The edit lock at the Monday of last week.
+- A balance of 12:00 flextime before last week; from then on the flextime follows what is booked
+  against the nominal time, like on the real server (+3:30 on a Friday with the seeded entries).
+  12.5 days of vacation left, 2 of them planned.
 
 Every request is logged as one line (time, method, path, status, and the reason of a rejection).
 `GET http://127.0.0.1:5080/` shows what the server holds, to check what an app changed.
