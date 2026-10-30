@@ -169,3 +169,106 @@ secrets: share it within the team only.
 | Gradle fails with a Java version error                     | Point `JAVA_HOME` at a JDK 17+.                                                                                     |
 | `rustc` error about a missing `*-linux-android` target     | `rustup target add` it (step 1).                                                                                    |
 | Gradle `mergeDebugResources` fails with `values.xml` "path not found" (Windows) | Usually transient (a file lock, e.g. antivirus scanning): just run again. If it recurs, exclude `target\`, `%USERPROFILE%\.gradle` and `%USERPROFILE%\.cargo` from Defender real-time scanning (admin: `Add-MpPreference -ExclusionPath <dir>`), which also speeds up builds. |
+
+## Testing against the fake server
+
+`cargo xtask fake-server` runs an in-memory stand-in for the RolX server, so the CLI and both apps
+can be tried end to end, including all write paths, without touching real data:
+
+```sh
+cargo xtask fake-server                      # http://127.0.0.1:5080, stop with Ctrl-C
+cargo xtask fake-server --port 5081 --bind 0.0.0.0   # e.g. for a phone in the same Wi-Fi
+```
+
+It implements what `rolx-core` calls: `SignIn` (`info`, `POST`, `extend`), `WorkRecord`
+(`range` and `PUT`), `edit-lock`, `Activity` (list, `suitable`, by id) and `activity/favourite`
+(`GET`, `PUT`, `DELETE`), with the shapes of the real server. Any bearer token and any user id are
+accepted, and all users share the same data. Writes are checked like the real server does it
+(unknown or closed activity, `begin + duration + pause` beyond the day, overlapping entries, days
+before the edit lock) and rejected with a `400` and the server's validation message.
+
+The data is seeded relative to the day it starts and lost when it stops:
+
+- 12 activities in 4 customers, favourites `#1001.001.01`, `#2042.001.02` and `#0001.001.01`;
+  `#3107.001.03` closed last Friday, so it is only listed because it was booked last week.
+- Entries for last week and the current week up to today (today only the morning), one of them
+  without a time of day. 8:24 nominal time on weekdays, 0 on weekends.
+- The edit lock at the Monday of last week.
+
+Every request is logged as one line (time, method, path, status, and the reason of a rejection).
+`GET http://127.0.0.1:5080/` shows what the server holds, to check what an app changed.
+On Windows the running server locks `target\debug\xtask.exe`, so stop it before changing the xtask.
+
+`cargo xtask fake-session --out <path>` writes a `session.json` of the fake server's user (Fiona
+Fake), valid until 2099 so the apps never try to extend it. It refuses to overwrite a file unless
+`--force` is given, and then backs the old file up to the temp dir first.
+
+### CLI
+
+```powershell
+cargo xtask fake-server                       # in a second terminal
+cargo build                                   # clippy/test don't rebuild target\debug\rolxapp.exe
+$env:ROLX_SERVER = 'http://127.0.0.1:5080'
+$env:ROLX_DATA_DIR = "$env:TEMP\rolx-fake-data"   # stamps, activity cache and undo stay out of your real ones
+cargo run -- records
+cargo run -- activities --refresh
+cargo run -- stamp in 3107.001.01; cargo run -- stamp out; cargo run -- sync
+cargo run -- entry add -a 2042.001.02 --begin 13:00 --end 15:30
+cargo run -- entry undo
+```
+
+The CLI and the desktop app always use the session in `%LOCALAPPDATA%\rolx\session.json`, your
+**real** login; there is no override for it. Against the fake server that is harmless as long as it
+is not rewritten, but it can be:
+
+- Within 10 minutes of its expiry the apps extend it, and the fake server answers with a fake
+  token that is then saved over your real one.
+- `login` against the fake server stores the fake user's session; `logout` deletes the real one.
+
+So copy `%LOCALAPPDATA%\rolx\session.json` somewhere outside the repo before a test run, compare
+it afterwards (`Get-FileHash`) and put the copy back if it changed. Check the override first, as
+`AGENTS.md` describes: with `ROLX_SERVER` at a closed port, `records` must fail with a connection
+error.
+
+### Desktop app
+
+Same environment as the CLI (`ROLX_SERVER`, `ROLX_DATA_DIR`) and the same session caveat. WebView2
+keeps one data folder per exe name, so to not mix with a desktop app you use for real, run a copy
+under another name:
+
+```powershell
+cargo build -p rolxapp-dioxus
+Copy-Item target\debug\rolxapp-dioxus.exe target\debug\rolxapp-dioxus-fake.exe
+$env:ROLX_SERVER = 'http://127.0.0.1:5080'; $env:ROLX_DATA_DIR = "$env:TEMP\rolx-fake-data"
+target\debug\rolxapp-dioxus-fake.exe
+```
+
+To drive it from a script, add `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=<port>`
+and use the DevTools protocol; `ROLX_IDLE_SECS` and `ROLX_FAKE_IDLE_FILE` fake the away detection
+(see `AGENTS.md`).
+
+### Android
+
+```sh
+cargo xtask fake-server                      # in a second terminal
+cargo xtask android run --fake-server        # or --fake-server <PORT>
+cargo xtask android push-session             # once the app is installed; then restart the app
+```
+
+`run --fake-server` embeds `target/fake-server/rolx-mobile-config.toml` (via `ROLX_CONFIG`, see
+*Config* above) with `server_url = "http://127.0.0.1:5080"` and forwards that port from the device
+to this machine with `adb reverse`. This works on the emulator and on a USB phone, and needs no
+change to the app: the network security config dx generates allows plain HTTP to `127.0.0.1` only.
+The forward is lost when the emulator or adb restarts; `adb reverse tcp:5080 tcp:5080` or another
+`run --fake-server` restores it. To use a config of your own instead, set `ROLX_CONFIG` and run
+without `--fake-server`.
+
+`push-session` writes the fake session into the app's files dir with `adb shell run-as`, which
+works for debug builds. A different session that is already there (a real login) is backed up to
+`%TEMP%\rolx-mobile-session-backup-<time>.json` first; the command prints the path. To get the
+real login back, log in again or push the backup (in Git Bash):
+`adb exec-in "run-as ch.cudos.RolxMobile sh -c 'cat > files/session.json'" < <backup>`.
+
+The next `run` without `--fake-server` embeds your real config again. `cargo xtask android apk`
+refuses to build when the config to embed points at a local or plain-HTTP server, so a shared APK
+can't end up talking to the fake server.

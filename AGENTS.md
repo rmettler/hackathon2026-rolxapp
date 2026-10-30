@@ -31,6 +31,10 @@ all in Rust where sensible. Goals and roadmap: `README.md`. Design docs: `docs/`
 - Lint: `cargo clippy --workspace`. Format: `cargo fmt --all`. Test: `cargo test --workspace`.
 - Fetch the pinned server checkout: `cargo xtask fetch-server` (workspace member `xtask/`).
 - Run mobile app (`rolx-mobile/`, Dioxus, Android): `cargo xtask android {devices,emulator,run,apk}`; see `docs/dev-setup.md`.
+- Fake RolX server for end-to-end tests: `cargo xtask fake-server [--port 5080] [--bind 0.0.0.0]` (in-memory, seeded,
+  `GET /` shows its state); `cargo xtask fake-session --out <path>` writes a matching `session.json`. Android:
+  `cargo xtask android run --fake-server` (embeds a config for it, sets up `adb reverse`) and
+  `cargo xtask android push-session`. See `docs/dev-setup.md` "Testing against the fake server".
 - Cargo feature `uncensored_logs` disables log redaction (declared in `rolx-core`, forwarded by `rolxapp`).
 - Environment: `ROLX_SERVER` overrides `server_url` (CLI `--server`, GUI); `ROLX_DATA_DIR` moves the local
   data files (`stamps.json`, `activities.json`).
@@ -47,6 +51,10 @@ data folder per exe name), start it with `ROLX_SERVER`, `ROLX_DATA_DIR` and
 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=<port>` to drive it over the DevTools protocol, and
 set `ROLX_IDLE_SECS` (threshold) and `ROLX_FAKE_IDLE_FILE` (a file holding the idle seconds to report) to try the
 away detection without sitting still.
+
+Use `cargo xtask fake-server` as that fake server (`ROLX_SERVER=http://127.0.0.1:5080`). The CLI and GUI still read
+the real session (no override); the fake server accepts its token, but back the file up first and compare its hash
+afterwards, as an extend near expiry or a `login` would save a fake token over it. Never run `logout`.
 
 ## The server you integrate with
 
