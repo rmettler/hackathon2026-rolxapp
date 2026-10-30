@@ -282,6 +282,8 @@ pub fn StampPanel(
         ),
     };
 
+    let repeat_id = repeat.as_ref().filter(|_| !stamped_in).map(|(a, _)| a.id);
+
     rsx! {
         if let Some(stale) = stale.clone() {
             if !STALE_DISMISSED() {
@@ -293,29 +295,27 @@ pub fn StampPanel(
             div { class: if on_break { "timer paused" } else { "timer" }, "{timer}" }
             div { class: "status", "{headline}" }
             if !blocked {
-                if let Some((activity, text)) = repeat.clone().filter(|_| !stamped_in) {
-                    div { class: "controls",
-                        button {
-                            class: "ok repeat",
-                            title: "{activity.label()}",
-                            onclick: {
-                                let id = activity.id;
-                                move |_| stamper.start(id, text.clone())
-                            },
-                            "↻ Repeat last: {activity.short_label()}"
-                        }
-                    }
-                }
-                if !tiles.is_empty() {
+                if (repeat.is_some() && !stamped_in) || !tiles.is_empty() {
                     div { class: "tiles",
-                        span { class: "muted",
+                        span { class: "tiles-label",
                             if stamped_in {
                                 "Switch to"
                             } else {
-                                "Start"
+                                "Quick start"
                             }
                         }
-                        for tile in tiles {
+                        if let Some((activity, text)) = repeat.clone().filter(|_| !stamped_in) {
+                            button {
+                                class: "tile repeat",
+                                title: "Repeat last: {activity.label()}",
+                                onclick: {
+                                    let id = activity.id;
+                                    move |_| stamper.start(id, text.clone())
+                                },
+                                "↻ {activity.short_label()}"
+                            }
+                        }
+                        for tile in tiles.into_iter().filter(|t| Some(t.id) != repeat_id) {
                             button {
                                 key: "{tile.id}",
                                 class: "tile",
@@ -333,15 +333,15 @@ pub fn StampPanel(
                     }
                 }
             }
-            ActivityPicker {
-                activities,
-                state,
-                selected,
-                on_favourite,
-                on_reload,
-                show_chips: false,
-            }
-            div { class: "controls",
+            div { class: "form",
+                ActivityPicker {
+                    activities,
+                    state,
+                    selected,
+                    on_favourite,
+                    on_reload,
+                    show_chips: false,
+                }
                 input {
                     placeholder: if stamped_in { "What did you do? (saved when you stamp out)" } else { "Work report (optional)" },
                     value: "{comment}",
@@ -360,10 +360,10 @@ pub fn StampPanel(
                     },
                 }
             }
-            div { class: "controls",
+            div { class: "actions-row",
                 if !stamped_in {
                     button {
-                        class: "ok",
+                        class: "ok big",
                         disabled: blocked,
                         onclick: move |_| {
                             let activity = selected_activity();

@@ -242,7 +242,11 @@ fn App() -> Element {
                 }
             });
         if let Err(e) = registered {
-            eprintln!("cannot register the hotkey '{}': {e:?}", settings.hotkey);
+            // The result is cached by the hook, so this would print on every render.
+            static REPORTED: std::sync::Once = std::sync::Once::new();
+            REPORTED.call_once(|| {
+                eprintln!("cannot register the hotkey '{}': {e:?}", settings.hotkey);
+            });
         }
     }
 
@@ -425,23 +429,24 @@ fn App() -> Element {
                 }
             }
         },
-        Some(Ok(Loaded::Day { user, entries })) => {
+        Some(Ok(Loaded::Day { entries, .. })) => {
             let date_label = day().format("%a %d.%m.%Y").to_string();
             rsx! {
-                p { class: "user", "Signed in as {user}" }
-                div { class: "card day-nav",
-                    button {
-                        class: "secondary",
-                        title: "Alt+←",
-                        onclick: move |_| day.set(day() - Duration::days(1)),
-                        "◀"
-                    }
-                    span { class: "date", "{date_label}" }
-                    button {
-                        class: "secondary",
-                        title: "Alt+→",
-                        onclick: move |_| day.set(day() + Duration::days(1)),
-                        "▶"
+                nav { class: "day-nav",
+                    div { class: "stepper",
+                        button {
+                            class: "icon",
+                            title: "Previous day (Alt+←)",
+                            onclick: move |_| day.set(day() - Duration::days(1)),
+                            "◀"
+                        }
+                        span { class: "date", "{date_label}" }
+                        button {
+                            class: "icon",
+                            title: "Next day (Alt+→)",
+                            onclick: move |_| day.set(day() + Duration::days(1)),
+                            "▶"
+                        }
                     }
                     button {
                         class: "secondary",
@@ -449,7 +454,12 @@ fn App() -> Element {
                         onclick: move |_| day.set(Local::now().date_naive()),
                         "Today"
                     }
-                    button { onclick: move |_| refresh += 1, "Refresh" }
+                    button {
+                        class: "secondary",
+                        title: "Reload from the server",
+                        onclick: move |_| refresh += 1,
+                        "↻ Refresh"
+                    }
                 }
                 WeekPanel { day, refresh, state: stamp_state, show_chart }
                 for d in [day()] {
@@ -468,14 +478,23 @@ fn App() -> Element {
         }
     };
 
-    let logged_in = matches!(&*loaded.read(), Some(Ok(Loaded::Day { .. })));
+    let user_name = match &*loaded.read() {
+        Some(Ok(Loaded::Day { user, .. })) => Some(user.clone()),
+        _ => None,
+    };
+    let logged_in = user_name.is_some();
 
     rsx! {
         style { "{rolx_ui::CSS}" }
         style { "{CSS}" }
         main {
             header {
-                h1 { "RolX" }
+                div { class: "brand",
+                    h1 { "RolX" }
+                    if let Some(name) = user_name {
+                        span { class: "user", "{name}" }
+                    }
+                }
                 div { class: "header-tools",
                     button {
                         class: "secondary",
@@ -493,7 +512,7 @@ fn App() -> Element {
             }
             UndoLine { undo }
             if let Some(text) = info() {
-                p { class: "muted", "{text}" }
+                p { class: "status-line", "{text}" }
             }
             StampPanel { selected, away, on_favourite, on_reload }
             {content}
@@ -512,8 +531,10 @@ fn App() -> Element {
 /// Forwards clicks on the tray icon and its menu to the app.
 fn use_tray_events(tx: mpsc::UnboundedSender<Request>) {
     let menu_tx = tx.clone();
-    dioxus::desktop::use_tray_menu_event_handler(move |event| {
-        let request = match event.id.0.as_str() {
+    // The menu library keeps only the first global handler, which Dioxus registers for the window
+    // menu bar, so clicks in the tray menu arrive as ordinary menu events, not as tray menu events.
+    dioxus::desktop::use_muda_event_handler(move |event| {
+        let request = match event.id().0.as_str() {
             "show" => Request::ShowWindow,
             "toggle" => Request::ToggleStamp,
             "quit" => Request::Quit,

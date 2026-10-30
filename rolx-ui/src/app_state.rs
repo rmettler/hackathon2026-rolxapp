@@ -9,7 +9,7 @@ use rolx_core::dayplan::DayEntry;
 use rolx_core::stamp::StampState;
 
 use crate::shared;
-use crate::stamper::Stamper;
+use crate::stamper::{Stamper, spawn_in_app};
 
 /// What the main view shows.
 pub enum Loaded {
@@ -68,12 +68,14 @@ pub fn use_app_state() -> AppState {
     let mut activities = use_signal(|| activities::load_cached().unwrap_or_default());
     let selected = use_signal(|| None::<i32>);
 
+    let message = use_signal(|| None::<String>);
+    let syncing = use_signal(|| false);
     let stamper = use_context_provider(|| Stamper {
         state: stamp_state,
         activities,
         refresh,
-        message: Signal::new(None),
-        syncing: Signal::new(false),
+        message,
+        syncing,
     });
 
     let loaded = use_resource(move || async move {
@@ -98,7 +100,8 @@ pub fn use_app_state() -> AppState {
     });
 
     let on_reload = use_callback(move |_| {
-        spawn(async move {
+        // Not tied to the caller: the palette closes itself right after calling this.
+        spawn_in_app(async move {
             match shared::reload_activities().await {
                 Ok(list) => {
                     notice.set(None);

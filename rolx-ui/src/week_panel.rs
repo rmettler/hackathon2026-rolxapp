@@ -2,6 +2,7 @@ use std::time::Duration as StdDuration;
 
 use chrono::{Datelike, Local, NaiveDate, Timelike};
 use dioxus::prelude::*;
+use rolx_core::balance::fetch_balance;
 use rolx_core::dayplan::fmt_hm;
 use rolx_core::stamp::{StampState, Status};
 use rolx_core::week::{DAILY_TARGET_SECS, WeekSummary, fetch_week, guidance, summarize};
@@ -65,6 +66,12 @@ pub fn WeekPanel(
         fetch_week(&client, day).await
     });
 
+    let balance = use_resource(move || async move {
+        refresh();
+        let client = shared::client().await?;
+        fetch_balance(&client, Local::now().date_naive()).await
+    });
+
     let toggle = move |_| show_chart.set(!show_chart());
 
     let body = match &*week.read() {
@@ -112,11 +119,21 @@ pub fn WeekPanel(
             let today_line = advice.today.as_ref().map(|t| t.describe());
             let balance_line = advice.balance_text();
             let missing = advice.missing_days.clone();
+            let balances = balance
+                .read()
+                .as_ref()
+                .and_then(|b| b.as_ref().ok())
+                .map(|b| (b.overtime_text(), b.overtime_secs < 0, b.vacation_text()));
 
             rsx! {
-                div { class: "week-head",
-                    strong { "Week {selected.iso_week().week()}" }
-                    span { class: "muted", " {range}" }
+                div { class: "card-head",
+                    div { class: "week-head",
+                        strong { "Week {selected.iso_week().week()}" }
+                        span { class: "muted", " {range}" }
+                    }
+                    button { class: "secondary small", onclick: toggle,
+                        if show_chart() { "Hide chart" } else { "Show chart" }
+                    }
                 }
                 div { class: "week-numbers",
                     span { class: "big", "{fmt_hm(credited)}" }
@@ -125,6 +142,18 @@ pub fn WeekPanel(
                 }
                 div { class: "progress",
                     div { class: if over { "fill over" } else { "fill" }, style: "width: {filled}%" }
+                }
+                if let Some((flextime, owed, vacation)) = balances {
+                    div { class: "balances", title: "Balance as of today",
+                        div { class: "stat",
+                            span { class: "stat-label", "Flextime" }
+                            strong { class: if owed { "owed" } else { "" }, "{flextime}" }
+                        }
+                        div { class: "stat",
+                            span { class: "stat-label", "Vacation" }
+                            strong { "{vacation}" }
+                        }
+                    }
                 }
                 div { class: "guidance",
                     if let Some(line) = today_line {
@@ -198,13 +227,6 @@ pub fn WeekPanel(
     };
 
     rsx! {
-        div { class: "card week",
-            div { class: "week-toolbar",
-                button { class: "secondary", onclick: toggle,
-                    if show_chart() { "Hide chart" } else { "Show chart" }
-                }
-            }
-            {body}
-        }
+        div { class: "card week", {body} }
     }
 }

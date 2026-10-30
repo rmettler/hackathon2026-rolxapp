@@ -458,9 +458,10 @@ pub fn DayView(
 
     rsx! {
         div { class: "card",
-            div { class: "day-tools",
+            div { class: "card-head",
+                h2 { "Entries" }
                 button {
-                    class: "secondary",
+                    class: "secondary small",
                     disabled: adding,
                     onclick: {
                         let defaults = new_entry_defaults.clone();
@@ -615,7 +616,7 @@ pub fn DayView(
                                             }
                                         } else {
                                             button {
-                                                class: "secondary",
+                                                class: "quiet",
                                                 onclick: {
                                                     let e = e.clone();
                                                     move |_| {
@@ -630,7 +631,7 @@ pub fn DayView(
                                             }
                                             " "
                                             button {
-                                                class: "secondary",
+                                                class: "quiet del",
                                                 onclick: move |_| {
                                                     message.set(None);
                                                     mode.set(Mode::Idle);

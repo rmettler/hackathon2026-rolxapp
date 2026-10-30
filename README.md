@@ -77,3 +77,6 @@ Base project for the custom client apps of the [RolX time tracking server](https
   week panel show booked time, target, what is left and the pensum, plus guidance: what is left today and when you
   would be done, how far ahead or behind the previous days are, and working days without any booking (⚠, clickable).
   The app also draws a per-day chart by activity that can be hidden (remembered in `gui.json`).
+- Balance:  
+  Both show the server's running balance as of today: flextime ("Gleitzeit", signed, orange when negative) and
+  remaining vacation in days, with planned vacation in brackets (`GET api/v1/Balance/{date}`).

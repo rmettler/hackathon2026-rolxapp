@@ -6,6 +6,7 @@ use rolx_core::undo::{UndoRecord, UndoStore};
 
 use crate::app_state::AppState;
 use crate::shared;
+use crate::stamper::spawn_in_app;
 
 fn read_undo() -> Option<UndoRecord> {
     UndoStore::load().ok().and_then(|s| s.last)
@@ -39,7 +40,7 @@ pub fn use_undo(app: AppState) -> Undo {
     });
 
     let do_undo = use_callback(move |_| {
-        spawn(async move {
+        spawn_in_app(async move {
             let result = async {
                 let client = shared::client().await?;
                 undo_last(&client).await
@@ -80,9 +81,9 @@ pub fn UndoLine(undo: Undo) -> Element {
         return rsx! {};
     };
     rsx! {
-        p { class: "muted undo-line",
-            "{line} "
-            button { class: "secondary", onclick: move |_| undo.do_undo.call(()), "↩ Undo" }
+        p { class: "status-line",
+            span { "{line}" }
+            button { class: "secondary small", onclick: move |_| undo.do_undo.call(()), "↩ Undo" }
         }
     }
 }
