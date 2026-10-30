@@ -1,5 +1,5 @@
 [workspace]
-members         = ["rolx-core", "rolxapp-dioxus", "xtask"]
+members         = ["rolx-core", "rolxapp-dioxus", "rolxapp-tui", "xtask"]
 # The Dioxus app is heavy to build, so plain cargo commands skip it. Use `-p rolxapp-dioxus`.
 default-members = [".", "rolx-core"]
 

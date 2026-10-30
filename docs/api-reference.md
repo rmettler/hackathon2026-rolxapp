@@ -381,10 +381,10 @@ Time balance at a given date.
 | Field | Type | Description |
 |---|---|---|
 | `byDate` | `string` (ISO `yyyy-MM-dd`) | Date of this balance |
-| `overtime` | `string` (ISO 8601 duration) | Accumulated overtime |
-| `vacationAvailable` | `string` (ISO 8601 duration) | Available vacation time |
+| `overtime` | `integer` (seconds) | Accumulated overtime |
+| `vacationAvailable` | `integer` (seconds) | Available vacation time |
 | `vacationAvailableDays` | `number?` | Available vacation in days |
-| `vacationPlanned` | `string` (ISO 8601 duration) | Planned vacation time |
+| `vacationPlanned` | `integer` (seconds) | Planned vacation time |
 | `vacationPlannedDays` | `number?` | Planned vacation in days |
 
 ### §4.3 `YearInfo`
@@ -556,8 +556,8 @@ A correction to a user's balance.
 | Field | Type | Description |
 |---|---|---|
 | `date` | `string` (ISO `yyyy-MM-dd`) | Correction date |
-| `overtime` | `string` (ISO 8601 duration) | Overtime adjustment |
-| `vacation` | `string` (ISO 8601 duration) | Vacation adjustment |
+| `overtime` | `integer` (seconds) | Overtime adjustment |
+| `vacation` | `integer` (seconds) | Vacation adjustment |
 | `reason` | `string` | Reason for correction |
 
 ### §4.15 `VacationDaysSetting`
@@ -600,15 +600,15 @@ Monthly report for a single user.
 | `vacationDaysSettings` | `VacationDaysSetting[]` | Vacation days settings |
 | `targetBillabilitySettings` | `TargetBillabilitySetting[]` | Target billability settings |
 | `positionSettings` | `PositionSetting[]` | Position settings |
-| `overtime` | `string` (ISO 8601 duration) | Total overtime |
-| `overtimeDelta` | `string` (ISO 8601 duration) | Overtime change from previous month |
-| `vacation` | `string` (ISO 8601 duration) | Total vacation time |
+| `overtime` | `integer` (seconds) | Total overtime |
+| `overtimeDelta` | `integer` (seconds) | Overtime change from previous month |
+| `vacation` | `integer` (seconds) | Total vacation time |
 | `vacationDays` | `number?` | Vacation in days |
-| `vacationDelta` | `string` (ISO 8601 duration) | Vacation change from previous month |
+| `vacationDelta` | `integer` (seconds) | Vacation change from previous month |
 | `vacationDeltaDays` | `number?` | Vacation days change |
-| `billableTime` | `string` (ISO 8601 duration) | Total billable time |
-| `nonBillableTime` | `string` (ISO 8601 duration) | Total non-billable time |
-| `leaveTime` | `string` (ISO 8601 duration) | Total leave time |
+| `billableTime` | `integer` (seconds) | Total billable time |
+| `nonBillableTime` | `integer` (seconds) | Total non-billable time |
+| `leaveTime` | `integer` (seconds) | Total leave time |
 | `workItemGroups` | `WorkItemGroup[]?` | Grouped work items (see §4.19) |
 
 ---
@@ -630,7 +630,7 @@ A single work item within a `WorkItemGroup`.
 | Field | Type | Description |
 |---|---|---|
 | `name` | `string` | Work item name |
-| `duration` | `string` (ISO 8601 duration) | Duration of the work item |
+| `duration` | `integer` (seconds) | Duration of the work item |
 
 ## Enums
 

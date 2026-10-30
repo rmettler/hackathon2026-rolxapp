@@ -1,7 +1,10 @@
+use std::fs::{self, File};
+use std::sync::Mutex;
+
 use tracing_subscriber::EnvFilter;
 
-pub fn init(verbosity: u8) {
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+fn filter(verbosity: u8) -> EnvFilter {
+    EnvFilter::try_from_default_env().unwrap_or_else(|_| {
         let level = match verbosity {
             0 => "warn",
             1 => "info",
@@ -9,11 +12,31 @@ pub fn init(verbosity: u8) {
         };
 
         EnvFilter::new(level)
-    });
+    })
+}
 
-    if let Err(err) = tracing_subscriber::fmt().with_env_filter(filter).try_init() {
+pub fn init(verbosity: u8) {
+    if let Err(err) = tracing_subscriber::fmt()
+        .with_env_filter(filter(verbosity))
+        .try_init()
+    {
         eprintln!("failed to initialize logging: {err}");
     }
+}
+
+/// Logs to `<cache dir>/rolx/<name>` instead of stderr, for frontends that own the terminal.
+pub fn init_file(verbosity: u8, name: &str) -> anyhow::Result<()> {
+    let dir = dirs::cache_dir()
+        .ok_or_else(|| anyhow::anyhow!("cache directory not found"))?
+        .join("rolx");
+    fs::create_dir_all(&dir)?;
+    let file = File::create(dir.join(name))?;
+    tracing_subscriber::fmt()
+        .with_env_filter(filter(verbosity))
+        .with_ansi(false)
+        .with_writer(Mutex::new(file))
+        .try_init()
+        .map_err(|e| anyhow::anyhow!("failed to initialize logging: {e}"))
 }
 
 /// Redacts the values of given `sensitive_keys` if direct key of `value`. Disabled for debug builds.
