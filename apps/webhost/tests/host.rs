@@ -398,5 +398,12 @@ async fn sends_no_wildcard_cors_and_the_security_headers() {
         .to_str()
         .unwrap();
     assert!(policy.contains("default-src 'self'"), "{policy}");
-    assert!(!policy.contains('*') || policy.contains("https://*.googleusercontent.com"));
+    let scripts = policy
+        .split(';')
+        .find(|directive| directive.trim().starts_with("script-src"))
+        .unwrap();
+    assert!(!scripts.contains("unsafe-inline"), "{scripts}");
+    assert!(!scripts.contains("'unsafe-eval'"), "{scripts}");
+    assert!(scripts.contains("'wasm-unsafe-eval'"), "{scripts}");
+    assert!(!scripts.contains('*'), "{scripts}");
 }

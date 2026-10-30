@@ -5,8 +5,6 @@ version.workspace = true
 
 [dependencies]
 dioxus            = { workspace = true, features = ["launch", "logger", "web"] }
-# Its `web` feature makes the calendar's clock work in the browser.
-dioxus-primitives = { workspace = true, features = ["web"] }
 reqwest           = { workspace = true, features = ["json"] }
 rolx-core         = { path = "../../crates/rolx-core", default-features = false }
 rolx-ui           = { path = "../../crates/rolx-ui" }

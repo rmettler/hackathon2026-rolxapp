@@ -64,9 +64,8 @@ browser → dx serve :8080 → rolxapp-webhost :8081 → mock :8090 or RolX     
   under `debug_assertions`, and release builds of all apps talk to the server over HTTPS only. Only
   the webhost accepts an `http://` upstream, for local setups behind it.
 - **The webhost** binds loopback by default, sends no CORS headers and no cookies, ignores proxies
-  from the environment, refuses paths leaving `/api`, and sends a Content-Security-Policy. The policy
-  allows `'unsafe-eval'`, as the app panics without it; see Q11 for how it might go. It allows no
-  inline scripts.
+  from the environment, refuses paths leaving `/api`, and sends a Content-Security-Policy that allows
+  neither inline scripts nor eval. A component using `document::eval` would need the latter again.
 
 Known weak spots, on purpose: the web app's token is in local storage; the Android APKs are debuggable
 and hold the device client's secret. See `docs/open-questions.md`.

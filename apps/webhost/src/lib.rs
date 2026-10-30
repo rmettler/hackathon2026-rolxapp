@@ -20,12 +20,10 @@ use tower_http::set_header::SetResponseHeaderLayer;
 const MAX_REQUEST_BODY: usize = 1024 * 1024;
 
 /// Only the app's own files; the Google sign-in library and its frames are the one exception.
-/// Local storage holds the bearer token, so a foreign script must not run on this origin. Inline
-/// scripts are refused. `'unsafe-eval'` is there because the Dioxus components' `document::eval` runs
-/// through `new Function`, and without it the wasm app panics on start, as long as `StylePreload`
-/// renders those components.
+/// Local storage holds the bearer token, so a foreign script must not run on this origin: no inline
+/// scripts, no eval. A component using `document::eval` would need `'unsafe-eval'` here.
 const CONTENT_SECURITY_POLICY: &str = "default-src 'self'; \
-    script-src 'self' 'unsafe-eval' https://accounts.google.com/gsi/client; \
+    script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com/gsi/client; \
     style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; \
     frame-src https://accounts.google.com/gsi/; \
     connect-src 'self' https://accounts.google.com/gsi/; \

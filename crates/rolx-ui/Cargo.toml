@@ -12,7 +12,6 @@ dioxus-sdk-time.workspace  = true
 futures-util.workspace     = true
 reqwest.workspace          = true
 rolx-core                  = { path = "../rolx-core", default-features = false }
-time                       = { workspace = true, features = ["macros", "std"] }
 tracing.workspace          = true
 
 [dev-dependencies]

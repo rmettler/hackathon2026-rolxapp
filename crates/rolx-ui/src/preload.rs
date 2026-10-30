@@ -1,13 +1,7 @@
 use dioxus::prelude::*;
-use time::macros::date;
 
 use crate::components::button::Button;
-use crate::components::calendar::Calendar;
-use crate::components::card::Card;
-use crate::components::date_picker::DatePicker;
 use crate::components::input::Input;
-use crate::components::popover::{PopoverContent, PopoverRoot};
-use crate::components::select::Select;
 
 /// Loads the stylesheets of all components, hidden, whether a screen uses them yet or not. Blitz can
 /// panic when a stylesheet arrives while an element's hover or focus change is pending, see
@@ -17,22 +11,7 @@ pub fn StylePreload() -> Element {
     rsx! {
         div { class: "hidden",
             Button {}
-            Calendar {
-                selected_date: None,
-                on_date_change: move |_| {},
-                view_date: date!(2026 - 01 - 01),
-                on_view_change: move |_| {},
-            }
-            Card {}
-            DatePicker {
-                selected_date: None,
-                on_value_change: move |_| {},
-            }
             Input {}
-            PopoverRoot {
-                PopoverContent { "" }
-            }
-            Select::<u8> {}
         }
     }
 }

@@ -170,9 +170,6 @@
   }
 }
 @layer utilities {
-  .visible {
-    visibility: visible;
-  }
   .fixed {
     position: fixed;
   }
@@ -184,9 +181,6 @@
   }
   .flex {
     display: flex;
-  }
-  .grid {
-    display: grid;
   }
   .hidden {
     display: none;

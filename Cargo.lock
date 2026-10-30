@@ -7085,7 +7085,6 @@ dependencies = [
  "rolx-core",
  "rolx-mock",
  "serde_json",
- "time",
  "tokio",
  "tracing",
 ]
@@ -7123,7 +7122,6 @@ name = "rolxapp-web"
 version = "0.1.0"
 dependencies = [
  "dioxus",
- "dioxus-primitives",
  "futures-util",
  "gloo-timers 0.3.0",
  "js-sys",
@@ -8467,7 +8465,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb87b95ec50ddfa440816d227a17b2ccbdda963a316a727fda0fc4334f7d134"
 dependencies = [
  "deranged",
- "js-sys",
  "libc",
  "num-conv",
  "num_threads",

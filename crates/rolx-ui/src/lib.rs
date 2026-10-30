@@ -1,7 +1,7 @@
 //! Shared Dioxus UI of the RolX apps. Must work on every renderer, Blitz being the lowest common
 //! denominator: no `document::eval` in our own code.
 
-// Copied from the Dioxus components registry and only changed for Blitz, see `components/README.md`.
+// Copied from the Dioxus components registry, see `components/README.md`.
 #[allow(dead_code, unused_imports, clippy::all)]
 pub mod components;
 mod day_model;

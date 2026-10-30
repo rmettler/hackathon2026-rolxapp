@@ -5,6 +5,8 @@ official Dioxus components at rev `6b4a1488` and Tailwind v4. All screenshots sh
 
 **Decision: keep Native.** All must-haves pass, with the workarounds below.
 
+The calendar, date picker, popover, select and card were removed later, as no screen used them (Q11 in `docs/open-questions.md`). So workarounds 1 to 3 are no longer in the code; they apply again if those components come back. This records what was tested at the time.
+
 ## Must-haves
 
 Checked with a scripted run (`cargo xtask input`, `cargo xtask screenshot`).
@@ -28,8 +30,7 @@ Closing by Escape or an outside click was not checked, as the plan does not requ
 
 ## Workarounds
 
-The first three and the stroke colours are local changes to the copied components, listed in
-`crates/rolx-ui/src/components/README.md`.
+The first three and the stroke colours were local changes to the copied components.
 
 1. **Calendar table.** Blitz collapses the `<table>` of the day grid, so only the month header shows.
    `calendar/style.css` lays out the table, rows and cells with flexbox.
@@ -54,6 +55,10 @@ The first three and the stroke colours are local changes to the copied component
    - Every `css_module` component must render at startup, and no stylesheet may be added later.
    - A window remains: hovering or clicking while the startup sheets load. It was not seen in the
      runs here, and a fix needs Blitz or Stylo; it is worth reporting upstream.
+
+## Open: crash on quick clicks across screen changes
+
+Found on 2026-10-31, after the spike: the app panics in Blitz's hit test (`blitz-dom` `node.rs:1483`, `Option::unwrap()` on `None`). A scripted loop of Settings, Back and next day crashed it within 2 cycles in 5 of 6 runs, with and without the components removed for Q11. It also happened once in about a dozen runs with pauses of one to two seconds between clicks. A likely reading, not proven: a mouse event hits stale paint children between a DOM change and the next layout. See Q12 in `docs/open-questions.md`.
 
 ## Other findings
 
