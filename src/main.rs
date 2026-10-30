@@ -1,17 +1,11 @@
 mod cli;
-mod client;
 mod commands;
-mod config;
-mod error;
-mod logging;
-mod oauth2;
-mod rolx;
-mod session;
 
 use clap::Parser;
 use cli::{Cli, Command, ConfigCommand, LoginFlow};
-use commands::login::AuthFlow;
-use config::AppConfig;
+use rolx_core::client::RolxClient;
+use rolx_core::config::AppConfig;
+use rolx_core::login::AuthFlow;
 
 #[tokio::main]
 async fn main() {
@@ -23,7 +17,7 @@ async fn main() {
 
 async fn run() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    logging::init(cli.verbose);
+    rolx_core::logging::init(cli.verbose);
 
     match cli.command {
         Command::Login { flow } => {
@@ -33,13 +27,14 @@ async fn run() -> anyhow::Result<()> {
                 None => AuthFlow::NativeApp,
             };
             let config = load_config(cli.server)?;
-            commands::login::run(&config, auth_flow).await
+            rolx_core::login::run(&config, auth_flow).await?;
+            Ok(())
         }
         Command::Logout => commands::logout::run(),
         Command::Whoami => commands::whoami::run(),
         Command::Records { date } => {
             let config = load_config(cli.server)?;
-            let client = client::RolxClient::new(&config).await?;
+            let client = RolxClient::new(&config).await?;
             commands::records::run(&client, date).await
         }
         Command::Config { command } => match command {

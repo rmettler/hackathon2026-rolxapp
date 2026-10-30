@@ -3,15 +3,24 @@
 ## What this is
 
 `rolxapp` is a Rust workspace (edition **2024**) for building **custom client apps** for the
-RolX time tracking server. Aslim CLI exists today; TUI/desktop/mobile are planned, all in Rust
+RolX time tracking server. A slim CLI and a Dioxus desktop app exist today; TUI/mobile are planned, all in Rust
 where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-reference.md`, `user-requirements.md`, server/frontend auth analyses).
+
+## Workspace layout
+
+- `rolx-core/` — frontend-independent library: config, session, OAuth2 flows, RolX API calls
+  (`rolx/`, `records.rs`), logging. Must not print results; frontends do the presentation.
+- `.` (package `rolxapp`, `src/`) — the CLI: argument parsing (`cli.rs`) and printing (`commands/`).
+- `rolxapp-dioxus/` — Dioxus 0.7 desktop app on top of `rolx-core`.
+- `xtask/` — workspace tasks.
 
 ## Commands
 
-- Run: `cargo run -- -h`.
-- Lint: `cargo clippy`. Format: `cargo fmt`.
+- Run CLI: `cargo run -- -h`.
+- Run desktop app: `cargo run -p rolxapp-dioxus` (heavy first build; excluded from `default-members`).
+- Lint: `cargo clippy --workspace`. Format: `cargo fmt --all`. Test: `cargo test --workspace`.
 - Fetch the pinned server checkout: `cargo xtask fetch-server` (workspace member `xtask/`).
-- Cargo feature `uncensored_logs` disables log redaction.
+- Cargo feature `uncensored_logs` disables log redaction (declared in `rolx-core`, forwarded by `rolxapp`).
 
 ## The server you integrate with
 
