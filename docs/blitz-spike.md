@@ -60,4 +60,5 @@ The first three and the stroke colours are local changes to the copied component
 - `enigo`'s `text()` sends Unicode packets, which Blitz ignores. `cargo xtask input type` sends real
   key events instead. A real keyboard works; IME input was not tested.
 - The binary from a plain `cargo build` runs without any stylesheet. Use `dx build`.
+- With `CARGO_MANIFEST_DIR` set in its environment, the `dx`-built app shows a **blank window** with no error (found in M8, while it was set for `xtask.exe`). Launch it without that variable, so not from `cargo run` or a shell that exported it.
 - `dx` must run from the workspace root: below it, it panics while resolving `default-members`.

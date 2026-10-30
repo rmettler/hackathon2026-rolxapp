@@ -38,9 +38,12 @@ applied and noted here, and all questions are asked at the end.
 | M6 | Plan deviation: `dx` 0.8.0-alpha.3 has no `--native` flag. The command is `dx build -p rolxapp-desktop --renderer native`; `dx bundle` is expected to take the same flag (M12). |
 | M6 | `apps/desktop/Dioxus.toml` points `dx` at the Tailwind files of `rolx-ui`. `cargo xtask tailwind` runs the binary `dx` installed (v4.1.5) with the same arguments, so both give the same CSS. |
 | M6 | Additions to the plan: `cargo xtask tailwind` (needed by the freshness gate) and `cargo xtask input scroll` (needed by M7). `input click` positions are physical pixels on the primary monitor. |
-| M6 | The window title stays "Dioxus App" until the app shell gets its window configuration (M8–M11); GUI checks use that title meanwhile. |
+| M6 | The window title stayed "Dioxus App" until M8; it is "RolX" since. |
 | M7 | **Blitz spike passed: `apps/desktop` stays on Dioxus Native**, with five workarounds (`docs/blitz-spike.md`). Main remaining risk: a stylesheet arriving during a hover or focus change can crash Blitz, so all are loaded at startup (`StylePreload`); a small window while they load remains and is worth reporting upstream. |
 | M7 | Plan deviation: components were copied from the pinned rev by hand, because `dx components add` has no package option and its git client has no TLS here (`src/components/README.md`). The plan's `dioxus-primitives` and `dioxus-icons` pins are kept; no `[patch]` was needed. |
+| M8 | Plan deviation: `tailwind.css` uses `@import "tailwindcss" source(none)`. With automatic detection the result depended on the working directory, so `dx` and `xtask` generated different CSS. |
+| M8 | Routes are a plain `Route` enum in a signal, not `dioxus-router`: three screens need no URLs, it works the same on every renderer, and the transitions are a pure function that is easy to test. |
+| M8 | `Platform::login` takes a callback for prompts, because `rolx-ui` must compile for wasm and so cannot use `rolx-auth`'s `AuthPrompt`. The desktop app bridges the two. An unreadable session store counts as no session. |
 
 ## Manual verification checklist
 
@@ -58,3 +61,4 @@ Minor findings from the per-milestone reviews that were deliberately not fixed.
 - M3: `rolx-mock` answers a reversed date range with `200 []`, while the real `DateRange` throws, and sends a weekday as `dayName`, while the real server sends a rule name. No client reads or sends these.
 - M4: `DateRange::day` panics on the last date chrono can represent (year 262142), as the old CLI code did. Transport and JSON errors of `records` now carry an `HTTP error:` / `JSON error:` prefix.
 - M7: the scripted GUI run (coordinates and steps) is not committed, so `docs/blitz-spike.md` cannot be repeated exactly. `cargo xtask input type` handles ASCII capitals with Shift; other characters needing Shift were not tested.
+- M8: Blitz's Tab order visits the hidden controls of `StylePreload`. It comes after the views, so they are reached last, but Tab can still land on invisible controls. The apps have no keyboard requirement so far. The preload test can be fooled by a deliberate edit, such as a commented-out import.

@@ -4,5 +4,13 @@ name              = "rolxapp-desktop"
 version.workspace = true
 
 [dependencies]
-dioxus  = { workspace = true, features = ["launch", "logger", "native"] }
-rolx-ui = { path = "../../crates/rolx-ui" }
+dioxus        = { workspace = true, features = ["launch", "logger", "native"] }
+open.workspace = true
+reqwest       = { workspace = true, features = ["json", "rustls"] }
+rolx-auth     = { path = "../../crates/rolx-auth" }
+rolx-core     = { path = "../../crates/rolx-core" }
+rolx-ui       = { path = "../../crates/rolx-ui" }
+
+[features]
+default         = []
+uncensored_logs = ["rolx-auth/uncensored_logs", "rolx-core/uncensored_logs"]
