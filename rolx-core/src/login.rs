@@ -19,7 +19,7 @@ pub enum AuthFlow {
 }
 
 #[tracing::instrument(name = "login", skip_all)]
-pub async fn run(app_cfg: &AppConfig, flow: AuthFlow) -> anyhow::Result<()> {
+pub async fn run(app_cfg: &AppConfig, flow: AuthFlow) -> anyhow::Result<Session> {
     tracing::info!(
         url = app_cfg.server_url,
         oauth_flow = ?flow,
@@ -76,5 +76,5 @@ pub async fn run(app_cfg: &AppConfig, flow: AuthFlow) -> anyhow::Result<()> {
         email = session.user_email,
         "Logged in as"
     );
-    Ok(())
+    Ok(session)
 }

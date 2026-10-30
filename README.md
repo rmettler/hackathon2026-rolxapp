@@ -20,5 +20,8 @@ Base project for the custom client apps of the [RolX time tracking server](https
   Run `cargo xtask fetch-server` to clone it to `./rolx-server`.
 - Lint/format:  
   cargo clippy, cargo fmt
-- Mobile app (Android):  
-  `cargo xtask android run`, see [docs/dev-setup.md](docs/dev-setup.md).
+- Apps:  
+  CLI: `cargo run -- -h`  
+  Desktop (Dioxus): `cargo run -p rolxapp-dioxus` — log in once via the CLI or the app's login button.  
+  Mobile (Dioxus, Android): `cargo xtask android run`, see [docs/dev-setup.md](docs/dev-setup.md).  
+  CLI and desktop share the `rolx-core` library and need `config.toml` (`cargo run -- config path`).

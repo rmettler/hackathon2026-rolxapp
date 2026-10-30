@@ -1,0 +1,11 @@
+[package]
+edition = "2024"
+name    = "rolxapp-dioxus"
+version = "0.1.0"
+publish = false
+
+[dependencies]
+anyhow    = "1"
+chrono    = "0.4"
+dioxus    = { version = "0.7", features = ["desktop"] }
+rolx-core = { path = "../rolx-core" }

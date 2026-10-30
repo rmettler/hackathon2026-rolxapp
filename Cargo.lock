@@ -4750,20 +4750,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "rolx-mobile"
-version = "0.1.0"
-dependencies = [
- "dioxus",
-]
-
-[[package]]
-name = "rolxapp"
+name = "rolx-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
  "chrono",
- "clap",
  "dirs 7.0.0",
  "open",
  "rand 0.10.3",
@@ -4777,6 +4769,35 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "urlencoding",
+]
+
+[[package]]
+name = "rolx-mobile"
+version = "0.1.0"
+dependencies = [
+ "dioxus",
+]
+
+[[package]]
+name = "rolxapp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "rolx-core",
+ "tokio",
+ "toml 1.1.8+spec-1.1.0",
+]
+
+[[package]]
+name = "rolxapp-dioxus"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "dioxus",
+ "rolx-core",
 ]
 
 [[package]]

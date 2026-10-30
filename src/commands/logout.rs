@@ -1,4 +1,4 @@
-use crate::session::Session;
+use rolx_core::session::Session;
 
 pub fn run() -> anyhow::Result<()> {
     Session::delete()?;

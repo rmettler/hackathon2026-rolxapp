@@ -1,0 +1,25 @@
+:root { color-scheme: light dark; }
+body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: #f4f5f7; color: #1d2330; }
+main { max-width: 760px; margin: 0 auto; padding: 24px; }
+header { display: flex; justify-content: space-between; align-items: center; }
+h1 { margin: 0; font-size: 1.6rem; }
+.user { opacity: 0.7; font-size: 0.9rem; }
+.card { background: #fff; border-radius: 12px; padding: 16px 20px; margin-top: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+.day-nav { display: flex; gap: 8px; align-items: center; justify-content: center; }
+.day-nav .date { min-width: 12ch; text-align: center; font-weight: 600; }
+button { border: 0; border-radius: 8px; padding: 8px 14px; background: #3b6cf6; color: #fff; font-size: 0.95rem; cursor: pointer; }
+button.secondary { background: #8a92a6; }
+button:disabled { opacity: 0.5; cursor: default; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #e3e6ee; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.total td { font-weight: 700; border-bottom: 0; }
+.error { color: #d6336c; }
+.empty { text-align: center; opacity: 0.7; padding: 16px 0; }
+
+/* Must stay last so it overrides the light defaults above. */
+@media (prefers-color-scheme: dark) {
+  body { background: #161a22; color: #e6e9ef; }
+  .card { background: #1f2430; }
+  th, td { border-color: #2d3444; }
+}
