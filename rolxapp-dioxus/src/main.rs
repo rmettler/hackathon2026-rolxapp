@@ -35,7 +35,7 @@ use day_view::DayView;
 use palette::Palette;
 use settings::{Settings, WindowGeometry};
 use stamp_panel::StampPanel;
-use stamper::Stamper;
+use stamper::{Stamper, spawn_in_app};
 use week_panel::WeekPanel;
 
 const CSS: &str = include_str!("style.css");
@@ -228,12 +228,14 @@ fn App() -> Element {
     let mut activities = use_signal(|| activities::load_cached().unwrap_or_default());
     let selected = use_signal(|| None::<i32>);
 
+    let message = use_signal(|| None::<String>);
+    let syncing = use_signal(|| false);
     let stamper = use_context_provider(|| Stamper {
         state: stamp_state,
         activities,
         refresh,
-        message: Signal::new(None),
-        syncing: Signal::new(false),
+        message,
+        syncing,
     });
 
     let loaded = use_resource(move || async move {
@@ -258,7 +260,8 @@ fn App() -> Element {
     };
 
     let on_reload = move |_| {
-        spawn(async move {
+        // Not tied to the caller: the palette closes itself right after calling this.
+        spawn_in_app(async move {
             match shared::reload_activities().await {
                 Ok(list) => {
                     notice.set(None);
@@ -276,7 +279,7 @@ fn App() -> Element {
     };
 
     let do_undo = move || {
-        spawn(async move {
+        spawn_in_app(async move {
             let result = async {
                 let client = shared::client().await?;
                 undo_last(&client).await
@@ -327,7 +330,11 @@ fn App() -> Element {
                 }
             });
         if let Err(e) = registered {
-            eprintln!("cannot register the hotkey '{}': {e:?}", settings.hotkey);
+            // The result is cached by the hook, so this would print on every render.
+            static REPORTED: std::sync::Once = std::sync::Once::new();
+            REPORTED.call_once(|| {
+                eprintln!("cannot register the hotkey '{}': {e:?}", settings.hotkey);
+            });
         }
     }
 
@@ -596,8 +603,10 @@ fn App() -> Element {
 /// Forwards clicks on the tray icon and its menu to the app.
 fn use_tray_events(tx: mpsc::UnboundedSender<Request>) {
     let menu_tx = tx.clone();
-    dioxus::desktop::use_tray_menu_event_handler(move |event| {
-        let request = match event.id.0.as_str() {
+    // The menu library keeps only the first global handler, which Dioxus registers for the window
+    // menu bar, so clicks in the tray menu arrive as ordinary menu events, not as tray menu events.
+    dioxus::desktop::use_muda_event_handler(move |event| {
+        let request = match event.id().0.as_str() {
             "show" => Request::ShowWindow,
             "toggle" => Request::ToggleStamp,
             "quit" => Request::Quit,

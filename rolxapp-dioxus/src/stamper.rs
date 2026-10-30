@@ -32,6 +32,13 @@ async fn sync_all() -> anyhow::Result<Option<SyncReport>> {
     Ok(Some(sync::run_default(&client).await?))
 }
 
+/// Runs the future in the app's scope. It then outlives the component that started it (banners and
+/// the palette disappear right after being used) and uses the app's signals from their own scope;
+/// `spawn_forever` would run in the root scope and trigger Dioxus' "signal used outside its owner" warning.
+pub fn spawn_in_app(future: impl Future<Output = ()> + 'static) {
+    dioxus::core::Runtime::current().spawn(dioxus::core::ScopeId::APP, future);
+}
+
 #[derive(Clone, Copy)]
 pub struct Stamper {
     pub state: Signal<StampState>,
@@ -86,7 +93,7 @@ impl Stamper {
     /// `quiet` is for the automatic upload after stamping: no message unless something went wrong.
     pub fn sync(mut self, quiet: bool) {
         // Not tied to the calling component: banners and the palette disappear when used.
-        dioxus::core::spawn_forever(async move {
+        spawn_in_app(async move {
             self.syncing.set(true);
             match sync_all().await {
                 Ok(Some(report)) => {
