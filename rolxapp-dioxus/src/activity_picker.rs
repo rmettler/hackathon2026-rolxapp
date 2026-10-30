@@ -2,13 +2,15 @@ use dioxus::prelude::*;
 use rolx_core::activities::{Activity, Group, search};
 use rolx_core::stamp::StampState;
 
+use crate::lucide::{Glyph, Icon};
+
 /// Rows rendered at most; more than that cannot be scanned by eye anyway, so keep typing instead.
 const MAX_ROWS: usize = 100;
 const CHIPS: usize = 5;
 
 fn heading(group: Group, activity: &Activity) -> String {
     match group {
-        Group::Favourite => "★ Favourites".into(),
+        Group::Favourite => "Favourites".into(),
         Group::Recent => "Recently used".into(),
         Group::Other => match activity.group_title() {
             t if t.is_empty() => "All activities".into(),
@@ -89,7 +91,9 @@ pub fn ActivityPicker(
                                 let id = chip.id;
                                 move |_| selected.set(if selected() == Some(id) { None } else { Some(id) })
                             },
-                            if chip.favourite { "★ " }
+                            if chip.favourite {
+                                Icon { glyph: Glyph::Star, size: 14, filled: true }
+                            }
                             "{chip.short_label()}"
                         }
                     }
@@ -104,20 +108,24 @@ pub fn ActivityPicker(
                         query.set(String::new());
                         cursor.set(0);
                     },
-                    if none_available {
-                        "No activities yet — log in and sync"
-                    } else if let Some(label) = &trigger_label {
-                        "{label}"
-                    } else {
-                        "Choose activity…  ({all.len()})"
+                    span { class: "trigger-label",
+                        if none_available {
+                            "No activities yet. Log in and sync"
+                        } else if let Some(label) = &trigger_label {
+                            "{label}"
+                        } else {
+                            "Choose activity ({all.len()})"
+                        }
                     }
+                    Icon { glyph: Glyph::ChevronDown }
                 }
                 if selected().is_some() {
                     button {
-                        class: "secondary clear",
+                        class: "icon",
                         title: "No activity",
+                        "aria-label": "Clear activity",
                         onclick: move |_| selected.set(None),
-                        "✕"
+                        Icon { glyph: Glyph::X }
                     }
                 }
             }
@@ -179,6 +187,7 @@ pub fn ActivityPicker(
                                     button {
                                         class: if a.favourite { "star on" } else { "star" },
                                         title: if a.favourite { "Remove from favourites" } else { "Add to favourites" },
+                                        "aria-label": if a.favourite { "Remove from favourites" } else { "Add to favourites" },
                                         onclick: {
                                             let id = a.id;
                                             let fav = a.favourite;
@@ -187,14 +196,14 @@ pub fn ActivityPicker(
                                                 on_favourite.call((id, !fav));
                                             }
                                         },
-                                        if a.favourite { "★" } else { "☆" }
+                                        Icon { glyph: Glyph::Star, filled: a.favourite }
                                     }
                                     span { "{a.label()}" }
                                 }
                             }
                         }
                         if total > MAX_ROWS {
-                            p { class: "empty", "{total - MAX_ROWS} more — type to narrow down" }
+                            p { class: "empty", "{total - MAX_ROWS} more. Type to narrow down" }
                         }
                     }
                     div { class: "popover-foot",
@@ -203,7 +212,8 @@ pub fn ActivityPicker(
                             class: "secondary",
                             title: "Download the full list from the server",
                             onclick: move |_| on_reload.call(()),
-                            "↻ Reload list"
+                            Icon { glyph: Glyph::RefreshCw }
+                            "Reload list"
                         }
                     }
                 }

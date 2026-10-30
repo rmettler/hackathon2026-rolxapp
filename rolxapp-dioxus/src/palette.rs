@@ -5,6 +5,7 @@ use chrono::{Duration, NaiveDate};
 use dioxus::prelude::*;
 use rolx_core::activities::search;
 
+use crate::lucide::{Glyph, Icon};
 use crate::stamper::Stamper;
 
 const MAX_ACTIVITIES: usize = 30;
@@ -166,7 +167,7 @@ pub fn Palette(
                             let cmd = *cmd;
                             move |_| run(Item::Command(cmd))
                         },
-                        span { class: "kind", "›" }
+                        span { class: "kind", Icon { glyph: Glyph::ChevronRight } }
                         span { "{label}" }
                     }
                 }
@@ -178,7 +179,7 @@ pub fn Palette(
                             let id = *id;
                             move |_| run(Item::Activity(id))
                         },
-                        span { class: "kind", "▶" }
+                        span { class: "kind", Icon { glyph: Glyph::Play, size: 14 } }
                         span {
                             "{verb} {label}"
                             if !group.is_empty() {
@@ -189,7 +190,7 @@ pub fn Palette(
                 }
             }
             div { class: "popover-foot",
-                span { class: "muted", "↑↓ choose · Enter run · Esc close" }
+                span { class: "muted", "Up and Down to choose, Enter to run, Esc to close" }
             }
         }
     }

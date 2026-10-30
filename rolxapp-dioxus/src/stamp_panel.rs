@@ -9,6 +9,7 @@ use rolx_core::stamp::{PendingEntry, StaleStamp, Status, most_recent_time};
 use rolx_core::week::DAILY_TARGET_SECS;
 
 use crate::activity_picker::ActivityPicker;
+use crate::lucide::{Glyph, Icon};
 use crate::stamper::{STALE_DISMISSED, Stamper, mutate};
 
 const TILES: usize = 6;
@@ -60,8 +61,9 @@ fn StaleBanner(stale: StaleStamp, now: NaiveDateTime) -> Element {
 
     rsx! {
         div { class: "card banner",
-            p { class: "warn",
-                "⚠ You have been stamped in since {since} ({elapsed} ago). Did you forget to stamp out?"
+            p { class: "warn glyph-text",
+                Icon { glyph: Glyph::TriangleAlert }
+                "You have been stamped in since {since} ({elapsed} ago). Did you forget to stamp out?"
             }
             div { class: "controls",
                 label {
@@ -143,8 +145,9 @@ fn AwayBanner(away: Signal<Option<Away>>) -> Element {
 
     rsx! {
         div { class: "card banner",
-            p { class: "warn",
-                "💤 No keyboard or mouse input from {from} to {until} ({minutes} min) while you were stamped in."
+            p { class: "warn glyph-text",
+                Icon { glyph: Glyph::Moon }
+                "No keyboard or mouse input from {from} to {until} ({minutes} min) while you were stamped in."
             }
             div { class: "controls",
                 button {
@@ -312,7 +315,8 @@ pub fn StampPanel(
                                     let id = activity.id;
                                     move |_| stamper.start(id, text.clone())
                                 },
-                                "↻ {activity.short_label()}"
+                                Icon { glyph: Glyph::RotateCcw }
+                                "{activity.short_label()}"
                             }
                         }
                         for tile in tiles.into_iter().filter(|t| Some(t.id) != repeat_id) {
@@ -325,7 +329,7 @@ pub fn StampPanel(
                                     move |_| stamper.start(id, report())
                                 },
                                 if tile.favourite {
-                                    "★ "
+                                    Icon { glyph: Glyph::Star, size: 14, filled: true }
                                 }
                                 "{tile.short_label()}"
                             }
@@ -496,13 +500,14 @@ pub fn StampPanel(
                                 }
                             } else {
                                 button {
-                                    class: "secondary",
+                                    class: "icon small",
                                     title: "Discard this entry",
+                                    "aria-label": "Discard this entry",
                                     onclick: {
                                         let entry = entry.clone();
                                         move |_| discard.set(Some(entry.clone()))
                                     },
-                                    "✕"
+                                    Icon { glyph: Glyph::X }
                                 }
                             }
                         }
@@ -511,7 +516,7 @@ pub fn StampPanel(
             }
             if unassigned > 0 {
                 p { class: "muted warn",
-                    "{unassigned} without activity — pick one above, then "
+                    "{unassigned} without activity. Pick one above, then "
                     button {
                         class: "secondary",
                         disabled: selected_activity().is_none(),

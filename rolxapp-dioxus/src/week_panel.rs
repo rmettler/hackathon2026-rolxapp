@@ -7,18 +7,16 @@ use rolx_core::dayplan::fmt_hm;
 use rolx_core::stamp::{StampState, Status};
 use rolx_core::week::{DAILY_TARGET_SECS, WeekSummary, fetch_week, guidance, summarize};
 
+use crate::lucide::{Glyph, Icon};
 use crate::settings::Settings;
 use crate::shared;
 
-/// One color per activity, stable between runs. Unassigned entries are gray.
+/// One chart series color per activity, stable between runs. Unassigned entries are gray.
 fn color(activity_id: i32) -> String {
     if activity_id == 0 {
-        return "hsl(220, 8%, 55%)".into();
+        return "var(--border-strong)".into();
     }
-    format!(
-        "hsl({}, 55%, 52%)",
-        u64::from(activity_id.unsigned_abs()) * 47 % 360
-    )
+    format!("var(--chart-series-{})", activity_id.unsigned_abs() % 8 + 1)
 }
 
 /// Top of the chart scale: whole hours above everything shown, but at least a full day.
@@ -167,8 +165,9 @@ pub fn WeekPanel(
                         p { class: "muted", "{line}" }
                     }
                     if !missing.is_empty() {
-                        p { class: "warn",
-                            "⚠ Nothing booked on "
+                            p { class: "warn glyph-text",
+                                Icon { glyph: Glyph::TriangleAlert }
+                                "Nothing booked on "
                             for d in missing.iter().copied() {
                                 button {
                                     key: "{d}",

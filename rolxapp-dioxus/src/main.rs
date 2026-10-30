@@ -23,7 +23,9 @@ use tokio::sync::mpsc;
 
 mod activity_picker;
 mod day_view;
+mod fonts;
 mod icon;
+mod lucide;
 mod os_idle;
 mod palette;
 mod settings;
@@ -32,12 +34,14 @@ mod stamp_panel;
 mod stamper;
 mod week_panel;
 use day_view::DayView;
+use lucide::{Glyph, Icon};
 use palette::Palette;
 use settings::{Settings, WindowGeometry};
 use stamp_panel::StampPanel;
 use stamper::{Stamper, spawn_in_app};
 use week_panel::WeekPanel;
 
+const TOKENS: &str = include_str!("tokens.css");
 const CSS: &str = include_str!("style.css");
 
 // Window defaults (logical pixels), used until a position and size were saved. The position is
@@ -394,14 +398,14 @@ fn App() -> Element {
                 let text = {
                     let state = stamp_state.read();
                     match state.status(Local::now().naive_local()) {
-                        rolx_core::stamp::Status::StampedOut => "RolX — stamped out".to_string(),
+                        rolx_core::stamp::Status::StampedOut => "RolX: stamped out".to_string(),
                         rolx_core::stamp::Status::StampedIn {
                             activity,
                             worked,
                             on_break,
                             ..
                         } => format!(
-                            "RolX — {}:{:02} worked{}{}",
+                            "RolX: {}:{:02} worked{}{}",
                             worked.num_hours(),
                             worked.num_minutes() % 60,
                             if on_break { " (on break)" } else { "" },
@@ -511,16 +515,18 @@ fn App() -> Element {
                     div { class: "stepper",
                         button {
                             class: "icon",
-                            title: "Previous day (Alt+←)",
+                            title: "Previous day (Alt+Left)",
+                            "aria-label": "Previous day",
                             onclick: move |_| day.set(day() - Duration::days(1)),
-                            "◀"
+                            Icon { glyph: Glyph::ChevronLeft, size: 20 }
                         }
                         span { class: "date", "{date_label}" }
                         button {
                             class: "icon",
-                            title: "Next day (Alt+→)",
+                            title: "Next day (Alt+Right)",
+                            "aria-label": "Next day",
                             onclick: move |_| day.set(day() + Duration::days(1)),
-                            "▶"
+                            Icon { glyph: Glyph::ChevronRight, size: 20 }
                         }
                     }
                     button {
@@ -533,7 +539,8 @@ fn App() -> Element {
                         class: "secondary",
                         title: "Reload from the server",
                         onclick: move |_| refresh += 1,
-                        "↻ Refresh"
+                        Icon { glyph: Glyph::RefreshCw }
+                        "Refresh"
                     }
                 }
                 WeekPanel { day, refresh, state: stamp_state }
@@ -567,8 +574,10 @@ fn App() -> Element {
         )
     });
 
+    let brand_css = use_hook(|| format!("{}{TOKENS}{CSS}", fonts::font_face_css()));
+
     rsx! {
-        style { "{CSS}" }
+        style { "{brand_css}" }
         main {
             header {
                 div { class: "brand",
@@ -582,7 +591,8 @@ fn App() -> Element {
                         class: "secondary",
                         title: "Ctrl+K",
                         onclick: move |_| palette_open.set(true),
-                        "⌘ Quick actions"
+                        Icon { glyph: Glyph::Command }
+                        "Quick actions"
                     }
                     if logged_in {
                         button { class: "secondary", onclick: on_logout, "Log out" }
@@ -595,7 +605,10 @@ fn App() -> Element {
             if let Some(line) = undo_line {
                 p { class: "status-line",
                     span { "{line}" }
-                    button { class: "secondary small", onclick: move |_| do_undo(), "↩ Undo" }
+                    button { class: "secondary small", onclick: move |_| do_undo(),
+                        Icon { glyph: Glyph::Undo2 }
+                        "Undo"
+                    }
                 }
             }
             if let Some(text) = info() {

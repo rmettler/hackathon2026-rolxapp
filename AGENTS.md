@@ -23,6 +23,8 @@ where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-refer
 - Run desktop app: `cargo run -p rolxapp-dioxus` (heavy first build; excluded from `default-members`).
 - Lint: `cargo clippy --workspace`. Format: `cargo fmt --all`. Test: `cargo test --workspace`.
 - Fetch the pinned server checkout: `cargo xtask fetch-server` (workspace member `xtask/`).
+- Fetch the Cudos design system (company style guide) to `./design-system` (ignored): `cargo xtask fetch-design-system`.
+  It needs Azure DevOps credentials; the pin is `[package.metadata.design-system]` in `Cargo.toml`.
 - Cargo feature `uncensored_logs` disables log redaction (declared in `rolx-core`, forwarded by `rolxapp`).
 - Environment: `ROLX_SERVER` overrides `server_url` (CLI `--server`, GUI); `ROLX_DATA_DIR` moves the local
   data files (`stamps.json`, `activities.json`).

@@ -4,7 +4,13 @@ use std::process::Command;
 use crate::util::{check_cmd_output, read_cargo_metadata, run_cmd};
 
 const PACKAGE: &str = "rolxapp";
-const PIN_KEY: &str = "rolx-server";
+
+/// A nested checkout of an external repository, pinned in `[package.metadata.<key>]`.
+pub struct Target {
+    pub key: &'static str,
+    /// How the checkout is called in messages, e.g. "RolX server".
+    pub label: &'static str,
+}
 
 struct Pin {
     url: String,
@@ -12,12 +18,13 @@ struct Pin {
     dir: String,
 }
 
-pub fn run(root: &Path) -> Result<String, String> {
-    read_pin(root).and_then(|pin| fetch_server(root, &pin))
+pub fn run(root: &Path, target: &Target) -> Result<String, String> {
+    read_pin(root, target).and_then(|pin| fetch(root, target, &pin))
 }
 
-fn read_pin(root: &Path) -> Result<Pin, String> {
+fn read_pin(root: &Path, target: &Target) -> Result<Pin, String> {
     let meta = read_cargo_metadata(root)?;
+    let key = target.key;
 
     let pkg = meta
         .packages
@@ -26,13 +33,13 @@ fn read_pin(root: &Path) -> Result<Pin, String> {
         .ok_or_else(|| format!("package `{PACKAGE}` not found in cargo metadata"))?;
     let pin = pkg
         .metadata
-        .get(PIN_KEY)
-        .ok_or_else(|| format!("[package.metadata.{PIN_KEY}] not found on package `{PACKAGE}`"))?;
+        .get(key)
+        .ok_or_else(|| format!("[package.metadata.{key}] not found on package `{PACKAGE}`"))?;
 
     let read_param = |param: &str| {
-        pin.get(param).and_then(|v| v.as_str()).ok_or(format!(
-            "missing `{param}` in [package.metadata.rolx-server]"
-        ))
+        pin.get(param)
+            .and_then(|v| v.as_str())
+            .ok_or(format!("missing `{param}` in [package.metadata.{key}]"))
     };
 
     Ok(Pin {
@@ -42,8 +49,9 @@ fn read_pin(root: &Path) -> Result<Pin, String> {
     })
 }
 
-fn fetch_server(root: &Path, pin: &Pin) -> Result<String, String> {
+fn fetch(root: &Path, target: &Target, pin: &Pin) -> Result<String, String> {
     let clone_dir = root.join(&pin.dir);
+    let label = target.label;
 
     if !is_git_work_tree(&clone_dir) {
         if clone_dir.is_dir() || clone_dir.exists() {
@@ -68,7 +76,7 @@ fn fetch_server(root: &Path, pin: &Pin) -> Result<String, String> {
         }
     } else {
         ensure_origin(&clone_dir, &pin.url)?;
-        ensure_clean(&clone_dir)?;
+        ensure_clean(&clone_dir, label)?;
     }
 
     check_cmd_output(
@@ -77,7 +85,7 @@ fn fetch_server(root: &Path, pin: &Pin) -> Result<String, String> {
     )?;
 
     // Resolve to the full SHA so short revs in Cargo.toml also validate.
-    let full_rev = resolve_rev(&clone_dir, &pin.rev)?;
+    let full_rev = resolve_rev(&clone_dir, &pin.rev, label)?;
 
     // Detached checkout so it doesn't disturb any branch/working state.
     check_cmd_output(
@@ -94,7 +102,7 @@ fn fetch_server(root: &Path, pin: &Pin) -> Result<String, String> {
     let head = String::from_utf8_lossy(&head_out.stdout).trim().to_string();
     if head != full_rev {
         return Err(format!(
-            "expected server HEAD {}, found {} ({})",
+            "expected {label} HEAD {}, found {} ({})",
             full_rev,
             head,
             clone_dir.display()
@@ -102,7 +110,7 @@ fn fetch_server(root: &Path, pin: &Pin) -> Result<String, String> {
     }
 
     Ok(format!(
-        "RolX server @ {} is at rev {}",
+        "{label} @ {} is at rev {}",
         pin.dir,
         short_rev(&full_rev)
     ))
@@ -115,8 +123,8 @@ fn is_git_work_tree(dir: &Path) -> bool {
 
 /// Refuse to proceed if the checkout's origin isn't the pinned URL; a stray
 /// clone would silently point at the wrong server source.
-fn ensure_origin(server_dir: &Path, url: &str) -> Result<(), String> {
-    let current = run_cmd("git", &["remote", "get-url", "origin"], server_dir)
+fn ensure_origin(dir: &Path, url: &str) -> Result<(), String> {
+    let current = run_cmd("git", &["remote", "get-url", "origin"], dir)
         .ok()
         .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
@@ -130,23 +138,23 @@ fn ensure_origin(server_dir: &Path, url: &str) -> Result<(), String> {
         };
         format!(
             "{} has {found} but Cargo.toml pins `{url}` — delete the directory and re-run xtask, or fix the pin",
-            server_dir.display()
+            dir.display()
         )
     })
 }
 
 /// Refuse to proceed if the checkout has local changes; moving HEAD would leave
 /// a mixed tree at the wrong rev.
-fn ensure_clean(server_dir: &Path) -> Result<(), String> {
-    let out = run_cmd("git", &["status", "--porcelain"], server_dir)?;
+fn ensure_clean(dir: &Path, label: &str) -> Result<(), String> {
+    let out = run_cmd("git", &["status", "--porcelain"], dir)?;
     check_cmd_output(&out, "`git status`")?;
 
     let status = String::from_utf8_lossy(&out.stdout);
     if !status.trim().is_empty() {
         let preview = status.lines().take(5).collect::<Vec<_>>().join("\n");
         return Err(format!(
-            "{} has local changes — stash/commit them or delete the directory and re-run xtask:\n{}",
-            server_dir.display(),
+            "{} ({label}) has local changes — stash/commit them or delete the directory and re-run xtask:\n{}",
+            dir.display(),
             preview
         ));
     }
@@ -155,16 +163,12 @@ fn ensure_clean(server_dir: &Path) -> Result<(), String> {
 }
 
 /// Resolve a (possibly short) revision to its full SHA; clear error if unknown.
-fn resolve_rev(server_dir: &Path, rev: &str) -> Result<String, String> {
-    let out = run_cmd(
-        "git",
-        &["rev-parse", &format!("{rev}^{{commit}}")],
-        server_dir,
-    )?;
+fn resolve_rev(dir: &Path, rev: &str, label: &str) -> Result<String, String> {
+    let out = run_cmd("git", &["rev-parse", &format!("{rev}^{{commit}}")], dir)?;
     out.status.success().ok_or_else(|| format!(
-            "server revision {} not found in {} — check the rev in Cargo.toml, or that `git fetch origin` succeeded",
+            "{label} revision {} not found in {} — check the rev in Cargo.toml, or that `git fetch origin` succeeded",
             short_rev(rev),
-            server_dir.display()
+            dir.display()
         ))?;
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
