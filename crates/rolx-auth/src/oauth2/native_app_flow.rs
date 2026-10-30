@@ -3,6 +3,7 @@
 mod authorization_request;
 mod token_request;
 
+use crate::AuthPrompt;
 use rand::CryptoRng;
 use thiserror;
 use tokio::io::AsyncWriteExt;
@@ -44,6 +45,7 @@ pub async fn run(
     rng: &mut impl CryptoRng,
     cfg: &Cfg,
     scope: &str,
+    prompt: &dyn AuthPrompt,
 ) -> Result<Response, Error> {
     let req = authorization_request::create_authorization_request(
         rng,
@@ -54,14 +56,10 @@ pub async fn run(
     )
     .await?;
 
-    let mut redirect_stream = authorization_request::open_in_browser_or(
+    let mut redirect_stream = authorization_request::open_in_browser_or_ask(
         req.redirect_listener,
         &req.auth_request_url,
-        |auth_request_url| {
-            println!(
-                "Opening browser failed!\n\nOpen this URL in your browser:\n  {auth_request_url}"
-            )
-        },
+        prompt,
     )
     .await?;
 

@@ -4,7 +4,7 @@
 
 The RolX server requires a Google ID token to authenticate users (`POST api/v1/SignIn`). The normal path (Angular frontend) uses a Web-type OAuth client with One-Tap/popup. A close reading of the server source reveals a key fact: **`SignInService.cs` line 79 calls `GoogleJsonWebSignature.ValidateAsync(token)` with one argument — it never validates the `aud` claim.** It only checks the Google signature and that the user's hosted domain is in the whitelist (`m-f.ch`, `cudos.ch`). This means a Google ID token issued by *any* OAuth client for a user on those domains will be accepted.
 
-Solution: the user creates their own **OAuth 2.0 client** (free Google account, ~5-minute setup, no access to the production project required). Two flows are implemented in `src/oauth2/`:
+Solution: the user creates their own **OAuth 2.0 client** (free Google account, ~5-minute setup, no access to the production project required). Two flows are implemented in `crates/rolx-auth/src/oauth2/`:
 
 1. **Native app flow** (default) — authorization code + PKCE (RFC 6749/8252/9700), opens the user's browser and catches the redirect on a local loopback server.
 2. **Device flow** (`rolxcli login device`) — RFC 8628 Device Authorization Grant, for headless/SSH environments; no browser redirect involved at all.

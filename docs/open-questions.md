@@ -33,13 +33,16 @@ applied and noted here, and all questions are asked at the end.
 | M2 | `SessionStore` is synchronous and has no `Send`/`Sync` bound: file, localStorage and `dioxus-sdk-storage` are all synchronous, and Dioxus tasks are local. |
 | M3 | `rolx-mock` depends on `chrono`, `clap`, `tokio`, `serde` and `url` besides axum (the plan says "axum only", meant as: no `rolx-core`). Device-grant scenarios (`slow_down`, `expired_token`, `access_denied`) are chosen by `client_id`. |
 | M4 | `records -v` no longer logs response bodies (real work records) unless `uncensored_logs` is on. A failed extension of a still valid session stays an error, as before. |
+| M5 | Plan deviation: `login` also takes the HTTP client, because Android needs its own TLS setup (M14) and tests need plain HTTP. `rolx_auth::http_client()` is the default: HTTPS only unless the debug-build override is set. |
+| M5 | The authorization URL (state, user email) is logged only with `uncensored_logs`. |
 
 ## Manual verification checklist
 
 Checks that need a human, real credentials or real devices. Each entry says what to do and what
 to expect.
 
-- [ ] (filled in as milestones are completed)
+- [ ] M5: `rolxcli login` with real Google and stage. Expect the browser to open, Google's consent page, then `rolxcli whoami` showing your name.
+- [ ] M5: `rolxcli login device` with real Google and stage. Expect a URL and code in the terminal; after entering the code, `rolxcli whoami` shows your name.
 
 ## Review findings accepted without a fix
 

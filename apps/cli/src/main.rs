@@ -1,7 +1,6 @@
 mod cli;
 mod commands;
 mod logging;
-mod oauth2;
 
 use clap::Parser;
 use cli::{Cli, Command, ConfigCommand, LoginFlow};

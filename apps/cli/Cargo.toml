@@ -5,26 +5,20 @@ version.workspace = true
 
 [dependencies]
 anyhow.workspace             = true
-base64.workspace             = true
 chrono.workspace             = true
 clap                         = { workspace = true, features = ["env"] }
 open.workspace               = true
-rand.workspace               = true
 reqwest                      = { workspace = true, features = ["form", "json", "rustls"] }
+rolx-auth                    = { path = "../../crates/rolx-auth" }
 rolx-core                    = { path = "../../crates/rolx-core" }
-serde.workspace              = true
-serde_json.workspace         = true
-sha2.workspace               = true
-thiserror.workspace          = true
 tokio.workspace              = true
 toml.workspace               = true
 tracing.workspace            = true
 tracing-subscriber.workspace = true
-urlencoding.workspace        = true
 
 [dev-dependencies]
 tempfile.workspace = true
 
 [features]
 default         = []
-uncensored_logs = ["rolx-core/uncensored_logs"]
+uncensored_logs = ["rolx-auth/uncensored_logs", "rolx-core/uncensored_logs"]

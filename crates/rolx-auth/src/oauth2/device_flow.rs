@@ -1,5 +1,6 @@
 //! Implements the RFC 8628 OAuth 2.0 Device Authorization Grant for clients without browser access.
 
+use crate::AuthPrompt;
 use std::time::Duration;
 pub use token::TokenResponse;
 
@@ -27,6 +28,7 @@ pub async fn run(
     http_client: &reqwest::Client,
     cfg: &Cfg,
     scope: &str,
+    prompt: &dyn AuthPrompt,
 ) -> Result<TokenResponse, Error> {
     let device_resp = auth::request_device_code(http_client, cfg, scope).await?;
 
@@ -35,11 +37,7 @@ pub async fn run(
         .as_ref()
         .unwrap_or(&device_resp.verification_uri);
 
-    println!(
-        "To authorize this application, visit:\n  {}",
-        verification_uri
-    );
-    println!("Then enter the following code: {}\n", device_resp.user_code);
+    prompt.show_device_code(verification_uri, &device_resp.user_code);
 
     let resp = token::poll_for_token(
         http_client,

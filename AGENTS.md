@@ -9,6 +9,7 @@ where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-refer
 ## Layout
 
 - `crates/rolx-core`: portable client core (native and wasm32): session, `SessionStore`, `ensure_fresh`, `RolxClient`, `DateRange`, config, redaction, API calls. No tokio, `std::fs` or `dirs` outside the `fs` feature; take the time from `clock::now()`.
+- `crates/rolx-auth`: native-only Google login: loopback and device flow, with the UI left to the app through `AuthPrompt`.
 - `crates/rolx-mock`: dev/test-only mock of the RolX API and Google OAuth (lib + bin, `127.0.0.1` only, default port 8090, `cargo run -p rolx-mock`). Never a dependency of anything shipped, and no dependency on `rolx-core`. Bearer tokens carry their expiry, so a session can be seeded with `bearer_token_expiring_at` or `mock-bearer-<unix time>`.
 - `apps/cli`: `rolxcli`. `xtask`: workspace tasks.
 
@@ -19,7 +20,8 @@ where sensible. Goals and roadmap: `README.md`. Design docs: `docs/` (`api-refer
 - Secrets check alone: `cargo xtask secret-scan` (staged diff and untracked files).
 - Format: `cargo fmt --all`.
 - Fetch the pinned server checkout: `cargo xtask fetch-server` (workspace member `xtask/`).
-- Cargo feature `uncensored_logs` (on `rolx-core` and `rolxcli`) disables log redaction; redaction is otherwise on in every build profile.
+- `ROLX_GOOGLE_BASE_URL` (debug builds only, release builds never read it) points the Google endpoints at a mock, e.g. `http://127.0.0.1:8090/google`, and allows plain HTTP for login.
+- Cargo feature `uncensored_logs` (on `rolx-core`, `rolx-auth` and `rolxcli`) disables log redaction; redaction is otherwise on in every build profile.
 - `ROLX_CONFIG_DIR` / `ROLX_CACHE_DIR` replace the default `<config dir>/rolx` and `<cache dir>/rolx` (holding `config.toml` and `session.json`). Tests must use them with temp dirs so the real session is never touched; `cargo xtask check` sets them for all tests.
 - `rolxcli config ls` prints client secrets, and `whoami` / `records` print personal data: never run them against the real config or session where the output is logged.
 

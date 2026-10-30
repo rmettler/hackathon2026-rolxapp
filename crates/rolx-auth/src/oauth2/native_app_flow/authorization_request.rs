@@ -1,3 +1,4 @@
+use crate::AuthPrompt;
 use crate::oauth2::pkce;
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -83,25 +84,25 @@ fn build_query(query_params: &[(&str, &str)]) -> String {
         .join("&")
 }
 
-/// Opens the default browser to request the user's authorization.
-/// If the browser could not be opened, calls the `manual_action` with the authorization request URL.
+/// Has the `prompt` open the browser to request the user's authorization, or, if that fails, ask the
+/// user to open the authorization request URL.
 /// Consumes the TCP listener and returns a TCP stream listening on the `redirect_uri`.
-pub async fn open_in_browser_or(
+pub async fn open_in_browser_or_ask(
     redirect_listener: TcpListener,
     auth_request_url: &str,
-    manual_auth_action: impl FnOnce(&str),
+    prompt: &dyn AuthPrompt,
 ) -> Result<TcpStream, Error> {
+    // The URL holds the state and the user's email, see `uncensored_logs`.
+    #[cfg(not(feature = "uncensored_logs"))]
+    tracing::debug!(method = "GET", "request user authorization");
+    #[cfg(feature = "uncensored_logs")]
     tracing::debug!(
         method = "GET",
         url = auth_request_url,
         "request user authorization"
     );
-    match open::that(auth_request_url) {
-        Ok(()) => tracing::info!("Opened browser for user authorization…"),
-        Err(e) => {
-            tracing::warn!(error = %e, "Opening browser failed; open URL manually");
-            manual_auth_action(auth_request_url);
-        }
+    if !prompt.open_url(auth_request_url) {
+        prompt.show_manual_url(auth_request_url);
     }
     let (redirect_stream, _) = redirect_listener.accept().await?;
     Ok(redirect_stream)
@@ -261,4 +262,56 @@ fn parse_auth_response(response: &str) -> Result<AuthResponse, AuthResponseParse
         });
     }
     Ok(resp)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_code_and_state_and_decodes_them() {
+        let parsed =
+            parse_auth_response("GET /?code=a%2Fb&state=s%20t&scope=x HTTP/1.1\r\nHost: h\r\n")
+                .unwrap();
+        assert_eq!(parsed.code.as_deref(), Some("a/b"));
+        assert_eq!(parsed.state.as_deref(), Some("s t"));
+        assert!(parsed.error.is_none());
+    }
+
+    #[test]
+    fn parses_an_error_with_its_details() {
+        let parsed = parse_auth_response(
+            "GET /?error=access_denied&error_description=no&error_uri=u&state=s HTTP/1.1\r\n",
+        )
+        .unwrap();
+        assert!(parsed.code.is_none());
+        assert_eq!(
+            parsed.error.unwrap().to_string(),
+            "error 'access_denied', error description 'no', error URI 'u'"
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_responses() {
+        assert!(matches!(
+            parse_auth_response(""),
+            Err(AuthResponseParseError::NoAuthorizationResponse)
+        ));
+        assert!(matches!(
+            parse_auth_response("GET"),
+            Err(AuthResponseParseError::MissingResponseUri)
+        ));
+        assert!(matches!(
+            parse_auth_response("GET / HTTP/1.1"),
+            Err(AuthResponseParseError::MissingQuery)
+        ));
+        assert!(matches!(
+            parse_auth_response("GET /?code HTTP/1.1"),
+            Err(AuthResponseParseError::InvalidQuery)
+        ));
+        assert!(matches!(
+            parse_auth_response("GET /?code=%FF HTTP/1.1"),
+            Err(AuthResponseParseError::InvalidQueryParamEnc(_))
+        ));
+    }
 }

@@ -1,21 +1,46 @@
-use crate::oauth2::device_flow;
-use crate::oauth2::native_app_flow;
 use anyhow::anyhow;
+use rolx_auth::{AuthPrompt, Credentials, Endpoints, Flow};
 use rolx_core::api::sign_in;
-use rolx_core::config::AppConfig;
+use rolx_core::config::{AppConfig, ClientCredentials};
 use rolx_core::store::{FileSessionStore, SessionStore};
-
-// Uses Google OAuth, see:
-// - https://developers.google.com/identity/oauth2/native-app
-// - https://accounts.google.com/.well-known/oauth-authorization-server
-const GOOGLE_AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
-const GOOGLE_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
-const GOOGLE_DEVICE_AUTH_URL: &str = "https://oauth2.googleapis.com/device/code";
 
 #[derive(Debug)]
 pub enum AuthFlow {
     NativeApp,
     Device,
+}
+
+struct TerminalPrompt;
+
+impl AuthPrompt for TerminalPrompt {
+    fn open_url(&self, url: &str) -> bool {
+        match open::that(url) {
+            Ok(()) => {
+                tracing::info!("Opened browser for user authorization…");
+                true
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "Opening browser failed; open URL manually");
+                false
+            }
+        }
+    }
+
+    fn show_manual_url(&self, url: &str) {
+        println!("Opening browser failed!\n\nOpen this URL in your browser:\n  {url}");
+    }
+
+    fn show_device_code(&self, uri: &str, code: &str) {
+        println!("To authorize this application, visit:\n  {uri}");
+        println!("Then enter the following code: {code}\n");
+    }
+}
+
+fn credentials(client: &ClientCredentials) -> Credentials {
+    Credentials {
+        id: client.id.clone(),
+        secret: Some(client.secret.clone()),
+    }
 }
 
 #[tracing::instrument(name = "login", skip_all)]
@@ -25,51 +50,36 @@ pub async fn run(app_cfg: &AppConfig, flow: AuthFlow) -> anyhow::Result<()> {
         oauth_flow = ?flow,
         "Logging in to"
     );
-    let http = reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .https_only(true)
-        .tls_version_min(reqwest::tls::Version::TLS_1_2)
-        .build()?;
+    let http = rolx_auth::http_client()?;
 
     let store = FileSessionStore::default_location()?;
-    let session = store.load().ok().flatten();
-    let id_token = match flow {
+    let (flow, client) = match flow {
         AuthFlow::NativeApp => {
-            let credentials = app_cfg.google_desktop_client.as_ref().ok_or_else(|| {
+            let client = app_cfg.google_desktop_client.as_ref().ok_or_else(|| {
                 anyhow!("`google_desktop_client` config missing — add it to the config")
             })?;
-            let cfg = native_app_flow::Cfg {
-                authorization_endpoint: GOOGLE_AUTH_URL.into(),
-                token_endpoint: GOOGLE_TOKEN_URL.into(),
-                client_id: credentials.id.clone(),
-                client_secret: Some(credentials.secret.clone()),
-                user_email: session.map(|s| s.user_email),
-            };
-            let resp = native_app_flow::run(&http, &mut rand::rng(), &cfg, "openid email profile")
-                .await
-                .map_err(|e| {
-                    tracing::error!(error = %e, "native app flow failed");
-                    e
-                })?;
-            resp.id_token
-                .ok_or_else(|| anyhow!("id_token missing in access token response"))?
+            let user_email = store.load().ok().flatten().map(|s| s.user_email);
+            (Flow::NativeApp { user_email }, client)
         }
         AuthFlow::Device => {
-            let credentials = app_cfg.google_device_client.as_ref().ok_or_else(|| {
+            let client = app_cfg.google_device_client.as_ref().ok_or_else(|| {
                 anyhow!("`google_device_client` config missing — add it the config")
             })?;
-            let cfg = device_flow::Cfg {
-                device_authorization_endpoint: GOOGLE_DEVICE_AUTH_URL.into(),
-                token_endpoint: GOOGLE_TOKEN_URL.into(),
-                client_id: credentials.id.clone(),
-                client_secret: Some(credentials.secret.clone()),
-            };
-            let resp = device_flow::run(&http, &cfg, "openid email profile").await?;
-            resp.id_token
-                .ok_or_else(|| anyhow!("id_token missing in device flow token response"))?
+            (Flow::Device, client)
         }
     };
-    let session = sign_in::sign_in(&http, &app_cfg.server_url, &id_token).await?;
+
+    let id_token = rolx_auth::login(
+        &http,
+        flow,
+        &credentials(client),
+        &Endpoints::google(),
+        &TerminalPrompt,
+    )
+    .await
+    .inspect_err(|e| tracing::error!(error = %e, "login flow failed"))?;
+
+    let session = sign_in::sign_in(&http, &app_cfg.server_url, id_token.as_str()).await?;
     store.save(&session)?;
 
     tracing::info!(

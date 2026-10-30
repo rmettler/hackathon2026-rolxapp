@@ -1233,6 +1233,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "rolx-auth"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "rand",
+ "reqwest",
+ "rolx-mock",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "urlencoding",
+]
+
+[[package]]
 name = "rolx-core"
 version = "0.1.0"
 dependencies = [
@@ -1268,23 +1285,17 @@ name = "rolxcli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "base64",
  "chrono",
  "clap",
  "open",
- "rand",
  "reqwest",
+ "rolx-auth",
  "rolx-core",
- "serde",
- "serde_json",
- "sha2",
  "tempfile",
- "thiserror",
  "tokio",
  "toml",
  "tracing",
  "tracing-subscriber",
- "urlencoding",
 ]
 
 [[package]]
