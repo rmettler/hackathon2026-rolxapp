@@ -1,5 +1,6 @@
 #[cfg(target_os = "android")]
 mod android;
+mod links;
 mod native;
 
 use anyhow::bail;
@@ -213,6 +214,14 @@ fn App() -> Element {
     native::use_native_stamp_sync(stamp_state);
     let mut tab = use_signal(|| Tab::Stamp);
     let mut show_settings = use_signal(|| false);
+    // A stamp link (app shortcut, QR code, Tasker) shows what it did, or why not, on the stamp panel.
+    links::use_stamp_links(
+        stamper,
+        use_callback(move |_| {
+            tab.set(Tab::Stamp);
+            show_settings.set(false);
+        }),
+    );
     let mut confirm_logout = use_signal(|| false);
     let mut online = use_signal(|| true);
     // Stamping has no away detection on the phone, so this stays empty.
@@ -271,6 +280,7 @@ fn App() -> Element {
                 // Back from the background: the stamps may have changed (another app, a file edit), and the day,
                 // the week and the server may have moved on.
                 "visible" => {
+                    links::check_queue();
                     stamp_state.set(StampState::load().unwrap_or_default());
                     if online() && has_uploads(stamp_state) {
                         stamper.sync(true);
@@ -519,6 +529,9 @@ fn SettingsSheet(
     let server = rolx_ui::config()
         .map(|c| c.server_url)
         .unwrap_or_else(|e| e.to_string());
+    // Read when the sheet opens, so it is current after a visit to the system settings.
+    let live_updates = native::live_updates_allowed();
+    let mut live_update_error = use_signal(|| None::<String>);
     rsx! {
         div {
             class: "sheet settings",
@@ -535,6 +548,28 @@ fn SettingsSheet(
                     r#type: "checkbox",
                     checked: show_chart(),
                     onchange: move |e| show_chart.set(e.checked()),
+                }
+            }
+            if let Some(allowed) = live_updates {
+                div { class: "setting",
+                    span {
+                        "Timer in the status bar"
+                        span { class: "muted",
+                            if allowed { " · on" } else { " · off" }
+                        }
+                    }
+                    button {
+                        class: "secondary",
+                        onclick: move |_| {
+                            if let Err(e) = native::open_live_update_settings() {
+                                live_update_error.set(Some(format!("Could not open the settings: {e}")));
+                            }
+                        },
+                        "Change…"
+                    }
+                }
+                if let Some(e) = live_update_error() {
+                    p { class: "error", role: "alert", "{e}" }
                 }
             }
             div { class: "setting account",

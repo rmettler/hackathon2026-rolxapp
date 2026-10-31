@@ -4728,6 +4728,7 @@ dependencies = [
  "rolx-ui",
  "serde",
  "tokio",
+ "urlencoding",
 ]
 
 [[package]]

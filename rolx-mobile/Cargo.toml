@@ -14,7 +14,8 @@ qrcode    = { version = "0.14", default-features = false, features = ["svg"] }
 rolx-core = { path = "../rolx-core" }
 rolx-ui   = { path = "../rolx-ui" }
 serde     = { version = "1", features = ["derive"] }
-tokio     = { version = "1", features = ["time"] }
+tokio     = { version = "1", features = ["sync", "time"] }
+urlencoding = "2"
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni         = "0.21"
