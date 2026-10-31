@@ -8,6 +8,8 @@ use rolx_core::api::year_info::YearInfo;
 use rolx_core::client::RolxClient;
 use std::sync::Arc;
 
+use super::stamp::StampPart;
+
 pub enum Msg {
     Key(KeyEvent),
     Redraw,
@@ -35,7 +37,19 @@ pub enum Msg {
     },
     Year(i32, YearInfo),
     Report(String, UserMonthReport),
+    Charts {
+        /// First day of the month the records belong to.
+        month: NaiveDate,
+        records: Vec<Record>,
+    },
     Saved,
+    /// The records of the days a stamp covers, loaded to turn the stamp into entries.
+    StampDays {
+        parts: Vec<StampPart>,
+        records: Vec<Record>,
+    },
+    /// A stamp was booked as this many entries.
+    StampBooked(usize),
     FavouritesChanged,
     Error(String),
 }

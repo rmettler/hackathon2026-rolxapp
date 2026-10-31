@@ -260,6 +260,7 @@ mod tests {
             cursor,
             pending: String::new(),
             undo: None,
+            stamp: None,
         }
     }
 

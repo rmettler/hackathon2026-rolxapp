@@ -7,6 +7,9 @@ use rolx_core::api::records::RecordEntry;
 
 impl App {
     pub(crate) fn save_edit(&mut self) {
+        if self.edit.as_ref().is_some_and(|f| f.stamp.is_some()) {
+            return self.save_stamp();
+        }
         let Some(form) = &self.edit else { return };
         let Some(mut record) = self.record.clone() else {
             return;

@@ -6,10 +6,17 @@ pub enum Tab {
     Activities,
     Year,
     Report,
+    Charts,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 4] = [Tab::Day, Tab::Activities, Tab::Year, Tab::Report];
+    pub const ALL: [Tab; 5] = [
+        Tab::Day,
+        Tab::Activities,
+        Tab::Year,
+        Tab::Report,
+        Tab::Charts,
+    ];
 
     pub fn title(self) -> &'static str {
         match self {
@@ -17,6 +24,7 @@ impl Tab {
             Tab::Activities => "Activities",
             Tab::Year => "Year",
             Tab::Report => "Report",
+            Tab::Charts => "Charts",
         }
     }
 
@@ -54,6 +62,7 @@ impl App {
             Tab::Activities => self.filtered_activities().len(),
             Tab::Year => self.year_info.as_ref().map_or(0, |y| y.holidays.len()),
             Tab::Report => self.report_line_count(),
+            Tab::Charts => self.month_chart().map_or(0, |c| c.series.len()),
         }
     }
 
@@ -66,6 +75,7 @@ impl App {
             Tab::Activities => &mut self.sel_activity,
             Tab::Year => &mut self.year_scroll,
             Tab::Report => &mut self.report_scroll,
+            Tab::Charts => &mut self.chart_sel,
         };
         *position = (*position as isize + delta).clamp(0, max) as usize;
     }

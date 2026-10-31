@@ -1,6 +1,6 @@
 use super::{App, Msg, Screen};
 use crate::time::week_start;
-use chrono::{Duration, Local};
+use chrono::{Datelike, Duration, Local};
 use rolx_core::api::activity;
 use rolx_core::api::balance;
 use rolx_core::api::edit_lock;
@@ -108,6 +108,18 @@ impl App {
         self.spawn_with_client(move |c| async move {
             let report = user_report::fetch(&c, &month).await?;
             Ok(Msg::Report(month, report))
+        });
+    }
+
+    pub(crate) fn load_charts(&self) {
+        let first = self.chart_month;
+        let next = (first + Duration::days(32)).with_day(1).unwrap_or(first);
+        self.spawn_with_client(move |c| async move {
+            let records = records::fetch_range(&c, first, next).await?;
+            Ok(Msg::Charts {
+                month: first,
+                records,
+            })
         });
     }
 

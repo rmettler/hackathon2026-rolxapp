@@ -11,7 +11,8 @@ use crate::edit::{Basis, EditForm, EditMode, Field};
 pub(super) fn draw_edit(frame: &mut Frame, area: Rect, app: &App, form: &EditForm) {
     let searching = form.mode == EditMode::Search;
     let width = area.width.min(80);
-    let wanted = if searching { 17 } else { 8 };
+    let base = if form.stamp.is_some() { 7 } else { 8 };
+    let wanted = if searching { base + 9 } else { base };
     let height = wanted.min(area.height);
     let popup = Rect {
         x: area.x + (area.width - width) / 2,
@@ -19,7 +20,9 @@ pub(super) fn draw_edit(frame: &mut Frame, area: Rect, app: &App, form: &EditFor
         width,
         height,
     };
-    let title = if form.index.is_some() {
+    let title = if form.stamp.is_some() {
+        "Stamp out"
+    } else if form.index.is_some() {
         "Edit entry"
     } else {
         "New entry"
@@ -56,21 +59,30 @@ pub(super) fn draw_edit(frame: &mut Frame, area: Rect, app: &App, form: &EditFor
         ),
         field("From", &form.from, form.field == Field::From),
         field("To", &form.to, form.field == Field::To),
-        field("Duration", &form.duration, form.field == Field::Duration),
-        field("Comment", &form.comment, form.field == Field::Comment),
-        Line::from(
-            match form.basis {
-                Basis::Duration => "  saves Duration (From/To ignored)",
-                Basis::Range => "  saves From/To (Duration ignored)",
-            }
-            .dim(),
-        ),
     ];
+    if form.stamp.is_none() {
+        lines.push(field(
+            "Duration",
+            &form.duration,
+            form.field == Field::Duration,
+        ));
+    }
+    lines.push(field(
+        "Comment",
+        &form.comment,
+        form.field == Field::Comment,
+    ));
+    let hint = match (&form.stamp, form.basis) {
+        (Some(summary), _) => format!("  {summary}"),
+        (None, Basis::Duration) => "  saves Duration (From/To ignored)".to_string(),
+        (None, Basis::Range) => "  saves From/To (Duration ignored)".to_string(),
+    };
+    lines.push(Line::from(hint.dim()));
     if searching {
         let results = app.search_results();
         lines.push(Line::default());
         lines.push(Line::from(format!("Search: {}█", form.search)).bold());
-        let visible = usize::from(height.saturating_sub(10)).max(1);
+        let visible = usize::from(height.saturating_sub(base + 2)).max(1);
         let start = form.search_sel.saturating_sub(visible - 1);
         if results.is_empty() {
             lines.push(Line::from("  no matching activity".dim()));

@@ -73,10 +73,8 @@ impl App {
         match key.code {
             KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('h') => self.edit = None,
             KeyCode::Char('s') => self.save_edit(),
-            KeyCode::Char('j') | KeyCode::Down | KeyCode::Tab => form.field = form.field.step(true),
-            KeyCode::Char('k') | KeyCode::Up | KeyCode::BackTab => {
-                form.field = form.field.step(false);
-            }
+            KeyCode::Char('j') | KeyCode::Down | KeyCode::Tab => form.step_field(true),
+            KeyCode::Char('k') | KeyCode::Up | KeyCode::BackTab => form.step_field(false),
             KeyCode::Char('l' | 'i' | 'a' | 'A' | 'I') | KeyCode::Enter => {
                 if form.field == Field::Activity {
                     form.search.clear();

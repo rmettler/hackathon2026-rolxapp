@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use chrono::NaiveDate;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
@@ -8,7 +10,17 @@ use rolx_core::api::records::{Record, RecordEntry};
 use tokio::sync::mpsc;
 
 use crate::app::{App, Msg, Screen};
+use crate::stamp_store::StampStore;
 use crate::ui::draw;
+
+static STORES: AtomicUsize = AtomicUsize::new(0);
+
+/// A stamp store in a fresh temporary directory.
+pub(crate) fn temp_store() -> StampStore {
+    let id = STORES.fetch_add(1, Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!("rolxapp-tui-test-{}-{id}", std::process::id()));
+    StampStore::at(dir.join("stamp.json"))
+}
 
 pub(crate) fn press(app: &mut App, keys: &str) {
     for c in keys.chars() {

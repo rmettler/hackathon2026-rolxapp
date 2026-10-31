@@ -6,6 +6,7 @@ use crate::time::{entry_end, fmt_clock};
 mod keys;
 mod motions;
 mod save;
+mod stamp;
 mod validate;
 mod vim;
 
@@ -73,6 +74,8 @@ pub struct EditForm {
     pub pending: String,
     /// Text and cursor before the last change.
     pub undo: Option<(String, usize)>,
+    /// Summary of the days when this form turns a stamp into entries.
+    pub stamp: Option<String>,
 }
 
 impl EditForm {
@@ -99,6 +102,7 @@ impl EditForm {
             cursor: 0,
             pending: String::new(),
             undo: None,
+            stamp: None,
         }
     }
 

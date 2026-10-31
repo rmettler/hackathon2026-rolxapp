@@ -1,5 +1,6 @@
 mod absence;
 mod activities;
+mod charts;
 mod day;
 mod edit;
 mod footer;
@@ -8,6 +9,7 @@ mod theme;
 mod week;
 mod year;
 
+use chrono::Local;
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::Stylize;
@@ -17,6 +19,7 @@ use rolx_core::api::fmt_duration;
 
 use self::absence::draw_absence;
 use self::activities::draw_activities;
+use self::charts::draw_charts;
 use self::day::draw_day;
 use self::edit::draw_edit;
 use self::footer::help_text;
@@ -24,6 +27,7 @@ use self::report::draw_report;
 use self::week::draw_week;
 use self::year::draw_year;
 use crate::app::{App, DayView, Screen, Tab};
+use crate::time::fmt_hms;
 
 pub fn draw(frame: &mut Frame, app: &App) {
     let area = frame.area();
@@ -89,6 +93,7 @@ fn draw_main(frame: &mut Frame, area: Rect, app: &App) {
         Tab::Activities => draw_activities(frame, body, app),
         Tab::Year => draw_year(frame, body, app),
         Tab::Report => draw_report(frame, body, app),
+        Tab::Charts => draw_charts(frame, body, app),
     }
 
     let help = help_text(app);
@@ -112,6 +117,13 @@ fn draw_main(frame: &mut Frame, area: Rect, app: &App) {
 
 fn header_line(app: &App) -> Line<'static> {
     let mut spans = vec![Span::raw(app.user.clone()).bold()];
+    if let Some(elapsed) = app.stamp_elapsed(Local::now()) {
+        spans.push(Span::raw("   "));
+        spans.push(Span::styled(
+            format!(" ● {} ", fmt_hms(elapsed)),
+            theme::selected(),
+        ));
+    }
     if let Some(balance) = &app.balance {
         spans.push(Span::raw(format!(
             "   Overtime {}",

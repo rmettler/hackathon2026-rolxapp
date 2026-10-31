@@ -1,22 +1,27 @@
 mod absence;
 pub(crate) mod activities;
+mod chart;
 mod day;
 mod keys;
 mod msg;
 mod overview;
 mod scroll;
+mod stamp;
 mod tasks;
 mod week;
 mod week_grid;
 
 pub use absence::{Absence, absence_of, leave_time};
+pub use chart::ChartMeasure;
 pub use msg::{Msg, Screen};
 pub use scroll::Tab;
+pub use stamp::{StampPart, StampSession};
 pub use week::DayView;
 
 use crate::edit::EditForm;
+use crate::stamp_store::StampStore;
 use crate::time::week_start;
-use chrono::{Datelike, Local, NaiveDate};
+use chrono::{DateTime, Datelike, Local, NaiveDate};
 use rolx_core::api::activity::Activity;
 use rolx_core::api::balance::Balance;
 use rolx_core::api::records::Record;
@@ -61,6 +66,23 @@ pub struct App {
     pub year_info: Option<YearInfo>,
     pub month: NaiveDate,
     pub report: Option<UserMonthReport>,
+    /// First day of the month shown on the Charts tab.
+    pub chart_month: NaiveDate,
+    /// Records of `chart_month`, `None` while loading.
+    pub chart_records: Option<Vec<Record>>,
+    /// Selected row of the chart list; row 0 is all activities.
+    pub chart_sel: usize,
+    /// Activity to reselect once the next month has loaded.
+    pub chart_keep: Option<i32>,
+    pub chart_measure: ChartMeasure,
+    /// Start of the running stamp, if any.
+    pub stamp: Option<DateTime<Local>>,
+    /// Where the running stamp is kept; `None` keeps it in memory only.
+    pub stamp_store: Option<StampStore>,
+    /// The days of the stamp being stamped out while its form is open.
+    pub stamp_session: Option<StampSession>,
+    /// Whether the discard-the-stamp question is waiting for an answer.
+    pub discard_prompt: bool,
     /// First keys of a multi-key command such as `gg` or `dd`.
     pub pending: String,
     pub viewport_height: u16,
@@ -100,6 +122,15 @@ impl App {
             year_info: None,
             month: today.with_day(1).unwrap_or(today),
             report: None,
+            chart_month: today.with_day(1).unwrap_or(today),
+            chart_records: None,
+            chart_sel: 0,
+            chart_keep: None,
+            chart_measure: ChartMeasure::RunningTotal,
+            stamp: None,
+            stamp_store: None,
+            stamp_session: None,
+            discard_prompt: false,
             pending: String::new(),
             viewport_height: 24,
             year_scroll: 0,
@@ -194,6 +225,28 @@ impl App {
             Msg::Year(..) => {}
             Msg::Report(month, report) if month == self.month_key() => self.report = Some(report),
             Msg::Report(..) => {}
+            Msg::Charts { month, records } if month == self.chart_month => {
+                self.chart_records = Some(records);
+                let chart = self.month_chart();
+                let len = chart.as_ref().map_or(0, |c| c.series.len());
+                self.chart_sel = match self.chart_keep.take() {
+                    Some(id) => chart
+                        .and_then(|c| c.series.iter().position(|s| s.activity_id == Some(id)))
+                        .unwrap_or(0),
+                    None => self.chart_sel.min(len.saturating_sub(1)),
+                };
+            }
+            Msg::Charts { .. } => {}
+            Msg::StampDays { parts, records } => self.open_stamp_form(parts, records),
+            Msg::StampBooked(count) => {
+                self.status = Some(format!(
+                    "Booked {count} {}",
+                    if count == 1 { "entry" } else { "entries" }
+                ));
+                self.clear_stamp();
+                self.load_view();
+                self.load_header();
+            }
             Msg::Saved => {
                 self.status = Some("Saved".into());
                 self.load_view();

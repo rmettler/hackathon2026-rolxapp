@@ -19,6 +19,7 @@ impl App {
                 KeyCode::Char('l') | KeyCode::Enter if !busy => self.log_in(),
                 _ => {}
             },
+            Screen::Main if self.discard_prompt => self.on_discard_key(key),
             Screen::Main if self.edit.is_some() => self.on_edit_key(key),
             Screen::Main if self.absence_menu.is_some() => self.on_absence_key(key),
             Screen::Main if self.act_searching => self.on_activity_filter_key(key),
@@ -53,8 +54,10 @@ impl App {
             KeyCode::BackTab => {
                 self.set_tab((self.tab.index() + Tab::ALL.len() - 1) % Tab::ALL.len());
             }
-            KeyCode::Char(c @ '1'..='4') => self.set_tab(c as usize - '1' as usize),
+            KeyCode::Char(c @ '1'..='5') => self.set_tab(c as usize - '1' as usize),
             KeyCode::Char('r') => self.refresh(),
+            KeyCode::Char('s') => self.toggle_stamp(),
+            KeyCode::Char('S') => self.begin_discard(),
             _ => match self.tab {
                 Tab::Day => match self.day_view {
                     DayView::Day => self.on_day_key(key),
@@ -63,6 +66,7 @@ impl App {
                 Tab::Activities => self.on_activities_key(key),
                 Tab::Year => self.on_year_key(key),
                 Tab::Report => self.on_report_key(key),
+                Tab::Charts => self.on_charts_key(key),
             },
         }
     }
@@ -82,6 +86,9 @@ impl App {
 
     pub(crate) fn set_tab(&mut self, index: usize) {
         self.tab = Tab::ALL[index];
+        if self.tab == Tab::Charts && self.chart_records.is_none() {
+            self.load_charts();
+        }
     }
 
     pub(crate) fn refresh(&self) {
@@ -91,6 +98,7 @@ impl App {
             Tab::Activities => self.load_activities(),
             Tab::Year => self.load_year(),
             Tab::Report => self.load_report(),
+            Tab::Charts => self.load_charts(),
         }
     }
 }

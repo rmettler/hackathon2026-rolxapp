@@ -21,6 +21,12 @@ pub(crate) fn parse_clock(s: &str) -> Option<i32> {
         .then_some((h * 60 + m) * 60)
 }
 
+/// Formats a running time as `h:mm:ss`, never negative.
+pub fn fmt_hms(d: Duration) -> String {
+    let secs = d.num_seconds().max(0);
+    format!("{}:{:02}:{:02}", secs / 3600, secs % 3600 / 60, secs % 60)
+}
+
 /// Formats seconds since midnight as `HH:MM`.
 pub fn fmt_clock(secs: i64) -> String {
     format!("{:02}:{:02}", secs / 3600, secs % 3600 / 60)
@@ -45,6 +51,13 @@ pub fn parse_duration(s: &str) -> Option<Duration> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn formats_running_time_with_seconds() {
+        assert_eq!(fmt_hms(Duration::seconds(5025)), "1:23:45");
+        assert_eq!(fmt_hms(Duration::seconds(59)), "0:00:59");
+        assert_eq!(fmt_hms(Duration::seconds(-5)), "0:00:00");
+    }
 
     #[test]
     fn week_starts_on_monday() {
