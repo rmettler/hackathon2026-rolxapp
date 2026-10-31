@@ -33,9 +33,9 @@ use settings::{Settings, WindowGeometry};
 /// Desktop-only styles, on top of `rolx_ui::CSS` (which starts with the design tokens).
 const CSS: &str = include_str!("app.css");
 
-// Window defaults (logical pixels), used until a position and size were saved. The position is
-// measured from the top-left corner of the primary screen, so the window always opens on it.
-const WINDOW_SIZE: (f64, f64) = (900.0, 760.0);
+// Window defaults (logical pixels), used when no position and size were saved: the first start
+// opens maximized. The position is measured from the top-left corner of the primary screen.
+const WINDOW_SIZE: (f64, f64) = (1280.0, 800.0);
 const WINDOW_MIN_SIZE: (f64, f64) = (480.0, 400.0);
 const WINDOW_POSITION: (f64, f64) = (60.0, 40.0);
 
@@ -45,12 +45,14 @@ fn main() {
     rolx_core::logging::init(0);
     let settings = Settings::load();
     let icon = WindowIcon::from_rgba(icon::rgba(ICON_SIZE), ICON_SIZE, ICON_SIZE).ok();
+    let saved_window = settings.window.is_some();
     let window = WindowBuilder::new()
         .with_title("RolX")
         .with_window_icon(icon)
         .with_inner_size(LogicalSize::new(WINDOW_SIZE.0, WINDOW_SIZE.1))
         .with_min_inner_size(LogicalSize::new(WINDOW_MIN_SIZE.0, WINDOW_MIN_SIZE.1))
-        .with_position(LogicalPosition::new(WINDOW_POSITION.0, WINDOW_POSITION.1));
+        .with_position(LogicalPosition::new(WINDOW_POSITION.0, WINDOW_POSITION.1))
+        .with_maximized(!saved_window);
     let close = if settings.close_to_tray {
         WindowCloseBehaviour::WindowHides
     } else {
@@ -523,8 +525,12 @@ fn App() -> Element {
             if let Some(text) = info() {
                 p { class: "status-line", role: "status", "{text}" }
             }
-            StampPanel { selected, away, on_favourite, on_reload }
-            {content}
+            div { class: "layout",
+                aside { class: "side",
+                    StampPanel { selected, away, on_favourite, on_reload }
+                }
+                div { class: "work", {content} }
+            }
             if palette_open() {
                 Palette {
                     open: palette_open,
