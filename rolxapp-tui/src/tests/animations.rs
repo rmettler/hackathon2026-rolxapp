@@ -91,6 +91,18 @@ fn the_chart_is_drawn_in_when_shown_and_again_for_another_month() {
 }
 
 #[test]
+fn switching_to_the_pie_draws_the_chart_in_again() {
+    let mut animations = Animations::new(true);
+    let mut app = charts_app();
+    finish(&mut animations, &app);
+
+    press(&mut app, "p");
+    animations.observe(&app, SCREEN);
+
+    assert!(animations.running());
+}
+
+#[test]
 fn moving_the_selection_does_not_restart_the_chart() {
     let mut animations = Animations::new(true);
     let mut app = charts_app();

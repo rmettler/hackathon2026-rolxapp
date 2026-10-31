@@ -45,7 +45,7 @@ pub(super) fn help_text(app: &App) -> &'static str {
             Tab::Year => "j/k scroll   h/l year   C-d/C-u page   gg/G ends   q quit",
             Tab::Report => "j/k scroll   h/l month   C-d/C-u page   gg/G ends   q quit",
             Tab::Charts => {
-                "j/k activity   h/l month   t this month   m daily/total   r reload   q quit"
+                "j/k activity   h/l month   t this month   m daily/total   p pie/line   r reload   q quit"
             }
         }
     }

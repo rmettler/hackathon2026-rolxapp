@@ -2,8 +2,9 @@ use chrono::NaiveDate;
 use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 
 use super::week::week_app;
-use crate::app::{App, ChartMeasure, Msg, Tab};
+use crate::app::{App, ChartMeasure, ChartView, Msg, Tab};
 use crate::test_support::*;
+use crate::ui::theme::PALETTE;
 
 /// October 2026 with P1-A1 (1:30) and P1-B (1:00) booked, on the Charts tab.
 pub(super) fn charts_app() -> App {
@@ -120,6 +121,105 @@ fn the_legend_sits_in_the_top_left_of_the_chart() {
         "left half, was column {column}"
     );
     assert!(row < 10, "top half, was row {row}");
+}
+
+fn has_fg(app: &App, color: ratatui::style::Color) -> bool {
+    render_buffer(app)
+        .content()
+        .iter()
+        .any(|c| c.fg == color && c.symbol() != " ")
+}
+
+#[test]
+fn p_switches_between_the_line_chart_and_the_pie() {
+    let mut app = charts_app();
+    assert_eq!(app.chart_view, ChartView::Line);
+
+    press(&mut app, "p");
+
+    assert_eq!(app.chart_view, ChartView::Pie);
+    assert!(render(&app).contains("Pie chart"));
+    assert!(!has_braille_in_colour(&app, ratatui::style::Color::Gray));
+    press(&mut app, "p");
+    assert_eq!(app.chart_view, ChartView::Line);
+    assert!(!render(&app).contains("Pie chart"));
+}
+
+fn has_braille_in_colour(app: &App, color: ratatui::style::Color) -> bool {
+    render_buffer(app).content().iter().any(|c| {
+        c.fg == color
+            && c.symbol()
+                .chars()
+                .any(|ch| ('\u{2800}'..='\u{28FF}').contains(&ch))
+    })
+}
+
+#[test]
+fn the_pie_is_drawn_in_the_palette_colours_biggest_slice_first() {
+    let mut app = charts_app();
+    press(&mut app, "p");
+
+    assert!(has_braille_in_colour(&app, PALETTE[0]));
+    assert!(has_braille_in_colour(&app, PALETTE[1]));
+    assert!(
+        !has_braille_in_colour(&app, PALETTE[2]),
+        "only two activities"
+    );
+}
+
+#[test]
+fn the_list_is_the_legend_with_colour_and_percentage() {
+    let mut app = charts_app();
+    press(&mut app, "p");
+
+    let out = render(&app);
+
+    assert!(out.contains("60%"), "P1-A1 has 1:30 of 2:30");
+    assert!(out.contains("40%"), "P1-B has 1:00 of 2:30");
+    assert!(out.contains("■"));
+    assert!(has_fg(&app, PALETTE[0]));
+}
+
+#[test]
+fn the_selected_activity_is_named_above_the_pie() {
+    let mut app = charts_app();
+    press(&mut app, "p");
+    assert!(render(&app).contains("All activities · 2:30"));
+
+    press(&mut app, "j");
+
+    let out = render(&app);
+    assert!(out.contains("P1-A1 Code review · 1:30 · 60%"));
+    assert!(!out.contains("All activities · 2:30"));
+}
+
+#[test]
+fn m_does_nothing_while_the_pie_is_shown() {
+    let mut app = charts_app();
+    press(&mut app, "p");
+
+    press(&mut app, "m");
+
+    assert_eq!(app.chart_measure, ChartMeasure::RunningTotal);
+}
+
+#[test]
+fn a_month_without_booked_time_shows_the_message_in_pie_mode_too() {
+    let mut app = charts_app();
+    press(&mut app, "p");
+    app.chart_records = Some(Vec::new());
+
+    assert!(render(&app).contains("No time booked in this month."));
+}
+
+#[test]
+fn the_pie_view_survives_changing_the_month() {
+    let mut app = charts_app();
+    press(&mut app, "p");
+
+    press(&mut app, "h");
+
+    assert_eq!(app.chart_view, ChartView::Pie);
 }
 
 #[test]

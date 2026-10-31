@@ -9,6 +9,49 @@ use rolx_core::api::records::Record;
 /// The server's `DayType.Workday`.
 const WORKDAY: i32 = 0;
 
+/// Which chart the right panel of the Charts tab shows.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ChartView {
+    Line,
+    Pie,
+}
+
+/// Activities beyond this many biggest ones are combined into one slice.
+const MAX_SLICES: usize = 8;
+
+/// How much of the radius a slice keeps while another one is highlighted.
+const DIMMED_RADIUS: f64 = 0.88;
+
+/// One slice of the pie: an activity's share of the month's booked time.
+pub struct Slice {
+    /// `None` for the combined "Other" slice.
+    pub activity_id: Option<i32>,
+    /// "Other" for the combined slice.
+    pub number: String,
+    pub total: Duration,
+    pub share: f64,
+}
+
+/// The slice at `(x, y)` of a unit pie starting at 12 o'clock, going clockwise.
+/// While `selected` is set, the other slices are drawn smaller.
+pub fn slice_at(slices: &[Slice], x: f64, y: f64, selected: Option<usize>) -> Option<usize> {
+    let angle = x.atan2(y).rem_euclid(std::f64::consts::TAU) / std::f64::consts::TAU;
+    let mut end = 0.0;
+    for (i, slice) in slices.iter().enumerate() {
+        end += slice.share;
+        // The last slice also takes what rounding leaves over.
+        if angle < end || i + 1 == slices.len() {
+            let radius = if selected.is_some_and(|s| s != i) {
+                DIMMED_RADIUS
+            } else {
+                1.0
+            };
+            return (x.hypot(y) <= radius).then_some(i);
+        }
+    }
+    None
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ChartMeasure {
     RunningTotal,
@@ -154,6 +197,41 @@ impl MonthChart {
         self.expected.iter().any(|d| *d > Duration::zero())
     }
 
+    /// The biggest activities by booked time, the rest combined as "Other" when there are many.
+    pub fn slices(&self) -> Vec<Slice> {
+        let total = self.series[0].total;
+        if total <= Duration::zero() {
+            return Vec::new();
+        }
+        let share = |d: Duration| d.num_seconds() as f64 / total.num_seconds() as f64;
+        let activities = &self.series[1..];
+        let mut slices: Vec<Slice> = activities
+            .iter()
+            .take(MAX_SLICES)
+            .map(|s| Slice {
+                activity_id: s.activity_id,
+                number: s.number.clone(),
+                total: s.total,
+                share: share(s.total),
+            })
+            .collect();
+        if activities.len() > MAX_SLICES {
+            let rest: Duration = activities[MAX_SLICES..].iter().map(|s| s.total).sum();
+            slices.push(Slice {
+                activity_id: None,
+                number: "Other".into(),
+                total: rest,
+                share: share(rest),
+            });
+        }
+        slices
+    }
+
+    /// The slice an entry of the activity list stands for; "All activities" has none.
+    pub fn slice_of_row(&self, row: usize) -> Option<usize> {
+        (row > 0).then(|| (row - 1).min(MAX_SLICES))
+    }
+
     /// `(day of month, hours)` of the target for every day of the month.
     pub fn target_points(&self, measure: ChartMeasure) -> Vec<(f64, f64)> {
         let hours = |d: Duration| d.num_seconds() as f64 / 3600.0;
@@ -223,7 +301,15 @@ impl App {
             KeyCode::Char('t') => self.move_chart_month(Local::now().date_naive()),
             KeyCode::Up | KeyCode::Char('k') => self.scroll(-1),
             KeyCode::Down | KeyCode::Char('j') => self.scroll(1),
-            KeyCode::Char('m') => self.chart_measure = self.chart_measure.toggle(),
+            KeyCode::Char('m') if self.chart_view == ChartView::Line => {
+                self.chart_measure = self.chart_measure.toggle();
+            }
+            KeyCode::Char('p') => {
+                self.chart_view = match self.chart_view {
+                    ChartView::Line => ChartView::Pie,
+                    ChartView::Pie => ChartView::Line,
+                };
+            }
             _ => {}
         }
     }
@@ -467,6 +553,99 @@ mod tests {
         let chart = MonthChart::build(date(2026, 10, 1), &records, date(2026, 11, 5));
 
         assert!(!chart.has_target());
+    }
+
+    /// A month where activity `n` has `n` hours booked on the 1st, for `count` activities.
+    fn many_activities(count: i32) -> MonthChart {
+        let entries = (1..=count)
+            .map(|n| entry(n, &format!("P{n}"), i64::from(n) * 60))
+            .collect();
+        MonthChart::build(
+            date(2026, 10, 1),
+            &[record("2026-10-01", entries)],
+            date(2026, 11, 5),
+        )
+    }
+
+    #[test]
+    fn the_pie_has_a_slice_per_activity_biggest_first() {
+        let slices = many_activities(3).slices();
+
+        let numbers: Vec<&str> = slices.iter().map(|s| s.number.as_str()).collect();
+        assert_eq!(numbers, ["P3", "P2", "P1"]);
+        assert!((slices[0].share - 0.5).abs() < 1e-9, "3 of 6 hours");
+    }
+
+    #[test]
+    fn activities_beyond_the_eighth_are_combined_into_other() {
+        let slices = many_activities(10).slices();
+
+        assert_eq!(slices.len(), 9);
+        let other = slices.last().unwrap();
+        assert_eq!(other.number, "Other");
+        assert_eq!(other.total, Duration::hours(3), "P2 and P1");
+        let sum: f64 = slices.iter().map(|s| s.share).sum();
+        assert!((sum - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn eight_activities_need_no_other_slice() {
+        let slices = many_activities(8).slices();
+
+        assert_eq!(slices.len(), 8);
+        assert!(slices.iter().all(|s| s.number != "Other"));
+    }
+
+    #[test]
+    fn a_month_without_booked_time_has_no_slices() {
+        let chart = MonthChart::build(date(2026, 10, 1), &[], date(2026, 11, 5));
+
+        assert!(chart.slices().is_empty());
+    }
+
+    #[test]
+    fn list_rows_map_to_slices_and_all_activities_has_none() {
+        let chart = many_activities(10);
+
+        assert_eq!(chart.slice_of_row(0), None);
+        assert_eq!(chart.slice_of_row(1), Some(0));
+        assert_eq!(chart.slice_of_row(8), Some(7));
+        assert_eq!(chart.slice_of_row(9), Some(8), "the first folded activity");
+        assert_eq!(chart.slice_of_row(10), Some(8), "and the rest");
+    }
+
+    fn halves() -> Vec<Slice> {
+        let slice = |number: &str| Slice {
+            activity_id: Some(1),
+            number: number.into(),
+            total: Duration::hours(1),
+            share: 0.5,
+        };
+        vec![slice("A"), slice("B")]
+    }
+
+    #[test]
+    fn the_pie_starts_at_twelve_and_goes_clockwise() {
+        let slices = halves();
+
+        assert_eq!(slice_at(&slices, 0.0, 0.5, None), Some(0), "12 o'clock");
+        assert_eq!(slice_at(&slices, 0.5, 0.0, None), Some(0), "3 o'clock");
+        assert_eq!(slice_at(&slices, 0.0, -0.5, None), Some(1), "6 o'clock");
+        assert_eq!(slice_at(&slices, -0.5, 0.0, None), Some(1), "9 o'clock");
+    }
+
+    #[test]
+    fn nothing_is_drawn_outside_the_circle() {
+        assert_eq!(slice_at(&halves(), 0.8, 0.8, None), None);
+    }
+
+    #[test]
+    fn the_other_slices_shrink_while_one_is_highlighted() {
+        let slices = halves();
+
+        assert_eq!(slice_at(&slices, 0.0, 0.95, Some(0)), Some(0));
+        assert_eq!(slice_at(&slices, 0.0, -0.95, Some(0)), None);
+        assert_eq!(slice_at(&slices, 0.0, -0.95, None), Some(1));
     }
 
     #[test]

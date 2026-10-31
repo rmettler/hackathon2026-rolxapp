@@ -8,7 +8,7 @@ use ratatui::layout::Rect;
 use ratatui::style::Color;
 use tachyonfx::{EffectManager, Interpolation, fx};
 
-use crate::app::{App, ChartMeasure};
+use crate::app::{App, ChartMeasure, ChartView};
 use crate::ui::{self, OverlayKind};
 
 const POPUP_MS: u32 = 120;
@@ -26,7 +26,7 @@ pub struct Animations {
     effects: EffectManager<Slot>,
     enabled: bool,
     overlay: Option<OverlayKind>,
-    chart: Option<(NaiveDate, ChartMeasure)>,
+    chart: Option<(NaiveDate, ChartMeasure, ChartView)>,
     last_frame: Option<Instant>,
 }
 
@@ -67,7 +67,7 @@ impl Animations {
         }
 
         let panel = ui::chart_area(app, area);
-        let key = panel.map(|_| (app.chart_month, app.chart_measure));
+        let key = panel.map(|_| (app.chart_month, app.chart_measure, app.chart_view));
         if key != self.chart {
             if let Some(panel) = panel {
                 let effect = fx::coalesce((CHART_MS, Interpolation::QuadOut)).with_area(panel);

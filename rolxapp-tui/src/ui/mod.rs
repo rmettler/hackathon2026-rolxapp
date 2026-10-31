@@ -6,7 +6,7 @@ mod edit;
 mod footer;
 mod outbox;
 mod report;
-mod theme;
+pub(crate) mod theme;
 mod week;
 mod year;
 

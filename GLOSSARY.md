@@ -12,6 +12,13 @@ _Avoid_: Worked time
 A line chart of the booked time on one activity over the days of one month. The chart of all activities also shows the target time.
 _Avoid_: Graph, plot
 
+**Pie chart**:
+A chart of the share each activity has in the booked time of one month. Small activities are combined into one "Other" slice.
+_Avoid_: Breakdown, distribution
+
+**Share**:
+The part of a month's booked time that falls on one activity.
+
 **Daily hours**:
 The measure of a chart that shows the booked time of each day.
 

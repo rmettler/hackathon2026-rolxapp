@@ -14,7 +14,7 @@ mod week;
 mod week_grid;
 
 pub use absence::{Absence, absence_of, leave_time};
-pub use chart::ChartMeasure;
+pub use chart::{ChartMeasure, ChartView, MonthChart, slice_at};
 pub use msg::{Msg, Screen};
 pub use offline::Load;
 #[cfg(test)]
@@ -83,6 +83,7 @@ pub struct App {
     /// Activity to reselect once the next month has loaded.
     pub chart_keep: Option<i32>,
     pub chart_measure: ChartMeasure,
+    pub chart_view: ChartView,
     /// Start of the running stamp, if any.
     pub stamp: Option<DateTime<Local>>,
     /// Where the running stamp is kept; `None` keeps it in memory only.
@@ -155,6 +156,7 @@ impl App {
             chart_sel: 0,
             chart_keep: None,
             chart_measure: ChartMeasure::RunningTotal,
+            chart_view: ChartView::Line,
             stamp: None,
             stamp_store: None,
             stamp_session: None,
