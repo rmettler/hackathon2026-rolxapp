@@ -119,6 +119,8 @@ body {
 
 .slide > .heading { position: absolute; left: var(--margin); top: 96px; }
 
+.slide[data-id='rust'] > .heading { color: var(--brand); }
+
 /* The open questions of the Rust slide: one per line, large, with a hairline between them. */
 .questions {
   position: absolute;
