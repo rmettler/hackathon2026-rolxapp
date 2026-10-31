@@ -8,12 +8,13 @@ use std::path::PathBuf;
 use anyhow::{Context, anyhow, bail};
 use jni::JNIEnv;
 use jni::JavaVM;
-use jni::objects::{JObject, JString, JValue};
+use jni::objects::{JClass, JObject, JString, JValue};
 
-// Bundles the Gradle module with the launcher icon (`@mipmap/ic_rolx`, set in `AndroidManifest.xml`) and the
-// notification icon: dx 0.7 has no icon setting for Android and overwrites its default `ic_launcher`, but adds the
-// modules of FFI plugins to the app.
-#[manganis::ffi("android/launcher-icon")]
+// Bundles the Gradle module with what dx 0.7 can't generate: the launcher icon (`@mipmap/ic_rolx`, set in
+// `AndroidManifest.xml`; dx has no icon setting for Android and overwrites its default `ic_launcher`), the notification
+// icon, and the Kotlin parts (widget, background upload, app lock; see `bridge.rs`). dx adds the modules of FFI plugins
+// to the app.
+#[manganis::ffi("android/plugin")]
 extern "Kotlin" {}
 
 /// Local references a call may hold at once; the frame frees them all when the call returns.
@@ -24,7 +25,7 @@ const STAMP_NOTIFICATION_ID: i32 = 1;
 const STAMP_CHANNEL_ID: &str = "stamp";
 const STAMP_CHANNEL_NAME: &str = "Stamped in";
 const STAMP_CHANNEL_DESCRIPTION: &str = "Shows the running session while you are stamped in";
-/// Drawable in the `launcher-icon` module, looked up by name since there is no generated `R` class to refer to.
+/// Drawable in the `plugin` module, looked up by name since there is no generated `R` class to refer to.
 const NOTIFICATION_ICON: &str = "ic_rolx_notification";
 const POST_NOTIFICATIONS: &str = "android.permission.POST_NOTIFICATIONS";
 /// Request code of the permission request; nothing listens for the result, the app polls the permission instead.
@@ -43,16 +44,54 @@ const DEFAULT_AMPLITUDE: i32 = -1;
 
 const BUILDER: &str = "android/app/Notification$Builder";
 
+/// The VM and context of a call from Kotlin that runs without the activity (the widget, the background upload), set
+/// by `with_context`. `ndk_context` has no activity then, and asking it would panic.
+mod context {
+    #![allow(
+        clippy::missing_const_for_thread_local,
+        reason = "false positive: the initializer is `const` already"
+    )]
+    use std::cell::Cell;
+
+    thread_local! {
+        pub static CONTEXT: Cell<Option<(*mut jni::sys::JavaVM, jni::sys::jobject)>> = const { Cell::new(None) };
+    }
+}
+use context::CONTEXT;
+
+/// Runs `f` with `context` (e.g. the application context passed in from Kotlin) standing in for the activity in the
+/// calls made on this thread meanwhile. Only for calls that need a plain `Context`, not an `Activity`.
+pub fn with_context<T>(env: &JNIEnv, context: &JObject, f: impl FnOnce() -> T) -> T {
+    /// Puts the previous context back, also when `f` panics.
+    struct Restore(Option<(*mut jni::sys::JavaVM, jni::sys::jobject)>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            CONTEXT.set(self.0);
+        }
+    }
+    let vm = env.get_java_vm().map(|vm| vm.get_java_vm_pointer());
+    let _restore = Restore(CONTEXT.get());
+    if let Ok(vm) = vm {
+        CONTEXT.set(Some((vm, context.as_raw())));
+    }
+    f()
+}
+
 /// Runs `f` with the JNI env of the current thread (attached if needed) and the app's activity, in a local reference
 /// frame that frees the references `f` creates. A Java exception thrown meanwhile is cleared and returned as error.
-fn with_activity<T>(
+/// Within [`with_context`], `f` gets that context instead of the activity.
+pub(crate) fn with_activity<T>(
     f: impl FnOnce(&mut JNIEnv, &JObject) -> anyhow::Result<T>,
 ) -> anyhow::Result<T> {
-    let ctx = ndk_context::android_context();
-    // SAFETY: ndk-context holds the VM and the activity for the whole app lifetime.
-    let vm = unsafe { JavaVM::from_raw(ctx.vm().cast()) }?;
+    let (vm, ctx) = CONTEXT.get().unwrap_or_else(|| {
+        let ctx = ndk_context::android_context();
+        (ctx.vm().cast(), ctx.context().cast())
+    });
+    // SAFETY: ndk-context holds the VM and the activity for the whole app lifetime; a context from `with_context` is
+    // a reference of the Kotlin call that is still running on this thread.
+    let vm = unsafe { JavaVM::from_raw(vm) }?;
     let mut env = vm.attach_current_thread()?;
-    let activity = unsafe { JObject::from_raw(ctx.context().cast()) };
+    let activity = unsafe { JObject::from_raw(ctx) };
 
     env.with_local_frame(LOCAL_FRAME, |env| {
         let result = f(env, &activity);
@@ -85,6 +124,28 @@ fn to_string(env: &mut JNIEnv, obj: &JObject) -> anyhow::Result<String> {
         .call_method(obj, "toString", "()Ljava/lang/String;", &[])?
         .l()?;
     Ok(env.get_string(&JString::from(text))?.into())
+}
+
+/// Loads a class of the app, e.g. of the `plugin` module, through `ctx`'s class loader: `FindClass` on a thread Rust
+/// attached only finds the system's classes.
+pub(crate) fn app_class<'local>(
+    env: &mut JNIEnv<'local>,
+    ctx: &JObject,
+    name: &str,
+) -> anyhow::Result<JClass<'local>> {
+    let loader = env
+        .call_method(ctx, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?
+        .l()?;
+    let name = env.new_string(name)?;
+    let class = env
+        .call_method(
+            &loader,
+            "loadClass",
+            "(Ljava/lang/String;)Ljava/lang/Class;",
+            &[JValue::Object(&name)],
+        )?
+        .l()?;
+    Ok(JClass::from(class))
 }
 
 /// `Build.VERSION.SDK_INT`, the API level of the device.

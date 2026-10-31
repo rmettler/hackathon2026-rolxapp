@@ -158,14 +158,14 @@ secrets: share it within the team only.
 ### Native features
 
 `rolx-mobile/src/native.rs` adds what a phone app needs beyond the web view; the JNI calls are in
-`src/android.rs` (no Kotlin or Java), and on other targets everything is a no-op:
+`src/android.rs`, and on other targets everything is a no-op:
 
 - **Stamped-in notification.** `use_native_stamp_sync(app.stamp_state)` (called once in the root
   component) keeps an ongoing, silent notification in line with the stamp state: "Stamped in since
   08:12" with the activity and a timer the system keeps running without the app; "On break since …"
   without a timer; removed when stamped out. It also runs at start, so it is back after the app was
   killed. Tapping it opens the app. Channel "Stamped in" (low importance), icon
-  `ic_rolx_notification` in the `launcher-icon` module.
+  `ic_rolx_notification` in the `plugin` module.
 - **Notification permission** (Android 13+, `POST_NOTIFICATIONS`): asked once per app start, at the
   first stamp-in (or at start when stamped in). Without it nothing is posted; once granted (within
   two minutes) the notification appears within a second.
@@ -185,6 +185,45 @@ adb shell pm clear-permission-flags ch.cudos.RolxMobile android.permission.POST_
 
 Android 14+ lets the user swipe an ongoing notification away; it comes back with the next stamp
 action or app start. A force-stop removes it too, until the app is started again.
+
+### Widget, background upload and app lock (Kotlin)
+
+What runs without the app's window is written in Kotlin, in the Gradle module `rolx-mobile/android/plugin` (dx adds it
+to the app as an FFI plugin, see `src/android.rs`; it also holds the icons). The Kotlin code calls into the Rust library
+through `RolxNative` (`System.loadLibrary("main")`, so it works in a process the app was never started in), whose native
+methods are the `Java_…` functions in `src/bridge.rs`; they take the context from Kotlin instead of the activity and
+answer with JSON. The app calls out to Kotlin through `src/plugin.rs` (no-ops off Android). Release builds keep the
+module's classes with `consumer-rules.pro`, as R8 cannot see the JNI calls.
+
+- **Home-screen widget** (`StampWidget.kt`, layout `res/layout/widget_stamp.xml`): "Stamped in since 08:12", a timer the
+  launcher keeps running, the activity, and a button that stamps in or out like the desktop hotkey (in on the activity
+  used last, else without one). The content comes from `src/widget.rs`. The button (`StampWidgetToggle`, not
+  exported) also updates the notification and schedules the upload (no vibration: Android ignores it from an app in the
+  background). A forgotten session (12 hours) is never
+  closed from the widget: the button opens the app instead. The app redraws the widgets on every stamp change.
+- **Background upload** (`BackgroundUpload.kt`, WorkManager): after a stamp change that leaves more to upload, the
+  queue is uploaded once there is a network, also when the app is closed by then; an hourly job is the safety net.
+  Android picks the exact time (battery saving). Uploads in the app and in the background take turns
+  (`rolx_core::sync`), so nothing is sent twice. Without a valid login the worker posts a quiet notification ("Log in to
+  upload 3 entries", channel "Uploads"), removed after the next successful upload.
+- **App lock** (`AppLock.kt`, `src/app_lock.rs`, androidx.biometric): off by default, turned on in the settings after
+  one successful prompt. Then the app asks for the fingerprint, face or screen lock at start and after more than a minute
+  in the background, and shows only a lock screen until then. It guards the window only: the widget and the background
+  upload keep working, as the session is not encrypted with it.
+
+To check them on an emulator:
+
+```sh
+adb shell am broadcast -a android.appwidget.action.APPWIDGET_UPDATE -n ch.cudos.RolxMobile/ch.cudos.rolxmobile.plugin.StampWidget   # redraw
+adb shell dumpsys jobscheduler | grep -A6 ch.cudos.RolxMobile        # the WorkManager jobs and their constraints
+adb shell cmd connectivity airplane-mode enable                     # stamp offline, kill the app, then disable:
+adb shell am force-stop ch.cudos.RolxMobile                         #   the upload runs once the network is back
+adb logcat -s RolxWidget RolxUpload RolxLock WM-WorkerWrapper        # the Kotlin side's log
+adb -e emu finger touch 1                                            # emulator: a fingerprint enrolled as finger 1
+```
+
+Add the widget with a long press on the home screen, *Widgets*, *RolX stamp*. For the app lock the emulator needs a
+screen lock (*Settings > Security*) and, for the fingerprint, an enrolled finger (*Touch* it with `emu finger touch`).
 
 ### Troubleshooting
 

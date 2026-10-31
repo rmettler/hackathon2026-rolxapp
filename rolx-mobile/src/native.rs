@@ -59,7 +59,7 @@ pub fn stamp_notification(
 }
 
 /// `08:12`, with the weekday if it was not today (a forgotten stamp-out).
-fn time_label(at: NaiveDateTime, now: NaiveDateTime) -> String {
+pub(crate) fn time_label(at: NaiveDateTime, now: NaiveDateTime) -> String {
     if at.date() == now.date() {
         at.format("%H:%M").to_string()
     } else {
@@ -68,7 +68,7 @@ fn time_label(at: NaiveDateTime, now: NaiveDateTime) -> String {
 }
 
 /// The activity's full number and name if it is in `activities`, else the number alone.
-fn activity_label(id: i32, number: &str, activities: &[Activity]) -> String {
+pub(crate) fn activity_label(id: i32, number: &str, activities: &[Activity]) -> String {
     match activities.iter().find(|a| a.id == id) {
         Some(a) => a.label(),
         None if number.is_empty() => format!("activity {id}"),

@@ -72,8 +72,13 @@ async fn push_day(
     Ok(())
 }
 
+/// Held during an upload, so uploads started side by side in one process (the app and a background job) run one
+/// after the other: the second then finds the entries gone from the queue instead of sending them again.
+static UPLOAD_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 /// Uploads all queued entries that have an activity. Entries of days that fail stay queued.
 pub async fn run(client: &RolxClient, state_path: &Path) -> anyhow::Result<SyncReport> {
+    let _guard = UPLOAD_LOCK.lock().await;
     let snapshot = StampState::load_from(state_path)?;
     let mut report = SyncReport::default();
 
@@ -99,9 +104,10 @@ pub async fn run(client: &RolxClient, state_path: &Path) -> anyhow::Result<SyncR
 
     if !uploaded.is_empty() {
         // Reload: the user may have stamped while the upload was running.
-        let mut current = StampState::load_from(state_path)?;
-        current.pending.retain(|e| !uploaded.contains(&e));
-        current.save_to(state_path)?;
+        StampState::update_at(state_path, |current| {
+            current.pending.retain(|e| !uploaded.contains(&e));
+            Ok(())
+        })?;
     }
     Ok(report)
 }

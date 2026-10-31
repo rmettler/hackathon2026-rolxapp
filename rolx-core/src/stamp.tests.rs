@@ -330,3 +330,74 @@ fn missing_file_loads_as_empty_state() {
     let path = std::env::temp_dir().join("rolx-stamp-test-does-not-exist.json");
     assert_eq!(StampState::load_from(&path).unwrap(), StampState::default());
 }
+
+#[test]
+fn toggle_stamps_out_when_stamped_in() {
+    let mut s = StampState::default();
+    s.stamp_in(at(30, 9, 0, 0), Some(act(1)), None);
+    let toggled = s.toggle(at(30, 10, 0, 0), |_| panic!("no lookup when stamping out"));
+    assert_eq!(toggled, Ok(Toggled::StampedOut));
+    assert!(s.open.is_none());
+    assert_eq!(s.uploadable_count(), 1);
+}
+
+#[test]
+fn toggle_stamps_in_with_the_activity_used_last() {
+    let mut s = StampState::default();
+    s.stamp_in(at(29, 9, 0, 0), Some(act(1)), None);
+    s.stamp_in(at(29, 10, 0, 0), Some(act(2)), None);
+    s.stamp_out(at(29, 11, 0, 0)).unwrap();
+
+    let toggled = s.toggle(at(30, 8, 0, 0), |id| Some(act(id)));
+    assert_eq!(toggled, Ok(Toggled::StampedIn));
+    assert_eq!(s.open.as_ref().unwrap().activity, Some(act(2)));
+}
+
+#[test]
+fn toggle_stamps_in_without_activity_when_it_is_unknown() {
+    let mut s = StampState::default();
+    assert_eq!(
+        s.toggle(at(30, 8, 0, 0), |id| Some(act(id))),
+        Ok(Toggled::StampedIn)
+    );
+    assert_eq!(s.open.as_ref().unwrap().activity, None);
+
+    // Used before, but no longer in the activity list.
+    let mut s = StampState::default();
+    s.stamp_in(at(29, 9, 0, 0), Some(act(1)), None);
+    s.stamp_out(at(29, 10, 0, 0)).unwrap();
+    s.toggle(at(30, 8, 0, 0), |_| None).unwrap();
+    assert_eq!(s.open.as_ref().unwrap().activity, None);
+}
+
+#[test]
+fn uploadable_count_skips_unassigned_entries() {
+    let mut s = StampState::default();
+    s.stamp_in(at(30, 8, 0, 0), None, None);
+    s.stamp_in(at(30, 9, 0, 0), Some(act(1)), None);
+    s.stamp_out(at(30, 10, 0, 0)).unwrap();
+    assert_eq!((s.uploadable_count(), s.unassigned_count()), (1, 1));
+}
+
+#[test]
+fn update_at_saves_only_when_the_change_succeeds() {
+    let path = std::env::temp_dir().join(format!(
+        "rolx-stamp-update-test-{}.json",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_file(&path);
+
+    let (state, toggled) =
+        StampState::update_at(&path, |s| Ok(s.toggle(at(30, 8, 0, 0), |_| None)?)).unwrap();
+    assert_eq!(toggled, Toggled::StampedIn);
+    assert_eq!(StampState::load_from(&path).unwrap(), state);
+
+    let failed = StampState::update_at(&path, |s| -> anyhow::Result<()> {
+        s.discard_open();
+        anyhow::bail!("rejected")
+    });
+    assert!(failed.is_err());
+    assert!(StampState::load_from(&path).unwrap().open.is_some());
+
+    std::fs::remove_file(&path).unwrap();
+}

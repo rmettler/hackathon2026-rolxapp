@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Merged into the app's manifest. WorkManager brings its own entries (scheduler, boot receiver). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- The home-screen widget; exported, as the launcher sends it the updates. -->
+        <receiver
+            android:name="ch.cudos.rolxmobile.plugin.StampWidget"
+            android:exported="true"
+            android:label="@string/stamp_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/stamp_widget_info" />
+        </receiver>
+        <!-- The widget's stamp button; not exported, so other apps cannot stamp. -->
+        <receiver
+            android:name="ch.cudos.rolxmobile.plugin.StampWidgetToggle"
+            android:exported="false" />
+    </application>
+</manifest>

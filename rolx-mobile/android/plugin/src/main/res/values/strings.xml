@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="stamp_widget_label">RolX stamp</string>
+    <string name="stamp_widget_description">The running session with a button to stamp in and out</string>
+    <string name="widget_stamp_in">Stamp in</string>
+    <string name="widget_stamp_out">Stamp out</string>
+</resources>

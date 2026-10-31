@@ -4,6 +4,7 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use chrono::{Duration, NaiveDate, NaiveDateTime, NaiveTime, Timelike};
 use serde::{Deserialize, Serialize};
@@ -94,6 +95,17 @@ pub enum StampError {
     #[error("that time is not within the running session")]
     OutOfRange,
 }
+
+/// What [`StampState::toggle`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Toggled {
+    StampedIn,
+    StampedOut,
+}
+
+/// Held while the stamp file is read, changed and written back ([`StampState::update_at`]), so frontends that run
+/// side by side in one process (the app, its home-screen widget, a background upload) never overwrite each other.
+static FILE_LOCK: Mutex<()> = Mutex::new(());
 
 fn whole_seconds(t: NaiveDateTime) -> NaiveDateTime {
     t.with_nanosecond(0).unwrap_or(t)
@@ -238,6 +250,23 @@ impl StampState {
         Ok(())
     }
 
+    /// Stamps out when stamped in; otherwise stamps in with the activity used last. `lookup` turns an activity id
+    /// into a reference (e.g. from the activity cache); without one the session starts without an activity, to be
+    /// assigned later. Used by the hotkey, the tray and the home-screen widget, which have no activity picker.
+    pub fn toggle(
+        &mut self,
+        now: NaiveDateTime,
+        lookup: impl FnOnce(i32) -> Option<ActivityRef>,
+    ) -> Result<Toggled, StampError> {
+        if self.open.is_some() {
+            self.stamp_out(now)?;
+            return Ok(Toggled::StampedOut);
+        }
+        let activity = self.last_used().and_then(|(id, _)| lookup(id));
+        self.stamp_in(now, activity, None);
+        Ok(Toggled::StampedIn)
+    }
+
     /// The running session, if it has been going for suspiciously long.
     pub fn stale(&self, now: NaiveDateTime) -> Option<StaleStamp> {
         let open = self.open.as_ref()?;
@@ -324,6 +353,11 @@ impl StampState {
         usage.last_used = now;
     }
 
+    /// How many queued entries have an activity, i.e. would be sent by an upload.
+    pub fn uploadable_count(&self) -> usize {
+        self.pending.iter().filter(|e| e.activity.is_some()).count()
+    }
+
     pub fn unassigned_count(&self) -> usize {
         self.pending.iter().filter(|e| e.activity.is_none()).count()
     }
@@ -378,6 +412,27 @@ impl StampState {
 
     pub fn save(&self) -> anyhow::Result<()> {
         self.save_to(&Self::default_path()?)
+    }
+
+    /// Reads the state at `path`, applies `change` and writes it back, unless `change` fails. Holds a process-wide
+    /// lock meanwhile, see [`FILE_LOCK`]. Returns the new state and what `change` returned.
+    pub fn update_at<T>(
+        path: &Path,
+        change: impl FnOnce(&mut StampState) -> anyhow::Result<T>,
+    ) -> anyhow::Result<(StampState, T)> {
+        // A panic while holding the lock leaves the file as it was, so a poisoned lock is still fine to use.
+        let _guard = FILE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut state = Self::load_from(path)?;
+        let result = change(&mut state)?;
+        state.save_to(path)?;
+        Ok((state, result))
+    }
+
+    /// [`update_at`](Self::update_at) the default location.
+    pub fn update<T>(
+        change: impl FnOnce(&mut StampState) -> anyhow::Result<T>,
+    ) -> anyhow::Result<(StampState, T)> {
+        Self::update_at(&Self::default_path()?, change)
     }
 }
 

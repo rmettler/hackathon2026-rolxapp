@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The home-screen widget (StampWidget.kt): 3×1 cells, resizable. The app refreshes it when the stamps change and
+     the timer runs without the app; the 30-minute update only catches a day change in "since Mon 08:12". -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/stamp_widget_description"
+    android:initialLayout="@layout/widget_stamp"
+    android:minWidth="180dp"
+    android:minHeight="40dp"
+    android:minResizeWidth="140dp"
+    android:minResizeHeight="40dp"
+    android:previewLayout="@layout/widget_stamp"
+    android:previewImage="@mipmap/ic_rolx"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="3"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

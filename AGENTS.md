@@ -29,7 +29,10 @@ all in Rust where sensible. Goals and roadmap: `README.md`. Design docs: `docs/`
   back in the foreground, online/offline, swipes). Embeds the config at build time (`build.rs`, passed on with
   `rolx_ui::set_config_source`) and stores session and data files in the app's files dir
   (`rolx_core::paths::set_base_dir`). `build.rs` also embeds the KMR Apparat brand font when the design system
-  checkout (or `ROLX_FONT_DIR`) is there at build time. `android/AndroidManifest.xml` sets a DayNight theme (else the web view is
+  checkout (or `ROLX_FONT_DIR`) is there at build time. The Gradle module `android/plugin` (icons, and in Kotlin the
+  home-screen widget, the WorkManager background upload and the biometric app lock) calls into Rust through
+  `RolxNative`, i.e. the `Java_…` exports in `src/bridge.rs`, which may run without the activity (`ndk_context` is
+  unset then: they pass the context on with `android::with_context`); the app calls out via `src/plugin.rs`. `android/AndroidManifest.xml` sets a DayNight theme (else the web view is
   never dark) and `ACCESS_NETWORK_STATE` (else `navigator.onLine` never changes).
 - `xtask/` — workspace tasks.
 
@@ -112,7 +115,9 @@ endpoints; for request/response shapes read the matching `WebApi/Resource/*.cs` 
 ### Offline-first stamping
 `rolx-core::stamp` records sessions in `<data dir>/rolx/stamps.json` (open session + queue of finished entries)
 without network or login; `rolx-core::sync` uploads the queue per day and is idempotent (entries already on the
-server are skipped). Entries without an activity stay queued until assigned. The activity cache is
+server are skipped). Entries without an activity stay queued until assigned. Change the stamp file with
+`StampState::update` (load, change, save under a process-wide lock): on Android the app, its widget and the
+background upload run in one process; uploads take turns too (`sync::run`). The activity cache is
 `<data dir>/rolx/activities.json`. Never test uploads against a real server; `sync.tests.rs` has a mock server.
 A session open for `STALE_AFTER_HOURS` (12) counts as forgotten (`StampState::stale`); frontends must not close it
 silently at "now" (CLI refuses, the app shows a banner). Day changes that go through `dayedit::save_day_tracked` are

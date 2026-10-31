@@ -1,6 +1,12 @@
 #[cfg(target_os = "android")]
 mod android;
+mod app_lock;
+#[cfg(target_os = "android")]
+mod bridge;
 mod native;
+mod plugin;
+#[cfg(any(target_os = "android", test))]
+mod widget;
 
 use anyhow::bail;
 use chrono::{Duration, Local};
@@ -22,6 +28,7 @@ use rolx_ui::undo::{UndoLine, use_undo};
 use rolx_ui::week_panel::WeekPanel;
 
 mod settings;
+use app_lock::{AppLock, LockScreen, use_app_lock};
 use settings::Settings;
 
 /// Mobile layout on top of `rolx_ui::CSS`.
@@ -31,7 +38,7 @@ const FONTS_CSS: &str = include_str!(concat!(env!("OUT_DIR"), "/fonts.css"));
 /// Opens the app from the browser, linked on the page shown after the Google login. The scheme is registered in
 /// `android/AndroidManifest.xml`.
 const RETURN_URL: &str = "ch.cudos.rolxmobile://login";
-/// Config embedded at build time, see `build.rs`.
+/// Config embedded at build time, see `build.rs`. Also used by `bridge.rs` when Kotlin calls in without the app.
 const CONFIG_TOML: &str = include_str!(concat!(env!("OUT_DIR"), "/config.toml"));
 
 fn main() {
@@ -52,7 +59,7 @@ fn init_storage() {
     }
 }
 
-fn config() -> anyhow::Result<AppConfig> {
+pub(crate) fn config() -> anyhow::Result<AppConfig> {
     if CONFIG_TOML.trim().is_empty() {
         bail!("no RolX config embedded in the app, see docs/dev-setup.md");
     }
@@ -155,13 +162,14 @@ enum Tab {
     Week,
 }
 
-/// Page events the app reacts to: coming back to the foreground, the network, and swipes (to change the day).
+/// Page events the app reacts to: going to the background and coming back, the network, and swipes (to change the
+/// day).
 const PAGE_EVENTS: &str = r#"
 // The UI is English; screen readers pick their voice from this.
 document.documentElement.lang = 'en';
 const send = (m) => dioxus.send(m);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') send('visible');
+  send(document.visibilityState === 'visible' ? 'visible' : 'hidden');
 });
 window.addEventListener('online', () => send('online'));
 window.addEventListener('offline', () => send('offline'));
@@ -211,6 +219,9 @@ fn App() -> Element {
     } = app;
     let undo = use_undo(app);
     native::use_native_stamp_sync(stamp_state);
+    plugin::use_plugin_sync(stamp_state);
+    let lock = use_app_lock();
+    let lock_available = use_hook(plugin::lock_available);
     let mut tab = use_signal(|| Tab::Stamp);
     let mut show_settings = use_signal(|| false);
     let mut confirm_logout = use_signal(|| false);
@@ -268,9 +279,10 @@ fn App() -> Element {
         let mut events = document::eval(PAGE_EVENTS);
         while let Ok(event) = events.recv::<String>().await {
             match event.as_str() {
-                // Back from the background: the stamps may have changed (another app, a file edit), and the day,
-                // the week and the server may have moved on.
+                // Back from the background: the stamps may have changed (the widget, another app, a file edit), and
+                // the day, the week and the server may have moved on.
                 "visible" => {
+                    lock.visible();
                     stamp_state.set(StampState::load().unwrap_or_default());
                     if online() && has_uploads(stamp_state) {
                         stamper.sync(true);
@@ -284,6 +296,7 @@ fn App() -> Element {
                         stamper.sync(true);
                     }
                 }
+                "hidden" => lock.hidden(),
                 "offline" => online.set(false),
                 "next-day" if tab() == Tab::Day => day.set(day() + Duration::days(1)),
                 "previous-day" if tab() == Tab::Day => day.set(day() - Duration::days(1)),
@@ -325,6 +338,15 @@ fn App() -> Element {
         show_settings.set(false);
         refresh += 1;
     };
+
+    if (lock.locked)() {
+        return rsx! {
+            style { "{FONTS_CSS}" }
+            style { "{rolx_ui::CSS}" }
+            style { "{CSS}" }
+            LockScreen { lock }
+        };
+    }
 
     let logged_in = user().is_some();
     let date_label = day().format("%a %d.%m.%Y").to_string();
@@ -468,6 +490,8 @@ fn App() -> Element {
             if show_settings() {
                 SettingsSheet {
                     show_chart,
+                    lock,
+                    lock_available,
                     user: user(),
                     confirm_logout,
                     on_close: move |_| {
@@ -511,6 +535,8 @@ fn net_status(online: Signal<bool>, stamper: Stamper) -> Element {
 #[component]
 fn SettingsSheet(
     mut show_chart: Signal<bool>,
+    lock: AppLock,
+    lock_available: bool,
     user: Option<String>,
     mut confirm_logout: Signal<bool>,
     on_close: EventHandler<()>,
@@ -536,6 +562,23 @@ fn SettingsSheet(
                     checked: show_chart(),
                     onchange: move |e| show_chart.set(e.checked()),
                 }
+            }
+            // Keyed by the refused attempts: a ticked checkbox whose prompt was cancelled is drawn anew, unticked.
+            for refused in [(lock.refused)()] {
+                label { key: "{refused}", class: "setting",
+                    span { "Lock with fingerprint or screen lock" }
+                    input {
+                        r#type: "checkbox",
+                        checked: (lock.enabled)(),
+                        disabled: !lock_available || (lock.prompting)(),
+                        onchange: move |e| lock.set_enabled(e.checked()),
+                    }
+                }
+            }
+            if !lock_available {
+                p { class: "muted", "Set up a fingerprint, face or screen lock on the phone to use the app lock." }
+            } else if let Some(e) = (lock.error)() {
+                p { class: "error", role: "alert", "{e}" }
             }
             div { class: "setting account",
                 if let Some(name) = user {

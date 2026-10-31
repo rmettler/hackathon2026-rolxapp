@@ -8,11 +8,16 @@ const FILE: &str = "mobile.json";
 #[serde(default)]
 pub struct Settings {
     pub show_chart: bool,
+    /// Ask for the fingerprint, face or screen lock when opening the app, see `app_lock.rs`.
+    pub app_lock: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { show_chart: true }
+        Self {
+            show_chart: true,
+            app_lock: false,
+        }
     }
 }
 

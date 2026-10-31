@@ -60,3 +60,12 @@ header { position: sticky; top: 0; z-index: 5; display: flex; justify-content: s
     calc(16px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
 }
 .sheet-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+
+/* App lock: the only thing shown while locked (app_lock.rs) */
+.lock-screen {
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom)); text-align: center;
+}
+.lock-screen svg { color: var(--brand-ink); }
+.lock-screen p { margin: 0; max-width: 320px; color: var(--fg-muted); }
+.lock-screen button { height: var(--control-h-md); min-width: 160px; font-size: var(--type-body-size); }

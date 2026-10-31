@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_rolx_background">#FFFFFF</color>
+    <!-- The home-screen widget, from the design system tokens (rolx-ui/src/tokens.css); dark ones in values-night. -->
+    <color name="widget_bg">#FFFFFF</color>
+    <color name="widget_fg">#1A1A15</color>
+    <color name="widget_muted">#66665F</color>
+    <color name="widget_accent">#0000FF</color>
+    <color name="widget_on_accent">#FFFFFF</color>
+</resources>

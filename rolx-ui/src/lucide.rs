@@ -11,6 +11,7 @@ pub enum Glyph {
     ChevronLeft,
     ChevronRight,
     Command,
+    Lock,
     Moon,
     Play,
     Plus,
@@ -52,6 +53,10 @@ impl Glyph {
             Glyph::Command => {
                 &["M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"]
             }
+            Glyph::Lock => &[
+                "M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z",
+                "M7 11V7a5 5 0 0 1 10 0v4",
+            ],
             Glyph::Moon => &[
                 "M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401",
             ],
