@@ -1,8 +1,9 @@
 // The deck: follows the server's slide state (or a fixed offset from it, for the presenter's previews).
 //
-//   deck.html             browser window: arrow keys, space and page up/down move the slides
-//   deck.html?mode=obs    OBS browser source: no keys
-//   deck.html?offset=1    presenter preview of the next click, without transitions
+//   deck.html             browser window: arrow keys, space and page up/down move the slides; the frames show the
+//                         live screens (VDO.Ninja) and the video themselves
+//   deck.html?mode=obs    OBS browser source: no keys, empty frames (OBS puts the feeds on top)
+//   deck.html?offset=1    presenter preview of the next click, without transitions or live screens
 
 import { icon } from '/icons.mjs';
 import { FEEDS, FRAME_PAD, LAYOUTS, SLIDES, STAGE, stepsOf } from '/slides.mjs';
@@ -11,6 +12,8 @@ const params = new URLSearchParams(location.search);
 const mode = params.get('mode') ?? 'browser';
 const offset = Number(params.get('offset') ?? 0);
 const animate = offset === 0 && 'startViewTransition' in document;
+// Every live screen is one more viewer the sharing device has to upload to, so only the real deck shows them.
+const live = mode === 'browser' && offset === 0 && params.get('live') !== '0';
 
 const stage = document.querySelector('.stage');
 const stamp = document.querySelector('.stamp');
@@ -20,7 +23,7 @@ stage.dataset.mode = mode;
 
 let state = null;
 let clockOffset = 0; // server clock minus ours
-let config = { people: {}, talk: '' };
+let config = { people: {}, talk: '', sources: {} };
 
 // ---- Static parts --------------------------------------------------------------------------------------------
 
@@ -57,6 +60,18 @@ function buildStatic() {
       </div>`,
     )
     .join('');
+
+  if (live) {
+    for (const frame of frames.querySelectorAll('.frame')) {
+      const source = config.sources?.[frame.dataset.feed];
+      const screen = frame.querySelector('.frame-screen');
+      if (source?.kind === 'vdo') {
+        screen.insertAdjacentHTML('beforeend', `<iframe class="frame-live" src="${source.src}" allow="autoplay; fullscreen" title="${FEEDS[frame.dataset.feed].label}"></iframe>`);
+      } else if (source?.kind === 'video') {
+        screen.insertAdjacentHTML('beforeend', `<video class="frame-live" src="${source.src}" muted loop playsinline autoplay></video>`);
+      }
+    }
+  }
 
   document.querySelector('.bar').innerHTML = SLIDES.map(() => '<span class="segment"><span class="segment-fill"></span></span>').join('');
 }
@@ -111,6 +126,15 @@ function apply(next) {
   state = next;
   const slideChanged = !before || before.index !== next.index;
   const stepChanged = before && before.step !== next.step;
+
+  // The recorded video starts from the beginning whenever its own slide comes up.
+  if (slideChanged && SLIDES[next.index].layout === 'terminal') {
+    const video = document.querySelector('.frame[data-feed="terminal"] video');
+    if (video) {
+      video.currentTime = 0;
+      video.play().catch(() => {});
+    }
+  }
 
   if (animate && before && slideChanged) {
     // Into or out of the blue: the new background wipes up instead of crossfading through lavender.

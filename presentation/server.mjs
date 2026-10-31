@@ -8,7 +8,7 @@
 
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
-import { existsSync, readFileSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync } from 'node:fs';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -37,6 +37,8 @@ const TYPES = {
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.woff2': 'font/woff2',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
 };
 
 /** VDO.Ninja links (docs.vdo.ninja, "How to screen share in 1080p"): `view` goes into OBS, `push` is what the
@@ -55,7 +57,44 @@ function publicConfig() {
       .filter(([, feed]) => feed.kind === 'vdo')
       .map(([key, feed]) => [key, { id: feed.id, device: feed.device ?? 'pc', ...vdoLinks(feed) }]),
   );
-  return { people, talk, links };
+  // What the deck itself shows in each frame when it runs in a browser (in OBS, OBS puts the feeds on top).
+  const sources = Object.fromEntries(
+    Object.entries(feeds).map(([key, feed]) => {
+      if (feed.kind === 'vdo') return [key, { kind: 'vdo', src: vdoLinks(feed).view }];
+      if (feed.kind === 'video') return [key, { kind: 'video', src: `/media/${key}` }];
+      return [key, { kind: feed.kind }];
+    }),
+  );
+  return { people, talk, links, sources };
+}
+
+/** A video feed's file, with byte ranges so the browser can loop and seek. */
+async function sendVideo(req, res, key) {
+  const feed = loadConfig().feeds?.[key];
+  if (feed?.kind !== 'video') return res.writeHead(404).end();
+  const path = resolve(HERE, feed.file);
+  let size;
+  try {
+    size = (await stat(path)).size;
+  } catch {
+    return res.writeHead(404).end();
+  }
+  const type = TYPES[extname(path)] ?? 'application/octet-stream';
+  const range = /bytes=(\d*)-(\d*)/.exec(req.headers.range ?? '');
+  if (!range) {
+    res.writeHead(200, { 'Content-Type': type, 'Content-Length': size, 'Accept-Ranges': 'bytes' });
+    return createReadStream(path).pipe(res);
+  }
+  const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
+  const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+  if (start >= size || start > end) return res.writeHead(416, { 'Content-Range': `bytes */${size}` }).end();
+  res.writeHead(206, {
+    'Content-Type': type,
+    'Content-Length': end - start + 1,
+    'Content-Range': `bytes ${start}-${end}/${size}`,
+    'Accept-Ranges': 'bytes',
+  });
+  createReadStream(path, { start, end }).pipe(res);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -201,6 +240,7 @@ async function handle(req, res) {
     timer((await readBody(req)).action);
     return json(res, snapshot());
   }
+  if (path.startsWith('/media/')) return sendVideo(req, res, decodeURIComponent(path.slice('/media/'.length)));
   if (path === '/tokens.css') return sendFile(res, TOKENS);
   if (path.startsWith('/fonts/')) {
     const file = inside(resolve(FONTS), path.slice('/fonts/'.length));
