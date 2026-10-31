@@ -68,7 +68,7 @@ function buildStatic() {
       if (source?.kind === 'vdo') {
         screen.insertAdjacentHTML('beforeend', `<iframe class="frame-live" src="${source.src}" allow="autoplay; fullscreen" title="${FEEDS[frame.dataset.feed].label}"></iframe>`);
       } else if (source?.kind === 'video') {
-        screen.insertAdjacentHTML('beforeend', `<video class="frame-live" src="${source.src}" muted loop playsinline autoplay></video>`);
+        screen.insertAdjacentHTML('beforeend', `<video class="frame-live" src="${source.src}" muted playsinline preload="auto"></video>`);
       }
     }
   }
@@ -127,14 +127,7 @@ function apply(next) {
   const slideChanged = !before || before.index !== next.index;
   const stepChanged = before && before.step !== next.step;
 
-  // The recorded video starts from the beginning whenever its own slide comes up.
-  if (slideChanged && SLIDES[next.index].layout === 'terminal') {
-    const video = document.querySelector('.frame[data-feed="terminal"] video');
-    if (video) {
-      video.currentTime = 0;
-      video.play().catch(() => {});
-    }
-  }
+  if (slideChanged) syncVideos(SLIDES[next.index].layout);
 
   if (animate && before && slideChanged) {
     // Into or out of the blue: the new background wipes up instead of crossfading through lavender.
@@ -152,6 +145,37 @@ function apply(next) {
     packet.classList.add('is-moving');
     setTimeout(() => packet.querySelector('animateMotion').beginElement(), 450);
     setTimeout(() => packet.classList.remove('is-moving'), 1400);
+  }
+}
+
+// ---- Recorded videos ------------------------------------------------------------------------------------------
+// As in OBS (server.mjs syncVideos): from the start with sound on their own slide, from the start without sound in
+// the overview, stopped everywhere else; once through, then the last frame stays.
+
+function syncVideos(layout) {
+  for (const video of document.querySelectorAll('.frame video')) {
+    const key = video.closest('.frame').dataset.feed;
+    delete video.dataset.wantsSound;
+    if (!LAYOUTS[layout][key]) {
+      video.pause();
+      continue;
+    }
+    video.currentTime = 0;
+    video.muted = layout !== key;
+    // Without a click or key press in this window first, the browser refuses sound: then play it silently and
+    // turn the sound on with the next key press here.
+    video.play().catch(() => {
+      video.muted = true;
+      video.play().catch(() => {});
+      video.dataset.wantsSound = String(layout === key);
+    });
+  }
+}
+
+function unlockSound() {
+  for (const video of document.querySelectorAll('.frame video[data-wants-sound="true"]')) {
+    video.muted = false;
+    delete video.dataset.wantsSound;
   }
 }
 
@@ -210,7 +234,9 @@ async function main() {
   addEventListener('resize', fitStage);
 
   if (mode === 'browser' && offset === 0) {
+    addEventListener('pointerdown', unlockSound);
     addEventListener('keydown', (event) => {
+      unlockSound();
       if (event.repeat || event.ctrlKey || event.altKey || event.metaKey) return;
       const action = KEYS[event.key];
       if (action) {

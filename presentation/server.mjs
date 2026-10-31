@@ -114,6 +114,7 @@ function broadcast() {
 
 function moveTo(index, step) {
   const now = Date.now();
+  const layoutBefore = SLIDES[state.index].layout;
   state.index = Math.max(0, Math.min(last, index));
   state.step = Math.max(0, Math.min(stepsOf(state.index), step));
   if (state.startedAt === null && state.index > 0) state.startedAt = now;
@@ -125,6 +126,7 @@ function moveTo(index, step) {
   }
   // Every click sets the scene, so OBS follows again after someone switched it by hand.
   showScene();
+  if (SLIDES[state.index].layout !== layoutBefore) syncVideos();
   broadcast();
 }
 
@@ -172,6 +174,7 @@ async function connectObs() {
     };
     setObsStatus(true, 'connected');
     showScene();
+    syncVideos();
   } catch (error) {
     setObsStatus(false, error.message);
     setTimeout(connectObs, 3000);
@@ -185,6 +188,27 @@ function showScene() {
     .call('SetCurrentProgramScene', { sceneName })
     .then(() => setObsStatus(true, 'connected'))
     .catch((error) => setObsStatus(true, `${error.message} (run setup-obs)`));
+}
+
+/** Recorded videos: from the start with sound on their own slide, from the start without sound in the overview,
+ * silent everywhere else. They play once and hold the last frame, so the sound never repeats. */
+function syncVideos() {
+  if (!obs.connected) return;
+  const layout = SLIDES[state.index].layout;
+  const feeds = loadConfig().feeds ?? {};
+  for (const [key, feed] of Object.entries(feeds)) {
+    if (feed.kind !== 'video') continue;
+    const inputName = FEEDS[key].source;
+    const shown = Boolean(LAYOUTS[layout][key]);
+    const ignore = () => {};
+    obs.call('SetInputMute', { inputName, inputMuted: layout !== key }).catch(ignore);
+    obs
+      .call('TriggerMediaInputAction', {
+        inputName,
+        mediaAction: shown ? 'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART' : 'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_STOP',
+      })
+      .catch(ignore);
+  }
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -284,10 +308,12 @@ function inputFor(key) {
       inputSettings: {
         is_local_file: true,
         local_file: resolve(HERE, feed.file),
-        looping: true,
-        restart_on_activate: true,
+        // The server starts, stops and mutes it with the slides (syncVideos).
+        looping: false,
+        restart_on_activate: false,
+        clear_on_media_end: false,
         close_when_inactive: false,
-        hw_decode: true,
+        hw_decode: false, // hardware decoding never opened the file on this laptop
       },
     };
   }
@@ -371,14 +397,29 @@ async function setupObs() {
   }
   for (const input of wanted) {
     if (inputs.has(input.inputName)) {
+      // A media source does not open its file again for unchanged settings (e.g. a video copied in later), so it
+      // gets an empty file first.
+      if (input.inputKind === 'ffmpeg_source') {
+        await obs.call('SetInputSettings', { inputName: input.inputName, inputSettings: { local_file: '' }, overlay: true });
+      }
       await obs.call('SetInputSettings', { inputName: input.inputName, inputSettings: input.inputSettings, overlay: true });
     } else {
       await obs.call('CreateInput', { sceneName: SCENES.deck, ...input, sceneItemEnabled: true });
       log(`source ${input.inputName}`);
     }
-    // Everybody talks through the call; the feeds stay silent.
-    if (input.inputKind !== 'window_capture') {
+    // Everybody talks through the call; the live feeds stay silent. A recorded video has sound on its own slide
+    // (syncVideos) and is also played on this laptop's speakers, for the people in the room.
+    if (input.inputKind === 'browser_source') {
       await obs.call('SetInputMute', { inputName: input.inputName, inputMuted: true }).catch(() => {});
+    }
+    if (input.inputKind === 'ffmpeg_source') {
+      await obs.call('SetInputMute', { inputName: input.inputName, inputMuted: true }).catch(() => {});
+      await obs
+        .call('SetInputAudioMonitorType', {
+          inputName: input.inputName,
+          monitorType: 'OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT',
+        })
+        .catch(() => {});
     }
   }
 

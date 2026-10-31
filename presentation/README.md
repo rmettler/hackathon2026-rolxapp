@@ -58,8 +58,13 @@ Run it in your own terminal for the talk: it keeps the slide state in memory onl
   that). Back: left arrow, page up. `S` stamps the talk in early. "Share links" has the desktop link and the
   phone's stream id.
 - Deck in a browser window without OBS: `http://127.0.0.1:5180/deck.html`, `F` for full screen. Same keys.
-- OBS: Start Virtual Camera, then choose "OBS Virtual Camera" as the camera in Teams or Zoom. The feeds are muted:
-  everybody talks through the call.
+- OBS: Start Virtual Camera, then choose "OBS Virtual Camera" as the camera in Teams or Zoom. The live feeds are
+  muted: everybody talks through the call.
+- The terminal video plays once with sound on its own slide (silent in the overview). OBS plays the sound on this
+  laptop's speakers; the virtual camera carries no sound, so for people in the call share the computer sound in
+  Teams ("Include computer sound"). The browser deck only plays sound after a click or key press in its window:
+  press `F` for full screen there before the talk.
+- Use either OBS or the browser deck for the talk, not both: each live screen and the video sound would run twice.
 
 ## Before the talk
 
