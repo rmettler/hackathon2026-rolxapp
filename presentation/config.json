@@ -1,15 +1,15 @@
 {
   "port": 5180,
   "obsUrl": "ws://127.0.0.1:4455",
+  "talk": "Cudos Hackathon 2026",
   "people": {
-    "phone": "",
     "desk": "",
-    "train": ""
+    "phone": "",
+    "terminal": ""
   },
   "feeds": {
-    "phone": { "kind": "window", "window": "rolx-phone:SDL_app:scrcpy.exe", "match": "title" },
-    "desk": { "kind": "window", "window": "RolX:Window Class:rolxapp-dioxus.exe", "match": "exe" },
-    "trainScreen": { "kind": "vdo", "id": "rolx-screen-fa25ec68", "share": "screen" },
-    "trainCamera": { "kind": "vdo", "id": "rolx-camera-755b1613", "share": "camera" }
+    "desk": { "kind": "vdo", "id": "rolx-desk-ba66a5a8", "device": "pc" },
+    "phone": { "kind": "vdo", "id": "rolx-phone-91d41405", "device": "android" },
+    "terminal": { "kind": "video", "file": "media/terminal.mp4" }
   }
 }

@@ -39,23 +39,23 @@ const TYPES = {
   '.woff2': 'font/woff2',
 };
 
-/** VDO.Ninja links: `view` goes into OBS, `push` is what the remote person opens. */
+/** VDO.Ninja links (docs.vdo.ninja, "How to screen share in 1080p"): `view` goes into OBS, `push` is what the
+ * presenting PC opens. A phone shares with the VDO.Ninja Android app under the same stream id instead. */
 function vdoLinks(feed) {
-  const share = feed.share === 'screen' ? '&screenshare' : '&webcam&quality=2';
   return {
-    view: `https://vdo.ninja/?view=${feed.id}&cleanoutput&noaudio`,
-    push: `https://vdo.ninja/?push=${feed.id}${share}&audiodevice=0`,
+    view: `https://vdo.ninja/?view=${feed.id}&videobitrate=10000&scale=100&cleanoutput&noaudio`,
+    push: `https://vdo.ninja/?push=${feed.id}&screenshare&quality=0&audiodevice=0`,
   };
 }
 
 function publicConfig() {
-  const { people = {}, feeds = {} } = loadConfig();
+  const { people = {}, feeds = {}, talk = '' } = loadConfig();
   const links = Object.fromEntries(
     Object.entries(feeds)
       .filter(([, feed]) => feed.kind === 'vdo')
-      .map(([key, feed]) => [key, vdoLinks(feed)]),
+      .map(([key, feed]) => [key, { id: feed.id, device: feed.device ?? 'pc', ...vdoLinks(feed) }]),
   );
-  return { people, links, fonts: FONTS };
+  return { people, talk, links };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -238,6 +238,19 @@ const MOVE_MS = 600;
 
 function inputFor(key) {
   const feed = loadConfig().feeds[key];
+  if (feed.kind === 'video') {
+    return {
+      inputKind: 'ffmpeg_source',
+      inputSettings: {
+        is_local_file: true,
+        local_file: resolve(HERE, feed.file),
+        looping: true,
+        restart_on_activate: true,
+        close_when_inactive: false,
+        hw_decode: true,
+      },
+    };
+  }
   if (feed.kind === 'window') {
     return {
       inputKind: 'window_capture',
@@ -250,7 +263,8 @@ function inputFor(key) {
       },
     };
   }
-  const [width, height] = feed.share === 'screen' ? [1920, 1080] : [1280, 720];
+  // A portrait browser source for a phone, so its screen is not letterboxed inside the source.
+  const [width, height] = feed.device === 'android' ? [1080, 2400] : [1920, 1080];
   return {
     inputKind: 'browser_source',
     inputSettings: { url: vdoLinks(feed).view, width, height, reroute_audio: true, shutdown: false },
@@ -275,6 +289,14 @@ async function setupObs() {
   }
 
   const scenes = new Set((await obs.call('GetSceneList')).scenes.map((scene) => scene.sceneName));
+  const wantedScenes = new Set(Object.values(SCENES));
+  for (const sceneName of scenes) {
+    if (sceneName.startsWith('RolX ') && !wantedScenes.has(sceneName)) {
+      await obs.call('SetCurrentProgramScene', { sceneName: SCENES.deck }).catch(() => {});
+      await obs.call('RemoveScene', { sceneName }).catch((error) => log(`could not remove ${sceneName}: ${error.message}`));
+      log(`removed scene ${sceneName}`);
+    }
+  }
   for (const sceneName of Object.values(SCENES)) {
     if (!scenes.has(sceneName)) {
       await obs.call('CreateScene', { sceneName });
@@ -295,12 +317,28 @@ async function setupObs() {
     { inputName: deckName, inputKind: 'browser_source', inputSettings: deckSettings },
     ...Object.entries(FEEDS).map(([key, feed]) => ({ inputName: feed.source, ...inputFor(key) })),
   ];
+  // Sources of an earlier layout (or a feed that changed kind) go. OBS frees a removed source only once nothing
+  // holds it any more, so it is renamed first to free its name for the new one.
+  const wantedKinds = new Map(wanted.map((input) => [input.inputName, input.inputKind]));
+  for (const { inputName, inputKind } of (await obs.call('GetInputList')).inputs) {
+    if (inputName.startsWith('RolX ') && wantedKinds.get(inputName) !== inputKind) {
+      const retired = `${inputName} (removed ${Date.now()})`;
+      await obs.call('SetInputName', { inputName, newInputName: retired });
+      await obs.call('RemoveInput', { inputName: retired });
+      inputs.delete(inputName);
+      log(`removed ${inputName}`);
+    }
+  }
   for (const input of wanted) {
     if (inputs.has(input.inputName)) {
       await obs.call('SetInputSettings', { inputName: input.inputName, inputSettings: input.inputSettings, overlay: true });
     } else {
       await obs.call('CreateInput', { sceneName: SCENES.deck, ...input, sceneItemEnabled: true });
       log(`source ${input.inputName}`);
+    }
+    // Everybody talks through the call; the feeds stay silent.
+    if (input.inputKind !== 'window_capture') {
+      await obs.call('SetInputMute', { inputName: input.inputName, inputMuted: true }).catch(() => {});
     }
   }
 

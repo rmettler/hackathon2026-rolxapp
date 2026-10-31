@@ -8,14 +8,14 @@ const pad = (n) => String(n).padStart(2, '0');
 let state = null;
 let clockOffset = 0;
 
-const LINK_NAMES = { trainScreen: 'Train, screen', trainCamera: 'Train, camera' };
+const LINK_NAMES = { desk: 'Desktop PC', phone: 'Phone' };
 const SLIDE_NAMES = {
   title: 'Title',
   claim: 'Claim',
   core: 'Core',
-  phone: 'Phone',
   desk: 'Desk',
-  train: 'Train',
+  phone: 'Phone',
+  terminal: 'Terminal',
   all: 'All',
   rust: 'Rust',
   end: 'End',
@@ -93,11 +93,13 @@ async function main() {
   });
 
   const { links } = await (await fetch('/api/config')).json();
+  // A PC opens the push link; the phone types the stream id into the VDO.Ninja app.
   $('.link-list').innerHTML = Object.entries(links)
-    .map(
-      ([key, link]) =>
-        `<span>${LINK_NAMES[key] ?? key}</span><code title="${link.push}">${link.push}</code><button type="button" data-copy="${link.push}">Copy</button>`,
-    )
+    .map(([key, link]) => {
+      const value = link.device === 'android' ? link.id : link.push;
+      const what = link.device === 'android' ? 'stream id' : 'link';
+      return `<span>${LINK_NAMES[key] ?? key}, ${what}</span><code title="${value}">${value}</code><button type="button" data-copy="${value}">Copy</button>`;
+    })
     .join('');
 
   setStatus('server', false, 'Server: connecting');

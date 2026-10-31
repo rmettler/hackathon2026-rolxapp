@@ -1,7 +1,7 @@
 // The deck: follows the server's slide state (or a fixed offset from it, for the presenter's previews).
 //
 //   deck.html             browser window: arrow keys, space and page up/down move the slides
-//   deck.html?mode=obs    OBS browser source: no hints in the frames, no keys
+//   deck.html?mode=obs    OBS browser source: no keys
 //   deck.html?offset=1    presenter preview of the next click, without transitions
 
 import { icon } from '/icons.mjs';
@@ -13,13 +13,14 @@ const offset = Number(params.get('offset') ?? 0);
 const animate = offset === 0 && 'startViewTransition' in document;
 
 const stage = document.querySelector('.stage');
-const clock = document.querySelector('.clock');
-const clockTime = document.querySelector('.clock-time');
+const stamp = document.querySelector('.stamp');
+const stampTimer = document.querySelector('.stamp-timer');
+const stampStatus = document.querySelector('.stamp-status');
 stage.dataset.mode = mode;
 
 let state = null;
 let clockOffset = 0; // server clock minus ours
-let people = {};
+let config = { people: {}, talk: '' };
 
 // ---- Static parts --------------------------------------------------------------------------------------------
 
@@ -29,7 +30,7 @@ function fitStage() {
 }
 
 function personHtml(key, role, iconName) {
-  const name = people[key];
+  const name = config.people[key];
   const nameHtml = name ? `<span class="person-name">${escapeHtml(name)}</span>` : '';
   return `${icon(iconName)}<span class="person-text">${nameHtml}<span class="person-role">${role}</span></span>`;
 }
@@ -37,23 +38,22 @@ function personHtml(key, role, iconName) {
 const escapeHtml = (text) =>
   text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-const FEED_ICONS = { phone: 'smartphone', desk: 'laptop', trainScreen: 'terminal', trainCamera: 'train' };
-
 function buildStatic() {
-  for (const el of document.querySelectorAll('.node[data-icon], .chip[data-icon]')) {
+  for (const el of document.querySelectorAll('.node[data-icon]')) {
     el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon));
   }
-  for (const el of document.querySelectorAll('.person[data-person]')) {
-    el.innerHTML = personHtml(el.dataset.person, el.dataset.role, el.dataset.icon);
+  for (const el of document.querySelectorAll('.person[data-feed]')) {
+    const feed = FEEDS[el.dataset.feed];
+    el.innerHTML = personHtml(feed.person, feed.label, feed.icon);
   }
+  for (const el of document.querySelectorAll('[data-talk]')) el.textContent = config.talk;
 
   const frames = document.querySelector('.frames');
   frames.innerHTML = Object.entries(FEEDS)
     .map(
       ([key, feed]) => `
       <div class="frame" data-feed="${key}" style="--frame-pad: ${FRAME_PAD}px; view-transition-name: frame-${key}" hidden>
-        <div class="frame-screen"><span class="frame-hint">${icon(FEED_ICONS[key])}${feed.label}</span></div>
-        ${key === 'trainCamera' ? '' : `<p class="person frame-caption">${personHtml(feed.person, feed.label, FEED_ICONS[key])}</p>`}
+        <div class="frame-screen"><span class="frame-hint">${icon(feed.icon)}${feed.label}</span></div>
       </div>`,
     )
     .join('');
@@ -79,7 +79,10 @@ function render(s) {
   stage.dataset.step = s.step;
   stage.dataset.layout = slide.layout;
   stage.dataset.tone = slide.tone ?? 'plain';
-  clock.dataset.place = slide.tone === 'brand' ? 'hero' : 'bar';
+  stamp.dataset.place = slide.tone === 'brand' ? 'hero' : 'bar';
+  for (const section of document.querySelectorAll('.slide')) {
+    section.toggleAttribute('data-active', section.dataset.id === slide.id);
+  }
 
   const slots = LAYOUTS[slide.layout];
   for (const frame of document.querySelectorAll('.frame')) {
@@ -128,24 +131,34 @@ function apply(next) {
   }
 }
 
-// ---- Clock ----------------------------------------------------------------------------------------------------
+// ---- Stamp card -----------------------------------------------------------------------------------------------
+// The same words as the stamp panel: "Stamped out", "Since 14:02 · <activity>".
 
 const pad = (n) => String(n).padStart(2, '0');
+const hhmm = (ms) => {
+  const d = new Date(ms);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
 
 function tick(s = state) {
   if (!s) return;
+  const hero = stamp.dataset.place === 'hero';
   let elapsed = 0;
-  let status = 'idle';
+  let clock = 'idle';
+  let status = 'Stamped out';
   if (s.stoppedElapsed !== null) {
     elapsed = s.stoppedElapsed;
-    status = 'stopped';
+    clock = 'stopped';
+    status = `Stamped out at ${hhmm(s.startedAt + s.stoppedElapsed)}`;
   } else if (s.startedAt !== null) {
     elapsed = Date.now() + clockOffset - s.startedAt;
-    status = 'running';
+    clock = 'running';
+    status = `Since ${hhmm(s.startedAt)}` + (hero && config.talk ? ` · ${config.talk}` : '');
   }
   const seconds = Math.max(0, Math.floor(elapsed / 1000));
-  clockTime.textContent = `${pad(Math.floor(seconds / 3600))}:${pad(Math.floor(seconds / 60) % 60)}:${pad(seconds % 60)}`;
-  stage.dataset.clock = status;
+  stampTimer.textContent = `${pad(Math.floor(seconds / 3600))}:${pad(Math.floor(seconds / 60) % 60)}:${pad(seconds % 60)}`;
+  if (stampStatus.textContent !== status) stampStatus.textContent = status;
+  stage.dataset.clock = clock;
 }
 
 // ---- Wiring ---------------------------------------------------------------------------------------------------
@@ -167,7 +180,7 @@ const KEYS = {
 };
 
 async function main() {
-  ({ people } = await (await fetch('/api/config')).json());
+  config = await (await fetch('/api/config')).json();
   buildStatic();
   fitStage();
   addEventListener('resize', fitStage);

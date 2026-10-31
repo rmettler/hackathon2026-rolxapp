@@ -12,7 +12,7 @@
   <div class="stage" data-slide="title" data-step="0" data-layout="deck" data-tone="brand">
 
     <section class="slide" data-id="title">
-      <p class="event">Cudos Hackathon 2026</p>
+      <p class="event" data-talk></p>
       <h1 class="wordmark">RolX</h1>
       <p class="tagline">Time tracking wherever work happens</p>
     </section>
@@ -24,60 +24,51 @@
     <section class="slide" data-id="core">
       <h2 class="heading">One core, every screen</h2>
       <svg class="wires" viewBox="0 0 1920 1080" aria-hidden="true">
-        <path class="wire wire-app" d="M580 360 C700 360 700 540 820 540" pathLength="1"/>
-        <path class="wire wire-app" d="M580 540 L820 540" pathLength="1"/>
-        <path class="wire wire-app" d="M580 720 C700 720 700 540 820 540" pathLength="1"/>
-        <path class="wire wire-server" id="wire-server" d="M1240 540 L1460 540" pathLength="1"/>
+        <path class="wire wire-app" d="M580 330 C700 330 700 540 820 540" pathLength="1"/>
+        <path class="wire wire-app" d="M580 480 C700 480 700 540 820 540" pathLength="1"/>
+        <path class="wire wire-app" d="M580 630 C700 630 700 540 820 540" pathLength="1"/>
+        <path class="wire wire-app" d="M580 780 C700 780 700 540 820 540" pathLength="1"/>
+        <path class="wire wire-server" d="M1240 540 L1460 540" pathLength="1"/>
         <circle class="packet" r="7">
           <animateMotion dur="900ms" begin="indefinite" fill="remove" calcMode="spline" keyTimes="0;1"
             keySplines="0.65 0 0.35 1" path="M1240 540 L1460 540"/>
         </circle>
       </svg>
-      <div class="node node-app" style="--x: 200px; --y: 300px; --i: 0" data-icon="terminal">
-        <span class="node-label">Terminal</span>
-      </div>
-      <div class="node node-app" style="--x: 200px; --y: 480px; --i: 1" data-icon="laptop">
-        <span class="node-label">Desktop</span>
-      </div>
-      <div class="node node-app" style="--x: 200px; --y: 660px; --i: 2" data-icon="smartphone">
-        <span class="node-label">Android</span>
-      </div>
+      <div class="node node-app" style="--y: 270px; --i: 0" data-icon="terminal"><span>Terminal</span></div>
+      <div class="node node-app" style="--y: 420px; --i: 1" data-icon="laptop"><span>Desktop</span></div>
+      <div class="node node-app" style="--y: 570px; --i: 2" data-icon="smartphone"><span>Android</span></div>
+      <div class="node node-app" style="--y: 720px; --i: 3" data-icon="cpu"><span>RISC-V</span></div>
       <div class="node node-core">
         <span class="core-name">rolx-core</span>
         <span class="core-line">One Rust library</span>
+        <span class="core-line">UI in Dioxus</span>
       </div>
-      <div class="node node-server" style="--x: 1460px; --y: 480px">
-        <span class="node-label">RolX server</span>
-      </div>
-    </section>
-
-    <section class="slide" data-id="phone">
-      <div class="side side-centered">
-        <h2 class="heading heading-xl">On the phone</h2>
-        <p class="person" data-person="phone" data-icon="smartphone" data-role="Android app"></p>
-      </div>
+      <div class="node node-server"><span>RolX server</span></div>
     </section>
 
     <section class="slide" data-id="desk">
-      <div class="side side-narrow side-centered">
+      <header class="feed-head">
         <h2 class="heading">At the desk</h2>
-        <p class="person" data-person="desk" data-icon="laptop" data-role="Desktop app"></p>
+        <p class="person person-inline" data-feed="desk"></p>
+      </header>
+    </section>
+
+    <section class="slide" data-id="phone">
+      <div class="side">
+        <h2 class="heading heading-xl">On the phone</h2>
+        <p class="person" data-feed="phone"></p>
       </div>
     </section>
 
-    <section class="slide" data-id="train">
-      <div class="side side-narrow">
-        <h2 class="heading">On the train</h2>
-        <p class="person" data-person="train" data-icon="terminal" data-role="Terminal"></p>
-        <div class="chips">
-          <p class="chip chip-offline" data-icon="wifiOff">Offline, still stamping</p>
-          <p class="chip chip-synced" data-icon="cloudCheck">Back online, synced</p>
-        </div>
-      </div>
+    <section class="slide" data-id="terminal">
+      <header class="feed-head">
+        <h2 class="heading">In the terminal</h2>
+        <p class="person person-inline" data-feed="terminal"></p>
+      </header>
     </section>
 
     <section class="slide" data-id="all">
-      <h2 class="heading">Three people, one core</h2>
+      <h2 class="heading all-heading">One core,<br>three screens</h2>
     </section>
 
     <section class="slide" data-id="rust">
@@ -90,11 +81,12 @@
 
     <div class="frames" aria-hidden="true"></div>
 
-    <div class="clock" data-place="hero">
-      <span class="clock-dot"></span>
-      <span class="clock-time">00:00:00</span>
+    <!-- The talk's own stamp card, drawn like the stamp panel of the apps. -->
+    <div class="stamp" data-place="hero" role="timer">
+      <div class="stamp-timer">00:00:00</div>
+      <div class="stamp-status">Stamped out</div>
+      <span class="stamp-action">Stamp in</span>
     </div>
-    <p class="clock-caption">This talk, tracked</p>
 
     <div class="bar" aria-hidden="true"></div>
   </div>

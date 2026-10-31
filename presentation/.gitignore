@@ -1,2 +1,5 @@
 # Local obs-websocket password, see README.md
 .obs-password
+# Recorded videos stay local
+media/*
+!media/.gitkeep

@@ -16,7 +16,7 @@
   --shadow-lg: var(--cudos-shadow-lg);
   --shadow-md: var(--cudos-shadow-md);
 
-  /* One motion language: the frames, the clock and OBS's Move transition all take MOVE with EASE. */
+  /* One motion language: the frames, the stamp card and OBS's Move transition all take MOVE with EASE. */
   --move: 600ms;
   --ease: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -64,17 +64,7 @@ body {
   display: none;
 }
 
-.stage[data-slide='title'] .slide[data-id='title'],
-.stage[data-slide='claim'] .slide[data-id='claim'],
-.stage[data-slide='core'] .slide[data-id='core'],
-.stage[data-slide='phone'] .slide[data-id='phone'],
-.stage[data-slide='desk'] .slide[data-id='desk'],
-.stage[data-slide='train'] .slide[data-id='train'],
-.stage[data-slide='all'] .slide[data-id='all'],
-.stage[data-slide='rust'] .slide[data-id='rust'],
-.stage[data-slide='end'] .slide[data-id='end'] {
-  display: block;
-}
+.slide[data-active] { display: block; }
 
 .icon { width: 1em; height: 1em; flex: none; }
 
@@ -130,22 +120,38 @@ body {
 .slide > .heading { position: absolute; left: var(--margin); top: 96px; }
 .heading-xl { font-size: 132px; }
 
-/* ---- Side column on the feed slides -------------------------------------------------------------------------- */
+/* ---- Text around the feeds ----------------------------------------------------------------------------------- */
 
+/* Phone: a column left of the portrait feed. */
 .side {
   position: absolute;
   left: var(--margin);
-  top: 112px;
-  width: 900px;
+  top: 0;
+  bottom: 120px;
+  width: 1000px;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   align-items: flex-start;
   gap: 48px;
 }
 
-.side-narrow { width: 480px; }
-.side-narrow .heading { font-size: 80px; }
-.side-centered { top: 0; bottom: 120px; justify-content: center; }
+/* Desk and terminal: one line above the wide feed, aligned with its edges. */
+.feed-head {
+  position: absolute;
+  left: 240px;
+  right: 240px;
+  top: 30px;
+  height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+}
+
+.feed-head .heading { font-size: 64px; }
+
+.slide > .all-heading { position: absolute; left: 1400px; top: 50%; transform: translateY(-50%); font-size: 72px; }
 
 /* Icon, then the name (when config.json has one) above the app. */
 .person { display: flex; align-items: flex-start; gap: 0.5em; font-size: 30px; }
@@ -155,37 +161,11 @@ body {
 .person-role { color: var(--fg-muted); line-height: 1.3; }
 .person:has(.person-name) .icon { height: 1.6em; }
 
-/* Offline / synced: two states in one place, swapped by the steps. */
-.chips { display: grid; }
-
-.chip {
-  grid-area: 1 / 1;
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
-  height: 64px;
-  padding: 0 28px 0 22px;
-  border: 1px solid;
-  border-radius: var(--cudos-radius-full);
-  font-size: 28px;
-  font-weight: var(--weight-medium);
-  opacity: 0;
-  transform: translateY(12px);
-  transition: opacity 300ms var(--ease-out), transform 450ms var(--ease-out);
-}
-
-.chip .icon { font-size: 28px; }
-.chip-offline { color: var(--cudos-amber); background: var(--cudos-amber-bg); border-color: var(--cudos-amber-border); }
-.chip-synced { color: var(--cudos-green); background: var(--cudos-green-bg); border-color: var(--cudos-green-border); }
-
-.stage[data-step='1'] .chip-offline,
-.stage[data-step='2'] .chip-synced {
-  opacity: 1;
-  transform: none;
-}
-
-.stage[data-step='2'] .chip-offline { transform: translateY(-12px); }
+.person-inline { align-items: center; font-size: 28px; }
+.person-inline .person-text { flex-direction: row; align-items: baseline; gap: 14px; }
+.person-inline .person-name { font-size: 1em; }
+.person-inline .icon,
+.person-inline:has(.person-name) .icon { height: 1em; }
 
 /* ---- Core diagram ---------------------------------------------------------------------------------------------- */
 
@@ -205,7 +185,7 @@ body {
 
 .node {
   position: absolute;
-  left: var(--x);
+  left: 200px;
   top: var(--y);
   display: flex;
   align-items: center;
@@ -229,9 +209,9 @@ body {
 
 .node-core {
   left: 820px;
-  top: 420px;
+  top: 410px;
   width: 420px;
-  height: 240px;
+  height: 260px;
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-end;
@@ -246,9 +226,10 @@ body {
 }
 
 .core-name { font-size: 64px; letter-spacing: -0.02em; line-height: 1; }
-.core-line { font-size: 28px; font-weight: var(--weight-regular); color: rgba(255, 255, 255, 0.8); }
+.core-name { margin-bottom: 8px; }
+.core-line { font-size: 26px; line-height: 1.3; font-weight: var(--weight-regular); color: rgba(255, 255, 255, 0.8); }
 
-.node-server { width: 300px; transform: translateX(16px); }
+.node-server { left: 1460px; top: 480px; width: 300px; transform: translateX(16px); }
 
 .stage[data-slide='core']:not([data-step='0']) .node-app { opacity: 1; transform: none; }
 .stage[data-slide='core']:not([data-step='0']) .wire-app { stroke-dashoffset: 0; transition-delay: 200ms; }
@@ -291,63 +272,80 @@ body {
 }
 
 .frame-hint .icon { font-size: 48px; }
-.stage[data-mode='obs'] .frame-hint { display: none; }
 
-.frame-caption {
-  position: absolute;
-  left: 4px;
-  top: calc(100% + 22px);
-  display: none;
-  white-space: nowrap;
-}
+/* ---- Stamp card: the talk is stamped in on the first click and out on the last slide -----------------------------
+   Drawn like the stamp panel of the apps (rolx-ui style.css .card.stamp): a hairline card, the timer in the
+   display style, the status line below and the outlined "Stamp in" pill. */
 
-.stage[data-layout='all'] .frame-caption { display: flex; }
-.frame-caption.person { font-size: 24px; }
-
-/* ---- Clock: the talk is stamped in on the first click and out on the last slide ---------------------------------- */
-
-.clock {
+.stamp {
   position: absolute;
   display: flex;
-  align-items: center;
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--weight-medium);
+  border: 1px solid var(--border);
+  border-radius: var(--surface-radius);
+  background: var(--surface);
+  color: var(--cudos-ink);
   white-space: nowrap;
-  view-transition-name: clock;
+  view-transition-name: stamp;
 }
 
-.clock[data-place='hero'] { left: var(--margin); top: 872px; gap: 22px; font-size: 64px; letter-spacing: -0.01em; }
-.clock[data-place='bar'] { left: var(--margin); top: 1002px; gap: 12px; font-size: 24px; color: var(--fg-muted); }
-
-.clock-dot {
-  width: 0.36em;
-  height: 0.36em;
-  border: 0.08em solid currentColor;
-  border-radius: 50%;
+.stamp-timer {
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--type-display-tracking);
+  line-height: var(--type-display-leading);
 }
 
-.stage[data-clock='running'] .clock-dot { border-color: var(--brand); background: var(--brand); }
-.stage[data-tone='brand'][data-clock='running'] .clock-dot { border-color: var(--cudos-white); background: var(--cudos-white); }
-.stage[data-clock='stopped'] .clock-dot { border-radius: 2px; background: currentColor; }
+.stamp-status { color: var(--cudos-graphite); }
 
-.clock-caption {
-  position: absolute;
-  left: var(--margin);
-  top: 960px;
+.stamp-action {
   display: none;
-  font-size: 32px;
-  color: var(--fg-muted);
+  align-items: center;
+  height: 72px;
+  padding: 0 40px;
+  border: 1.5px solid var(--brand);
+  border-radius: var(--cudos-radius-full);
+  color: var(--brand);
+  font-size: 28px;
+  font-weight: var(--weight-medium);
+  margin-top: 20px;
 }
 
-.stage[data-slide='end'] .clock-caption { display: block; }
+/* Large on the blue slides: right of the title, under the closing question. */
+.stamp[data-place='hero'] {
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 620px;
+  padding: 56px 48px;
+  box-shadow: var(--shadow-lg);
+}
+
+.stage[data-slide='title'] .stamp { left: 1180px; top: 320px; }
+.stage[data-slide='end'] .stamp { left: var(--margin); top: 620px; }
+.stamp[data-place='hero'] .stamp-timer { font-size: 120px; }
+.stamp[data-place='hero'] .stamp-status { font-size: 30px; }
+.stage[data-slide='title'][data-clock='idle'] .stamp-action { display: inline-flex; }
+
+/* Small in the corner on every other slide, next to the bar. */
+.stamp[data-place='bar'] {
+  left: var(--margin);
+  top: 990px;
+  height: 56px;
+  align-items: baseline;
+  gap: 16px;
+  padding: 12px 20px;
+}
+
+.stamp[data-place='bar'] .stamp-timer { font-size: 28px; line-height: 1.1; }
+.stamp[data-place='bar'] .stamp-status { font-size: 20px; }
 
 /* ---- Bar: one segment per slide, like the entries of a day -------------------------------------------------------- */
 
 .bar {
   position: absolute;
-  left: 340px;
+  left: 500px;
   right: var(--margin);
-  top: 1014px;
+  top: 1016px;
   display: flex;
   gap: 8px;
   view-transition-name: bar;
@@ -382,7 +380,7 @@ body {
   animation-timing-function: var(--ease);
 }
 
-/* The background crossfades (root); the slide content leaves quickly and rises in; frames and the clock morph. */
+/* The background crossfades (root); the slide content leaves quickly and rises in; frames and the stamp card morph. */
 .slide { view-transition-name: slide; }
 ::view-transition-old(slide) { animation: 220ms var(--ease) both fade-out; }
 ::view-transition-new(slide) { animation: 560ms var(--ease-out) 140ms both rise-in; }

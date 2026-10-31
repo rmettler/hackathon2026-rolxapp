@@ -6,43 +6,40 @@ export const STAGE = { width: 1920, height: 1080 };
 // Space the deck leaves around a live feed for its frame (the feed itself sits on top in OBS).
 export const FRAME_PAD = 14;
 
-// Where each live feed goes, per layout. A layout is one OBS scene; feeds missing from a layout are not in it.
+// Where each feed goes, per layout: as large as the stage allows. A layout is one OBS scene; feeds missing from
+// a layout are not in it. Screens are 16:9, the phone is a portrait 9:20.
 export const LAYOUTS = {
   deck: {},
-  phone: {
-    phone: { x: 1300, y: 84, w: 412, h: 876 },
-  },
   desk: {
-    desk: { x: 680, y: 130, w: 1120, h: 700 },
+    desk: { x: 240, y: 138, w: 1440, h: 810 },
   },
-  train: {
-    trainScreen: { x: 680, y: 130, w: 1120, h: 700 },
-    trainCamera: { x: 120, y: 605, w: 400, h: 225 },
+  phone: {
+    phone: { x: 1240, y: 46, w: 416, h: 920 },
   },
-  // Bottoms on one line (840), captions below.
+  terminal: {
+    terminal: { x: 240, y: 138, w: 1440, h: 810 },
+  },
   all: {
-    phone: { x: 134, y: 240, w: 282, h: 600 },
-    desk: { x: 516, y: 384, w: 730, h: 456 },
-    trainScreen: { x: 1346, y: 565, w: 440, h: 275 },
-    trainCamera: { x: 1346, y: 362, w: 240, h: 135 },
+    phone: { x: 134, y: 74, w: 399, h: 880 },
+    desk: { x: 609, y: 74, w: 708, h: 398 },
+    terminal: { x: 609, y: 556, w: 708, h: 398 },
   },
 };
 
 // OBS scene per layout.
 export const SCENES = {
   deck: 'RolX Deck',
-  phone: 'RolX Phone',
   desk: 'RolX Desk',
-  train: 'RolX Train',
+  phone: 'RolX Phone',
+  terminal: 'RolX Terminal',
   all: 'RolX All',
 };
 
-// Feeds: the OBS source name and who presents it (the `people` key in config.json).
+// Feeds: the OBS source name, who presents it (the `people` key in config.json) and what it shows.
 export const FEEDS = {
-  phone: { source: 'RolX phone', person: 'phone', label: 'Android app' },
-  desk: { source: 'RolX desk', person: 'desk', label: 'Desktop app' },
-  trainScreen: { source: 'RolX train screen', person: 'train', label: 'Terminal' },
-  trainCamera: { source: 'RolX train camera', person: 'train', label: 'Camera' },
+  desk: { source: 'RolX desk', person: 'desk', label: 'Desktop app', icon: 'laptop' },
+  phone: { source: 'RolX phone', person: 'phone', label: 'Android app', icon: 'smartphone' },
+  terminal: { source: 'RolX terminal', person: 'terminal', label: 'Terminal app', icon: 'terminal' },
 };
 
 // `steps` is the number of extra clicks a slide takes before moving on. Notes show in the presenter view only.
@@ -51,7 +48,7 @@ export const SLIDES = [
     id: 'title',
     layout: 'deck',
     tone: 'brand',
-    notes: ['Start the timer with S, or it starts on the first click.', 'Who we are, what we built.'],
+    notes: ['The talk is stamped in on the first click (or S).', 'Who we are, what we built.'],
   },
   {
     id: 'claim',
@@ -63,31 +60,30 @@ export const SLIDES = [
     layout: 'deck',
     steps: 2,
     notes: [
-      'Click: the apps appear.',
+      'Click: the apps appear, down to RISC-V.',
       'Click: the server. Stamping works offline, the core uploads later.',
-      'All in Rust, one library under every app.',
+      'One Rust library under every app; Dioxus draws desktop and mobile.',
     ],
-  },
-  {
-    id: 'phone',
-    layout: 'phone',
-    notes: ['Stamp in, switch activity, look at the day.'],
   },
   {
     id: 'desk',
     layout: 'desk',
-    notes: ['Hotkey, command palette, tray.', 'Fix an overlap in the day view.'],
+    notes: ['Shared from the other PC.', 'Hotkey, command palette, tray. Fix an overlap in the day view.'],
   },
   {
-    id: 'train',
-    layout: 'train',
-    steps: 2,
-    notes: ['Click when the train is offline: stamping still works.', 'Click when the upload went through.'],
+    id: 'phone',
+    layout: 'phone',
+    notes: ['Shared from the phone.', 'Stamp in, switch activity, look at the day.'],
+  },
+  {
+    id: 'terminal',
+    layout: 'terminal',
+    notes: ['The recorded terminal app video.'],
   },
   {
     id: 'all',
     layout: 'all',
-    notes: ['Three accounts, three devices, one core.'],
+    notes: ['Three screens, one core.'],
   },
   {
     id: 'rust',
@@ -98,7 +94,7 @@ export const SLIDES = [
     id: 'end',
     layout: 'deck',
     tone: 'brand',
-    notes: ['The timer stops here: that is how long the talk took.'],
+    notes: ['Stamped out: the timer shows how long the talk took.'],
   },
 ];
 
