@@ -14,7 +14,7 @@ import org.json.JSONObject
 
 /**
  * The home-screen widget: the running session with a timer, and a button that stamps in or out like the desktop
- * hotkey (`StampWidgetToggle`). Its content comes from the Rust library (`RolxNative.widgetState`); the app refreshes
+ * hotkey (`StampWidgetToggle`). Tapping the activity opens a picker to switch to another one (`ActivityPicker`). Its content comes from the Rust library (`RolxNative.widgetState`); the app refreshes
  * it whenever the stamps change (`refreshAll`, called from `src/bridge.rs`).
  */
 class StampWidget : AppWidgetProvider() {
@@ -58,6 +58,7 @@ class StampWidget : AppWidgetProvider() {
                 showHeadline(views, "Open RolX")
                 views.setTextViewText(R.id.widget_text, state?.optString("error") ?: "")
                 views.setViewVisibility(R.id.widget_toggle, View.GONE)
+                views.setOnClickPendingIntent(R.id.widget_activity, openApp)
                 return views
             }
 
@@ -84,8 +85,9 @@ class StampWidget : AppWidgetProvider() {
             )
             // A forgotten session must not be closed silently at "now": the button opens the app instead, which
             // asks when the work ended.
-            val action = if (state.getBoolean("stale")) openApp else StampWidgetToggle.intent(context)
-            views.setOnClickPendingIntent(R.id.widget_toggle, action)
+            val stale = state.getBoolean("stale")
+            views.setOnClickPendingIntent(R.id.widget_toggle, if (stale) openApp else StampWidgetToggle.intent(context))
+            views.setOnClickPendingIntent(R.id.widget_activity, if (stale) openApp else pickerIntent(context))
             views.setViewVisibility(R.id.widget_toggle, View.VISIBLE)
             return views
         }
@@ -95,6 +97,14 @@ class StampWidget : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_headline, View.VISIBLE)
             views.setViewVisibility(R.id.widget_timer, View.GONE)
         }
+
+        /** Opens the activity picker over the home screen. */
+        private fun pickerIntent(context: Context): PendingIntent = PendingIntent.getActivity(
+            context,
+            1,
+            Intent(context, ActivityPicker::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
 
         /** Brings the app to the front, as its launcher icon does. */
         internal fun openAppIntent(context: Context): PendingIntent {

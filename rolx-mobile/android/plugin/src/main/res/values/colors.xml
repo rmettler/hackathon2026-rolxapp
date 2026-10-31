@@ -7,4 +7,5 @@
     <color name="widget_muted">#66665F</color>
     <color name="widget_accent">#0000FF</color>
     <color name="widget_on_accent">#FFFFFF</color>
+    <color name="widget_chip">#F0F0EC</color>
 </resources>

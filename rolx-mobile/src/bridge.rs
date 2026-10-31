@@ -10,15 +10,15 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use chrono::Local;
 use jni::JNIEnv;
-use jni::objects::{JClass, JObject, JValue};
-use jni::sys::jstring;
+use jni::objects::{JClass, JObject, JString, JValue};
+use jni::sys::{jint, jstring};
 use rolx_core::activities::{self, Activity};
 use rolx_core::stamp::{StampState, Toggled};
 use serde_json::{Value, json};
 
 use crate::android;
 use crate::native;
-use crate::widget::widget_view;
+use crate::widget::{Started, picker_items, start_on, widget_view};
 
 const WIDGET: &str = "ch.cudos.rolxmobile.plugin.StampWidget";
 const UPLOAD: &str = "ch.cudos.rolxmobile.plugin.BackgroundUpload";
@@ -110,6 +110,67 @@ pub extern "system" fn Java_ch_cudos_rolxmobile_plugin_RolxNative_toggle<'local>
             Toggled::StampedOut => "out",
         };
         let upload = toggled == Toggled::StampedOut && state.uploadable_count() > 0;
+        Ok(json!({ "result": result, "upload": upload }))
+    })
+}
+
+/// `RolxNative.searchActivities(context, query)`: the widget picker's list, ranked like the app's picker.
+/// `{"stampedIn": bool, "items": [{"id", "short", "label", "group", "current"}]}`.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_ch_cudos_rolxmobile_plugin_RolxNative_searchActivities<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    context: JObject<'local>,
+    query: JString<'local>,
+) -> jstring {
+    let query: String = env.get_string(&query).map(Into::into).unwrap_or_default();
+    respond(&mut env, &context, || {
+        let state = StampState::load()?;
+        let activities = activities::load_cached()?;
+        let items = picker_items(&activities, &state, &query);
+        Ok(json!({ "stampedIn": state.open.is_some(), "items": items }))
+    })
+}
+
+/// `RolxNative.pick(context, activityId)`: the widget picker's choice. Stamps in on the activity, or continues on it
+/// when stamped in (see [`start_on`]), and updates the notification.
+/// `{"result": "in" | "switched" | "unchanged" | "stale", "upload": bool}`; `stale` means it refused to end a forgotten
+/// session.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_ch_cudos_rolxmobile_plugin_RolxNative_pick<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    context: JObject<'local>,
+    activity_id: jint,
+) -> jstring {
+    respond(&mut env, &context, || {
+        let now = Local::now().naive_local();
+        let activity = activities::load_cached()?
+            .iter()
+            .find(|a| a.id == activity_id)
+            .map(Activity::to_ref)
+            .ok_or_else(|| anyhow::anyhow!("activity {activity_id} is not in the list any more"))?;
+        let (state, started) = StampState::update(|s| {
+            if s.stale(now).is_some() {
+                return Ok(None);
+            }
+            Ok(Some(start_on(s, now, activity)?))
+        })?;
+        let Some(started) = started else {
+            return Ok(json!({ "result": "stale", "upload": false }));
+        };
+        if android::notifications_allowed().unwrap_or(false) {
+            log_error(
+                "updating the stamp notification",
+                native::update_stamp_notification(&state),
+            );
+        }
+        let result = match started {
+            Started::StampedIn => "in",
+            Started::Switched => "switched",
+            Started::Unchanged => "unchanged",
+        };
+        let upload = started == Started::Switched && state.uploadable_count() > 0;
         Ok(json!({ "result": result, "upload": upload }))
     })
 }

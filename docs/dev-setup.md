@@ -220,7 +220,9 @@ module's classes with `consumer-rules.pro`, as R8 cannot see the JNI calls.
 
 - **Home-screen widget** (`StampWidget.kt`, layout `res/layout/widget_stamp.xml`): "Stamped in since 08:12", a timer the
   launcher keeps running, the activity, and a button that stamps in or out like the desktop hotkey (in on the activity
-  used last, else without one). The content comes from `src/widget.rs`. The button (`StampWidgetToggle`, not
+  used last, else without one). Tapping the activity opens a picker over the home screen (`ActivityPicker.kt`):
+  favourites and recently used first, a search field for the rest (ranked by `activities::search`, as in the app);
+  picking one stamps in on it, or continues on it when stamped in. The content comes from `src/widget.rs`. The button (`StampWidgetToggle`, not
   exported) also updates the notification and schedules the upload (no vibration: Android ignores it from an app in the
   background). A forgotten session (12 hours) is never
   closed from the widget: the button opens the app instead. The app redraws the widgets on every stamp change.

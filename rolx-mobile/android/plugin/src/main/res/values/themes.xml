@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The widget's activity picker: a wide dialog; the dark one is in values-night. -->
+    <style name="RolxPicker" parent="android:Theme.Material.Light.Dialog.NoActionBar">
+        <item name="android:windowMinWidthMajor">70%</item>
+        <item name="android:windowMinWidthMinor">90%</item>
+        <item name="android:colorAccent">@color/widget_accent</item>
+        <item name="android:windowBackground">@drawable/widget_background</item>
+    </style>
+</resources>

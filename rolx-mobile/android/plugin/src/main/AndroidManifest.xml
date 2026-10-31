@@ -18,5 +18,16 @@
         <receiver
             android:name="ch.cudos.rolxmobile.plugin.StampWidgetToggle"
             android:exported="false" />
+        <!-- The widget's activity picker: a dialog over the home screen, in a task of its own (not the app's), gone
+             when left. -->
+        <activity
+            android:name="ch.cudos.rolxmobile.plugin.ActivityPicker"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/picker_title_switch"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/RolxPicker"
+            android:windowSoftInputMode="stateHidden|adjustResize" />
     </application>
 </manifest>

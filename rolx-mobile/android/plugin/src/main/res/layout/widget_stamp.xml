@@ -34,7 +34,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="@color/widget_fg"
-            android:textSize="24sp"
+            android:textSize="22sp"
             android:textStyle="bold"
             android:visibility="gone" />
 
@@ -49,15 +49,38 @@
             android:textSize="20sp"
             android:textStyle="bold" />
 
-        <TextView
-            android:id="@+id/widget_text"
-            android:layout_width="match_parent"
+        <!-- The activity; tapping it opens the picker (ActivityPicker.kt). -->
+        <LinearLayout
+            android:id="@+id/widget_activity"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:singleLine="true"
-            android:text="Tap to stamp in"
-            android:textColor="@color/widget_muted"
-            android:textSize="12sp" />
+            android:layout_marginTop="2dp"
+            android:background="@drawable/widget_chip"
+            android:contentDescription="@string/widget_pick_activity"
+            android:gravity="center_vertical"
+            android:minHeight="28dp"
+            android:orientation="horizontal"
+            android:paddingStart="10dp"
+            android:paddingEnd="8dp">
+
+            <TextView
+                android:id="@+id/widget_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:text="Choose an activity"
+                android:textColor="@color/widget_fg"
+                android:textSize="12sp" />
+
+            <ImageView
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_marginStart="6dp"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_widget_swap" />
+        </LinearLayout>
     </LinearLayout>
 
     <ImageButton

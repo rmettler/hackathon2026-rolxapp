@@ -4,4 +4,11 @@
     <string name="stamp_widget_description">The running session with a button to stamp in and out</string>
     <string name="widget_stamp_in">Stamp in</string>
     <string name="widget_stamp_out">Stamp out</string>
+    <string name="widget_pick_activity">Pick another activity</string>
+    <string name="picker_title_stamp_in">Stamp in on</string>
+    <string name="picker_title_switch">Switch to</string>
+    <string name="picker_search_hint">Search activities</string>
+    <string name="picker_empty">No activities yet. Open RolX once to load them.</string>
+    <string name="picker_running">running</string>
+    <string name="picker_recent">recent</string>
 </resources>

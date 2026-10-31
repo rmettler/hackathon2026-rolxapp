@@ -22,6 +22,14 @@ object RolxNative {
     @JvmStatic
     external fun toggle(context: Context): String
 
+    /** The widget picker's list for `query`: `stampedIn`, and `items` with `id`, `short`, `label`, `group`, `current`. */
+    @JvmStatic
+    external fun searchActivities(context: Context, query: String): String
+
+    /** Stamps in on the activity, or continues on it: `result` is `in`, `switched`, `unchanged`, `stale` or `error`. */
+    @JvmStatic
+    external fun pick(context: Context, activityId: Int): String
+
     /** Uploads the queue: `result` is `done`, `retry` or `login`; `uploaded` and `waiting` count entries. */
     @JvmStatic
     external fun upload(context: Context): String
