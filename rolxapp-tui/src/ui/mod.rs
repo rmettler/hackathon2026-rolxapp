@@ -4,12 +4,13 @@ mod charts;
 mod day;
 mod edit;
 mod footer;
+mod outbox;
 mod report;
 mod theme;
 mod week;
 mod year;
 
-use chrono::Local;
+use chrono::{DateTime, Local};
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::Stylize;
@@ -23,10 +24,12 @@ use self::charts::draw_charts;
 use self::day::draw_day;
 use self::edit::draw_edit;
 use self::footer::help_text;
+use self::outbox::{draw_conflict, draw_outbox};
 use self::report::draw_report;
 use self::week::draw_week;
 use self::year::draw_year;
 use crate::app::{App, DayView, Screen, Tab};
+use crate::outbox::ChangeState;
 use crate::time::fmt_hms;
 
 pub fn draw(frame: &mut Frame, app: &App) {
@@ -113,10 +116,58 @@ fn draw_main(frame: &mut Frame, area: Rect, app: &App) {
     if let Some(selected) = app.absence_menu {
         draw_absence(frame, body, app, selected);
     }
+    if let Some(popup) = &app.outbox_popup {
+        draw_outbox(frame, body, app, popup);
+    }
+    if let Some(dialog) = &app.conflict {
+        draw_conflict(frame, body, app, dialog);
+    }
+}
+
+/// " (as of 31.10. 14:05)" for numbers that come from the local copy, else nothing.
+fn as_of(at: Option<DateTime<Local>>) -> String {
+    at.map_or_else(String::new, |at| {
+        format!(" (as of {})", at.format("%d.%m. %H:%M"))
+    })
+}
+
+/// The connection and upload state, shown only when something is off or waiting.
+fn sync_state(app: &App) -> Option<Span<'static>> {
+    let mut parts = Vec::new();
+    if app.needs_login {
+        parts.push("log in (L)".to_string());
+    } else if !app.online {
+        parts.push("offline".to_string());
+    }
+    let pending = app.outbox.count(ChangeState::Pending);
+    if pending > 0 {
+        parts.push(format!("{pending} pending"));
+    }
+    let attention = app.outbox.needs_attention();
+    if attention > 0 {
+        parts.push(format!("{attention} need attention (O)"));
+    }
+    // Only a long download is worth a mention; the regular refresh is a few months.
+    if let Some((done, total)) = app.download.filter(|(_, total)| *total > 4) {
+        parts.push(format!("Downloading {done}/{total}"));
+    }
+    if parts.is_empty() {
+        return None;
+    }
+    let text = format!(" {} ", parts.join(" · "));
+    Some(if attention > 0 || app.needs_login {
+        Span::styled(text, theme::selected())
+    } else {
+        Span::raw(text).yellow()
+    })
 }
 
 fn header_line(app: &App) -> Line<'static> {
     let mut spans = vec![Span::raw(app.user.clone()).bold()];
+    if let Some(state) = sync_state(app) {
+        spans.push(Span::raw("   "));
+        spans.push(state);
+    }
     if let Some(elapsed) = app.stamp_elapsed(Local::now()) {
         spans.push(Span::raw("   "));
         spans.push(Span::styled(
@@ -134,6 +185,9 @@ fn header_line(app: &App) -> Line<'static> {
             |d| format!("{d:.1} d"),
         );
         spans.push(Span::raw(format!("   Vacation {vacation}")));
+        if app.balance_at.is_some() {
+            spans.push(Span::raw(as_of(app.balance_at)).dim());
+        }
     }
     if let Some(lock) = app.edit_lock {
         spans.push(Span::raw(format!("   Edit lock {lock}")));

@@ -11,6 +11,7 @@ use tokio::sync::mpsc;
 
 use crate::app::{App, Msg, Screen};
 use crate::stamp_store::StampStore;
+use crate::store::LocalStore;
 use crate::ui::draw;
 
 static STORES: AtomicUsize = AtomicUsize::new(0);
@@ -20,6 +21,15 @@ pub(crate) fn temp_store() -> StampStore {
     let id = STORES.fetch_add(1, Ordering::Relaxed);
     let dir = std::env::temp_dir().join(format!("rolxapp-tui-test-{}-{id}", std::process::id()));
     StampStore::at(dir.join("stamp.json"))
+}
+
+/// A local store in a fresh temporary directory.
+pub(crate) fn temp_local_store() -> LocalStore {
+    let id = STORES.fetch_add(1, Ordering::Relaxed);
+    LocalStore::at(std::env::temp_dir().join(format!(
+        "rolxapp-tui-test-local-{}-{id}",
+        std::process::id()
+    )))
 }
 
 pub(crate) fn press(app: &mut App, keys: &str) {

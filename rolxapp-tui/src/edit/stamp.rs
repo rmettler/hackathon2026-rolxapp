@@ -1,10 +1,10 @@
 use super::validate::validate_entry;
 use super::{Basis, EditForm, EditMode, Field};
 use crate::app::activities::activity_label;
-use crate::app::{App, Msg, StampPart, StampSession};
+use crate::app::{App, StampPart, StampSession};
 use crate::time::{fmt_clock, parse_clock};
 use chrono::Duration;
-use rolx_core::api::records::{self, Record, RecordEntry};
+use rolx_core::api::records::{Record, RecordEntry};
 
 impl EditForm {
     /// Form that turns a stamp into entries: the first start, the last end, an activity, a comment.
@@ -92,11 +92,8 @@ impl App {
         }
     }
 
-    fn book_stamp(&self, records: Vec<Record>) {
-        self.spawn_with_client(move |c| async move {
-            records::bulk_update(&c, &records).await?;
-            Ok(Msg::StampBooked(records.len()))
-        });
+    fn book_stamp(&mut self, records: Vec<Record>) {
+        self.save_days(records, true);
     }
 
     /// The records to save: each day of the stamp with one more entry, or the reason it can't.

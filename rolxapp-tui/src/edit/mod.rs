@@ -10,6 +10,8 @@ mod stamp;
 mod validate;
 mod vim;
 
+pub(crate) use validate::validate_entry;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Field {
     Activity,

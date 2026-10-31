@@ -1,6 +1,9 @@
 mod app;
+mod copy;
 mod edit;
+mod outbox;
 mod stamp_store;
+mod store;
 mod time;
 mod ui;
 
@@ -13,19 +16,33 @@ use app::{App, Msg};
 use ratatui::DefaultTerminal;
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
 use stamp_store::StampStore;
+use store::LocalStore;
 use tokio::sync::mpsc;
+
+/// How often a lost connection is retried and pending changes are uploaded.
+const SYNC_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// How often the months that can still change are fetched again.
+const REFRESH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(300);
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Two instances would overwrite each other's local data.
+    let store = LocalStore::default_location();
+    let _lock = store
+        .as_ref()
+        .map(LocalStore::lock)
+        .transpose()
+        .map_err(anyhow::Error::msg)?;
     // Logging to stderr would corrupt the screen.
     rolx_core::logging::init_file(0, "tui.log")?;
     let mut terminal = ratatui::init();
-    let result = run(&mut terminal).await;
+    let result = run(&mut terminal, store).await;
     ratatui::restore();
     result
 }
 
-async fn run(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
+async fn run(terminal: &mut DefaultTerminal, store: Option<LocalStore>) -> anyhow::Result<()> {
     let (tx, mut rx) = mpsc::unbounded_channel();
 
     let key_tx = tx.clone();
@@ -54,7 +71,34 @@ async fn run(terminal: &mut DefaultTerminal) -> anyhow::Result<()> {
         }
     });
 
+    let sync_tx = tx.clone();
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(SYNC_INTERVAL);
+        tick.tick().await;
+        loop {
+            tick.tick().await;
+            if sync_tx.send(Msg::SyncTick).is_err() {
+                break;
+            }
+        }
+    });
+
+    let refresh_tx = tx.clone();
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(REFRESH_INTERVAL);
+        tick.tick().await;
+        loop {
+            tick.tick().await;
+            if refresh_tx.send(Msg::RefreshTick).is_err() {
+                break;
+            }
+        }
+    });
+
     let mut app = App::new(tx);
+    if let Some(store) = store {
+        app.install_store(store);
+    }
     app.stamp_store = StampStore::default_location();
     app.load_stamp();
     app.connect();

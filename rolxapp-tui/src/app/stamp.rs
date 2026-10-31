@@ -1,4 +1,4 @@
-use super::{App, Msg};
+use super::{App, Load, Msg};
 use chrono::{DateTime, Duration, Local, NaiveDate, NaiveDateTime, Timelike};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use rolx_core::api::records::{self, Record};
@@ -116,7 +116,7 @@ impl App {
             return;
         };
         let (first_day, after_last) = (first.date, last.date + Duration::days(1));
-        self.spawn_with_client(move |c| async move {
+        self.spawn_load(Load::StampDays(parts.clone()), move |c| async move {
             let records = records::fetch_range(&c, first_day, after_last).await?;
             Ok(Msg::StampDays { parts, records })
         });

@@ -9,7 +9,11 @@ use super::theme;
 use crate::app::App;
 
 pub(super) fn draw_report(frame: &mut Frame, area: Rect, app: &App) {
-    let block = theme::panel(format!(" Report {} ", app.month_key()));
+    let block = theme::panel(format!(
+        " Report {}{} ",
+        app.month_key(),
+        super::as_of(app.report_at)
+    ));
     let Some(r) = &app.report else {
         frame.render_widget(Paragraph::new("Loading…").block(block), area);
         return;

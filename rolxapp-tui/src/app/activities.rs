@@ -81,7 +81,11 @@ impl App {
         }
     }
 
-    pub(crate) fn toggle_favourite(&self) {
+    pub(crate) fn toggle_favourite(&mut self) {
+        if self.client.is_some() && self.reachable().is_none() {
+            self.status = Some("Favourites can only change online".into());
+            return;
+        }
         let Some(activity) = self
             .filtered_activities()
             .get(self.sel_activity)

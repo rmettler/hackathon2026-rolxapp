@@ -3,6 +3,16 @@ use crate::edit::EditMode;
 
 /// Key hints for the footer, depending on what has focus.
 pub(super) fn help_text(app: &App) -> &'static str {
+    if app.conflict.is_some() {
+        return "j/k or 1-3 choose   Enter apply   Esc decide later";
+    }
+    if let Some(popup) = &app.outbox_popup {
+        return if popup.confirm_discard {
+            "Discard this pending change?  y discard  any other key keeps it"
+        } else {
+            "j/k select   Enter open   d discard   r retry   Esc close"
+        };
+    }
     if app.discard_prompt {
         return "Discard the running stamp?  y discard  any other key keeps it";
     }

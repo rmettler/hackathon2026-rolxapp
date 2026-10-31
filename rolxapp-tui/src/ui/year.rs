@@ -7,7 +7,7 @@ use super::theme;
 use crate::app::App;
 
 pub(super) fn draw_year(frame: &mut Frame, area: Rect, app: &App) {
-    let title = format!(" {} ", app.year);
+    let title = format!(" {}{} ", app.year, super::as_of(app.year_at));
     let Some(info) = &app.year_info else {
         frame.render_widget(Paragraph::new("Loading…").block(theme::panel(title)), area);
         return;

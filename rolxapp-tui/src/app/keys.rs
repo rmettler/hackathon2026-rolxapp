@@ -19,6 +19,8 @@ impl App {
                 KeyCode::Char('l') | KeyCode::Enter if !busy => self.log_in(),
                 _ => {}
             },
+            Screen::Main if self.conflict.is_some() => self.on_conflict_key(key),
+            Screen::Main if self.outbox_popup.is_some() => self.on_outbox_key(key),
             Screen::Main if self.discard_prompt => self.on_discard_key(key),
             Screen::Main if self.edit.is_some() => self.on_edit_key(key),
             Screen::Main if self.absence_menu.is_some() => self.on_absence_key(key),
@@ -56,6 +58,9 @@ impl App {
             }
             KeyCode::Char(c @ '1'..='5') => self.set_tab(c as usize - '1' as usize),
             KeyCode::Char('r') => self.refresh(),
+            KeyCode::Char('R') => self.sync_now(),
+            KeyCode::Char('O') => self.open_outbox(),
+            KeyCode::Char('L') => self.relogin(),
             KeyCode::Char('s') => self.toggle_stamp(),
             KeyCode::Char('S') => self.begin_discard(),
             _ => match self.tab {

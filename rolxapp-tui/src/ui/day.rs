@@ -6,12 +6,21 @@ use rolx_core::api::fmt_duration;
 
 use super::theme;
 use crate::app::{App, absence_of, leave_time};
+use crate::outbox::changed_flags;
 use crate::time::{entry_end, fmt_clock};
 
 pub(super) fn draw_day(frame: &mut Frame, area: Rect, app: &App) {
     let mut title = format!(" {} ", app.day.format("%a %d.%m.%Y"));
     if app.is_locked() {
         title.push_str("[locked] ");
+    }
+    let change = app.outbox.get(app.day);
+    if let Some(change) = change {
+        title.push_str(&format!(
+            "[{} {}] ",
+            change.state.symbol(),
+            change.state.label()
+        ));
     }
     let Some(record) = &app.record else {
         frame.render_widget(Paragraph::new("Loading…").block(theme::panel(title)), area);
@@ -44,7 +53,13 @@ pub(super) fn draw_day(frame: &mut Frame, area: Rect, app: &App) {
         return;
     }
 
-    let entry_rows = record.entries.iter().map(|e| {
+    let added = change.map(|c| changed_flags(&c.base, record));
+    let entry_rows = record.entries.iter().enumerate().map(|(i, e)| {
+        let mark = if added.as_ref().is_some_and(|flags| flags[i]) {
+            "↑ "
+        } else {
+            ""
+        };
         let name = app
             .suitable
             .iter()
@@ -52,7 +67,7 @@ pub(super) fn draw_day(frame: &mut Frame, area: Rect, app: &App) {
             .find(|a| a.id == e.activity_id)
             .map_or("", |a| a.name.as_str());
         Row::new([
-            e.full_activity_number.clone(),
+            format!("{mark}{}", e.full_activity_number),
             name.to_string(),
             e.begin.map(|b| fmt_clock(b.into())).unwrap_or_default(),
             e.begin

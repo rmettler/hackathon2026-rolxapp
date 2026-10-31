@@ -99,6 +99,23 @@ pub(super) fn draw_week(frame: &mut Frame, area: Rect, app: &App) {
             .top_margin(1),
         );
     }
+    let marks: Vec<String> = (0..7)
+        .map(|col| {
+            app.outbox
+                .get(monday + Duration::days(col))
+                .map_or(String::new(), |c| c.state.symbol().to_string())
+        })
+        .collect();
+    let has_sync = marks.iter().any(|m| !m.is_empty());
+    if has_sync {
+        let row = Row::new(
+            once(Cell::new("Sync"))
+                .chain(marks.into_iter().map(right))
+                .chain(once(right(String::new()))),
+        );
+        rows.push(if has_absence { row } else { row.top_margin(1) });
+    }
+    let has_extra = has_absence || has_sync;
     rows.push({
         let total = summary(
             "Total",
@@ -106,7 +123,7 @@ pub(super) fn draw_week(frame: &mut Frame, area: Rect, app: &App) {
             grid.week_total(),
             Style::new().add_modifier(Modifier::BOLD),
         );
-        if has_absence {
+        if has_extra {
             total
         } else {
             total.top_margin(1)

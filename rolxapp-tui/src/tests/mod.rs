@@ -1,9 +1,12 @@
 mod absence;
 mod activities;
 mod charts;
+mod copy;
 mod edit_form;
 mod favourites;
 mod navigation;
+mod offline;
+mod resolve;
 mod screens;
 mod stamp;
 mod week;
