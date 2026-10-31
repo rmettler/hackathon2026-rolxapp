@@ -22,6 +22,14 @@ fn centered(area: Rect, width: u16, height: u16) -> Rect {
     }
 }
 
+pub(super) fn outbox_area(area: Rect, changes: usize) -> Rect {
+    centered(area, 76, changes as u16 + 2)
+}
+
+pub(super) fn conflict_area(area: Rect) -> Rect {
+    centered(area, 100, 18)
+}
+
 pub(super) fn draw_outbox(frame: &mut Frame, area: Rect, app: &App, popup: &OutboxPopup) {
     let lines: Vec<Line> = app
         .outbox
@@ -48,7 +56,7 @@ pub(super) fn draw_outbox(frame: &mut Frame, area: Rect, app: &App, popup: &Outb
             }
         })
         .collect();
-    let popup_area = centered(area, 76, lines.len() as u16 + 2);
+    let popup_area = outbox_area(area, lines.len());
     frame.render_widget(Clear, popup_area);
     frame.render_widget(
         Paragraph::new(lines).block(
@@ -97,7 +105,7 @@ pub(super) fn draw_conflict(frame: &mut Frame, area: Rect, app: &App, dialog: &C
     let Some(change) = app.outbox.get(dialog.date) else {
         return;
     };
-    let popup = centered(area, 100, 18);
+    let popup = conflict_area(area);
     frame.render_widget(Clear, popup);
     let title = format!(" Conflict {} ", dialog.date.format("%a %d.%m.%Y"));
     let block = theme::panel(title).title_bottom(" j/k or 1-3 choose  Enter apply  Esc later ");

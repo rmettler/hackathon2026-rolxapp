@@ -9,7 +9,7 @@ use rolx_core::api::activity::Activity;
 use rolx_core::api::records::{Record, RecordEntry};
 use tokio::sync::mpsc;
 
-use crate::app::{App, Msg, Screen};
+use crate::app::{App, DayView, Msg, Screen};
 use crate::stamp_store::StampStore;
 use crate::store::LocalStore;
 use crate::ui::draw;
@@ -65,6 +65,7 @@ pub(crate) fn main_app() -> App {
     let (tx, _rx) = mpsc::unbounded_channel();
     let mut app = App::new(tx);
     app.screen = Screen::Main;
+    app.day_view = DayView::Day;
     app.day = NaiveDate::from_ymd_opt(2026, 10, 30).unwrap();
     app.record = Some(Record {
         date: "2026-10-30".into(),

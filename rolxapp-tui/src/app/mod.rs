@@ -135,7 +135,7 @@ impl App {
             record: None,
             suitable: Vec::new(),
             sel_entry: 0,
-            day_view: DayView::Day,
+            day_view: DayView::Week,
             week: Vec::new(),
             sel_row: 0,
             edit: None,
@@ -231,7 +231,7 @@ impl App {
                 }
                 self.screen = Screen::Main;
                 self.load_header();
-                self.load_day();
+                self.load_view();
                 self.load_activities();
                 self.load_year();
                 self.load_report();

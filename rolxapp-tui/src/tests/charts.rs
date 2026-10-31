@@ -6,7 +6,7 @@ use crate::app::{App, ChartMeasure, Msg, Tab};
 use crate::test_support::*;
 
 /// October 2026 with P1-A1 (1:30) and P1-B (1:00) booked, on the Charts tab.
-fn charts_app() -> App {
+pub(super) fn charts_app() -> App {
     let mut app = main_app();
     app.tab = Tab::Charts;
     app.chart_month = NaiveDate::from_ymd_opt(2026, 10, 1).unwrap();
@@ -62,6 +62,64 @@ fn m_switches_between_running_total_and_daily_hours() {
     assert!(render(&app).contains("Daily hours"));
     press(&mut app, "m");
     assert_eq!(app.chart_measure, ChartMeasure::RunningTotal);
+}
+
+fn has_target_line(app: &App) -> bool {
+    render_buffer(app)
+        .content()
+        .iter()
+        .any(|c| c.fg == ratatui::style::Color::Gray && c.symbol() != " ")
+}
+
+#[test]
+fn the_all_activities_chart_shows_the_target_next_to_the_booked_time() {
+    let app = charts_app();
+
+    let out = render(&app);
+
+    assert!(out.contains("Target"));
+    assert!(out.contains("Booked"));
+    assert!(has_target_line(&app));
+}
+
+#[test]
+fn a_single_activity_has_no_target() {
+    let mut app = charts_app();
+    press(&mut app, "j");
+
+    assert!(!render(&app).contains("Target"));
+    assert!(!has_target_line(&app));
+}
+
+#[test]
+fn the_target_is_drawn_in_both_measures() {
+    let mut app = charts_app();
+    press(&mut app, "m");
+
+    assert!(has_target_line(&app));
+}
+
+#[test]
+fn the_legend_sits_in_the_top_left_of_the_chart() {
+    let buffer = render_buffer(&charts_app());
+    let width = usize::from(buffer.area.width);
+    let cells = buffer.content();
+    let position = (0..cells.len() / width).find_map(|row| {
+        let symbols: Vec<&str> = cells[row * width..(row + 1) * width]
+            .iter()
+            .map(|c| c.symbol())
+            .collect();
+        let column = symbols.windows(6).position(|w| w.concat() == "Target")?;
+        Some((row, column))
+    });
+
+    let (row, column) = position.expect("the legend is drawn");
+    // The chart panel spans rows 4 to 17 below the header and tabs; its top half ends at row 10.
+    assert!(
+        column < 32 + (width - 32) / 2,
+        "left half, was column {column}"
+    );
+    assert!(row < 10, "top half, was row {row}");
 }
 
 #[test]

@@ -16,15 +16,16 @@ use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Tabs, Wrap};
+use rolx_core::api::balance::Balance;
 use rolx_core::api::fmt_duration;
 
-use self::absence::draw_absence;
+use self::absence::{absence_area, draw_absence};
 use self::activities::draw_activities;
-use self::charts::draw_charts;
+use self::charts::{chart_panel, draw_charts};
 use self::day::draw_day;
-use self::edit::draw_edit;
+use self::edit::{draw_edit, edit_area};
 use self::footer::help_text;
-use self::outbox::{draw_conflict, draw_outbox};
+use self::outbox::{conflict_area, draw_conflict, draw_outbox, outbox_area};
 use self::report::draw_report;
 use self::week::draw_week;
 use self::year::draw_year;
@@ -68,14 +69,62 @@ fn centered_text(frame: &mut Frame, area: Rect, text: &str, help: &str) {
     frame.render_widget(Paragraph::new(help).dim(), footer);
 }
 
-fn draw_main(frame: &mut Frame, area: Rect, app: &App) {
-    let [header, tabs, body, footer] = Layout::vertical([
+fn main_layout(area: Rect) -> [Rect; 4] {
+    Layout::vertical([
         Constraint::Length(3),
         Constraint::Length(1),
         Constraint::Min(3),
         Constraint::Length(2),
     ])
-    .areas(area);
+    .areas(area)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum OverlayKind {
+    Edit,
+    Absence,
+    Outbox,
+    Conflict,
+}
+
+/// The popup drawn on top of the Day tab.
+pub struct Overlay {
+    pub kind: OverlayKind,
+    pub area: Rect,
+}
+
+/// The topmost popup of a frame of size `area`, if any.
+pub fn overlay(app: &App, area: Rect) -> Option<Overlay> {
+    if !matches!(app.screen, Screen::Main) {
+        return None;
+    }
+    let [_, _, body, _] = main_layout(area);
+    let (kind, area) = if app.conflict.is_some() {
+        (OverlayKind::Conflict, conflict_area(body))
+    } else if app.outbox_popup.is_some() {
+        (OverlayKind::Outbox, outbox_area(body, app.outbox.len()))
+    } else if app.absence_menu.is_some() {
+        (OverlayKind::Absence, absence_area(body))
+    } else if let Some(form) = &app.edit {
+        (OverlayKind::Edit, edit_area(body, form))
+    } else {
+        return None;
+    };
+    Some(Overlay { kind, area })
+}
+
+/// The line chart's panel while the Charts tab shows one.
+pub fn chart_area(app: &App, area: Rect) -> Option<Rect> {
+    if !matches!(app.screen, Screen::Main) || app.tab != Tab::Charts {
+        return None;
+    }
+    let [_, _, body, _] = main_layout(area);
+    let has_time = app.month_chart().is_some_and(|c| c.has_time());
+    has_time.then(|| chart_panel(body))
+}
+
+fn draw_main(frame: &mut Frame, area: Rect, app: &App) {
+    let [header, tabs, body, footer] = main_layout(area);
 
     frame.render_widget(
         Paragraph::new(header_line(app)).block(theme::panel(" RolX ")),
@@ -162,6 +211,35 @@ fn sync_state(app: &App) -> Option<Span<'static>> {
     })
 }
 
+/// Whole days without decimals, others with one.
+fn fmt_days(days: f64) -> String {
+    let rounded = (days * 10.0).round() / 10.0;
+    if rounded.fract() == 0.0 {
+        format!("{rounded:.0}")
+    } else {
+        format!("{rounded:.1}")
+    }
+}
+
+/// Vacation left, and how much of it is planned; hours when the server has no days.
+fn vacation_text(balance: &Balance) -> String {
+    let (left, planned) = match balance.vacation_available_days {
+        Some(days) => (
+            format!("{} d", fmt_days(days)),
+            balance.vacation_planned_days.map(fmt_days),
+        ),
+        None => (
+            fmt_duration(balance.vacation_available),
+            Some(fmt_duration(balance.vacation_planned)),
+        ),
+    };
+    if balance.vacation_planned > chrono::Duration::zero() {
+        format!("{left} ({} planned)", planned.unwrap_or_default())
+    } else {
+        left
+    }
+}
+
 fn header_line(app: &App) -> Line<'static> {
     let mut spans = vec![Span::raw(app.user.clone()).bold()];
     if let Some(state) = sync_state(app) {
@@ -180,10 +258,7 @@ fn header_line(app: &App) -> Line<'static> {
             "   Overtime {}",
             fmt_duration(balance.overtime)
         )));
-        let vacation = balance.vacation_available_days.map_or_else(
-            || fmt_duration(balance.vacation_available),
-            |d| format!("{d:.1} d"),
-        );
+        let vacation = vacation_text(balance);
         spans.push(Span::raw(format!("   Vacation {vacation}")));
         if app.balance_at.is_some() {
             spans.push(Span::raw(as_of(app.balance_at)).dim());

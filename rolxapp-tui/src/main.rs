@@ -1,3 +1,4 @@
+mod animations;
 mod app;
 mod copy;
 mod edit;
@@ -12,6 +13,7 @@ mod test_support;
 #[cfg(test)]
 mod tests;
 
+use animations::Animations;
 use app::{App, Msg};
 use ratatui::DefaultTerminal;
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
@@ -24,6 +26,9 @@ const SYNC_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// How often the months that can still change are fetched again.
 const REFRESH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(300);
+
+/// Frame time while an effect runs.
+const FRAME: std::time::Duration = std::time::Duration::from_millis(33);
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -103,10 +108,24 @@ async fn run(terminal: &mut DefaultTerminal, store: Option<LocalStore>) -> anyho
     app.load_stamp();
     app.connect();
 
+    let mut animations = Animations::from_env();
     while !app.quit {
         app.viewport_height = terminal.size()?.height;
-        terminal.draw(|frame| ui::draw(frame, &app))?;
-        match rx.recv().await {
+        terminal.draw(|frame| {
+            ui::draw(frame, &app);
+            let area = frame.area();
+            animations.observe(&app, area);
+            animations.process(frame.buffer_mut(), area);
+        })?;
+        let msg = if animations.running() {
+            match tokio::time::timeout(FRAME, rx.recv()).await {
+                Ok(msg) => msg,
+                Err(_) => Some(Msg::Redraw),
+            }
+        } else {
+            rx.recv().await
+        };
+        match msg {
             Some(msg) => app.update(msg),
             None => break,
         }

@@ -1,12 +1,23 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::Style;
+use ratatui::style::{Color, Style};
 use ratatui::symbols::Marker;
-use ratatui::widgets::{Axis, Chart, Dataset, GraphType, List, ListItem, ListState, Paragraph};
+use ratatui::widgets::{
+    Axis, Chart, Dataset, GraphType, LegendPosition, List, ListItem, ListState, Paragraph,
+};
 use rolx_core::api::fmt_duration;
 
 use super::theme;
 use crate::app::App;
+
+const LIST_WIDTH: u16 = 32;
+
+/// The panel holding the line chart, right of the activity list.
+pub(super) fn chart_panel(area: Rect) -> Rect {
+    let [_, chart] =
+        Layout::horizontal([Constraint::Length(LIST_WIDTH), Constraint::Fill(1)]).areas(area);
+    chart
+}
 
 pub(super) fn draw_charts(frame: &mut Frame, area: Rect, app: &App) {
     let month = app.chart_month.format("%B %Y");
@@ -35,7 +46,7 @@ pub(super) fn draw_charts(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let [list_area, chart_area] =
-        Layout::horizontal([Constraint::Length(32), Constraint::Fill(1)]).areas(area);
+        Layout::horizontal([Constraint::Length(LIST_WIDTH), Constraint::Fill(1)]).areas(area);
 
     let items = chart.series.iter().map(|s| {
         ListItem::new(format!(
@@ -57,14 +68,31 @@ pub(super) fn draw_charts(frame: &mut Frame, area: Rect, app: &App) {
         app.chart_measure.label()
     );
     let points = chart.points(app.chart_sel, app.chart_measure);
-    let max = points.iter().map(|p| p.1).fold(0.0, f64::max);
+    // Only the combined series has a target; one activity does not.
+    let target =
+        (app.chart_sel == 0 && chart.has_target()).then(|| chart.target_points(app.chart_measure));
+    let highest = |points: &[(f64, f64)]| points.iter().map(|p| p.1).fold(0.0, f64::max);
+    let max = highest(&points).max(target.as_deref().map_or(0.0, highest));
     let y_max = max.ceil().max(1.0);
 
-    let dataset = Dataset::default()
+    let mut booked = Dataset::default()
         .marker(Marker::Braille)
         .graph_type(GraphType::Line)
         .style(Style::new().fg(theme::BLUE))
         .data(&points);
+    let mut datasets = Vec::new();
+    if let Some(target) = &target {
+        booked = booked.name("Booked");
+        datasets.push(
+            Dataset::default()
+                .name("Target")
+                .marker(Marker::Braille)
+                .graph_type(GraphType::Line)
+                .style(Style::new().fg(Color::Gray))
+                .data(target),
+        );
+    }
+    datasets.push(booked);
     let x_labels: Vec<String> = (0..5)
         .map(|i| (1 + (chart.days - 1) * i / 4).to_string())
         .collect();
@@ -73,7 +101,11 @@ pub(super) fn draw_charts(frame: &mut Frame, area: Rect, app: &App) {
         format!("{:.1}", y_max / 2.0),
         format!("{y_max:.0}"),
     ];
-    let widget = Chart::new(vec![dataset])
+    let widget = Chart::new(datasets)
+        // The default hides a legend taller than a quarter of the chart, which is every legend here.
+        .hidden_legend_constraints((Constraint::Min(0), Constraint::Min(0)))
+        // The lines climb towards the top right.
+        .legend_position(Some(LegendPosition::TopLeft))
         .block(theme::panel(title))
         .x_axis(
             Axis::default()

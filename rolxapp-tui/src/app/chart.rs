@@ -1,9 +1,13 @@
 use std::collections::BTreeMap;
 
 use super::App;
+use super::absence::leave_time;
 use chrono::{Datelike, Duration, Local, NaiveDate};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use rolx_core::api::records::Record;
+
+/// The server's `DayType.Workday`.
+const WORKDAY: i32 = 0;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ChartMeasure {
@@ -42,6 +46,10 @@ pub struct MonthChart {
     /// Last day with a data point: today in the current month, 0 for future months.
     pub last_day: u32,
     pub series: Vec<ChartSeries>,
+    /// Target time of each day; zero on weekends and holidays.
+    expected: Vec<Duration>,
+    /// The line of the daily target: weekends and holidays keep the last working day's full target.
+    level: Vec<Duration>,
 }
 
 fn days_in_month(first: NaiveDate) -> u32 {
@@ -58,6 +66,8 @@ impl MonthChart {
         let days = days_in_month(month);
         let blank = || vec![Duration::zero(); days as usize];
         let mut all = blank();
+        let mut expected = blank();
+        let mut full_target: Vec<Option<Duration>> = vec![None; days as usize];
         let mut by_activity: BTreeMap<i32, (String, Vec<Duration>)> = BTreeMap::new();
 
         for record in records {
@@ -68,6 +78,11 @@ impl MonthChart {
                 continue;
             }
             let day = date.day0() as usize;
+            let nominal = Duration::seconds(record.nominal_work_time);
+            if record.day_type == WORKDAY && nominal > Duration::zero() {
+                full_target[day] = Some(nominal);
+                expected[day] = nominal - leave_time(record).unwrap_or_else(Duration::zero);
+            }
             for entry in &record.entries {
                 all[day] += entry.duration;
                 let activity = by_activity
@@ -105,15 +120,55 @@ impl MonthChart {
         } else {
             days
         };
+        // A month starting on a weekend takes the first working day's target.
+        let mut carried = full_target
+            .iter()
+            .flatten()
+            .next()
+            .copied()
+            .unwrap_or_default();
+        let level = (0..days as usize)
+            .map(|day| match full_target[day] {
+                Some(full) => {
+                    carried = full;
+                    expected[day]
+                }
+                None => carried,
+            })
+            .collect();
+
         Self {
             days,
             last_day,
             series,
+            expected,
+            level,
         }
     }
 
     pub fn has_time(&self) -> bool {
         self.series[0].total > Duration::zero()
+    }
+
+    pub fn has_target(&self) -> bool {
+        self.expected.iter().any(|d| *d > Duration::zero())
+    }
+
+    /// `(day of month, hours)` of the target for every day of the month.
+    pub fn target_points(&self, measure: ChartMeasure) -> Vec<(f64, f64)> {
+        let hours = |d: Duration| d.num_seconds() as f64 / 3600.0;
+        let mut running = 0.0;
+        (1..=self.days)
+            .map(|day| {
+                let i = day as usize - 1;
+                running += hours(self.expected[i]);
+                let value = match measure {
+                    ChartMeasure::RunningTotal => running,
+                    ChartMeasure::DailyHours => hours(self.level[i]),
+                };
+                (f64::from(day), value)
+            })
+            .collect()
     }
 
     /// `(day of month, hours)` for each day up to `last_day`.
@@ -280,6 +335,138 @@ mod tests {
 
         assert!(!chart.has_time());
         assert_eq!(chart.series.len(), 1, "only the combined series is left");
+    }
+
+    /// A working day of 8.4 hours (a 42-hour week).
+    fn workday(day: &str, entries: Vec<RecordEntry>) -> Record {
+        Record {
+            nominal_work_time: 30_240,
+            ..record(day, entries)
+        }
+    }
+
+    fn weekend(day: &str) -> Record {
+        Record {
+            day_type: 1,
+            nominal_work_time: 0,
+            ..record(day, Vec::new())
+        }
+    }
+
+    fn close(points: &[(f64, f64)], expected: &[f64]) {
+        let values: Vec<f64> = points.iter().map(|p| p.1).collect();
+        assert_eq!(values.len(), expected.len(), "{values:?}");
+        for (value, expected) in values.iter().zip(expected) {
+            assert!(
+                (value - expected).abs() < 1e-9,
+                "{values:?} vs {expected:?}"
+            );
+        }
+    }
+
+    /// Thu 1 to Mon 5 October 2026 with a weekend in between.
+    fn week_around_a_weekend() -> Vec<Record> {
+        vec![
+            workday("2026-10-01", vec![entry(1, "P1-A", 60)]),
+            workday("2026-10-02", Vec::new()),
+            weekend("2026-10-03"),
+            weekend("2026-10-04"),
+            workday("2026-10-05", Vec::new()),
+        ]
+    }
+
+    #[test]
+    fn the_running_target_adds_up_working_days_only() {
+        let chart = MonthChart::build(
+            date(2026, 10, 1),
+            &week_around_a_weekend(),
+            date(2026, 10, 5),
+        );
+
+        let target = chart.target_points(ChartMeasure::RunningTotal);
+
+        close(&target[..5], &[8.4, 16.8, 16.8, 16.8, 25.2]);
+    }
+
+    #[test]
+    fn the_daily_target_stays_flat_over_the_weekend() {
+        let chart = MonthChart::build(
+            date(2026, 10, 1),
+            &week_around_a_weekend(),
+            date(2026, 10, 5),
+        );
+
+        let target = chart.target_points(ChartMeasure::DailyHours);
+
+        close(&target[..5], &[8.4; 5]);
+    }
+
+    #[test]
+    fn a_month_starting_on_a_weekend_takes_the_first_working_days_target() {
+        let records = vec![
+            weekend("2026-11-01"),
+            workday("2026-11-02", vec![entry(1, "P1-A", 60)]),
+        ];
+        let chart = MonthChart::build(date(2026, 11, 1), &records, date(2026, 11, 30));
+
+        close(
+            &chart.target_points(ChartMeasure::DailyHours)[..2],
+            &[8.4, 8.4],
+        );
+        close(
+            &chart.target_points(ChartMeasure::RunningTotal)[..2],
+            &[0.0, 8.4],
+        );
+    }
+
+    #[test]
+    fn a_day_off_lowers_the_target_but_the_weekend_after_it_keeps_the_full_one() {
+        let mut friday = workday("2026-10-02", Vec::new());
+        friday.paid_leave_type = Some(0);
+        let records = vec![
+            workday("2026-10-01", vec![entry(1, "P1-A", 60)]),
+            friday,
+            weekend("2026-10-03"),
+        ];
+        let chart = MonthChart::build(date(2026, 10, 1), &records, date(2026, 10, 3));
+
+        close(
+            &chart.target_points(ChartMeasure::DailyHours)[..3],
+            &[8.4, 0.0, 8.4],
+        );
+        close(
+            &chart.target_points(ChartMeasure::RunningTotal)[..3],
+            &[8.4, 8.4, 8.4],
+        );
+    }
+
+    #[test]
+    fn a_part_day_absence_leaves_the_booked_time_as_the_target() {
+        let mut thursday = workday("2026-10-01", vec![entry(1, "P1-A", 240)]);
+        thursday.paid_leave_type = Some(1);
+        let chart = MonthChart::build(date(2026, 10, 1), &[thursday], date(2026, 10, 1));
+
+        close(&chart.target_points(ChartMeasure::DailyHours)[..1], &[4.0]);
+    }
+
+    #[test]
+    fn the_target_runs_to_the_end_of_the_month_while_booked_time_stops_today() {
+        let chart = MonthChart::build(
+            date(2026, 10, 1),
+            &week_around_a_weekend(),
+            date(2026, 10, 3),
+        );
+
+        assert_eq!(chart.points(0, ChartMeasure::RunningTotal).len(), 3);
+        assert_eq!(chart.target_points(ChartMeasure::RunningTotal).len(), 31);
+    }
+
+    #[test]
+    fn without_working_days_there_is_no_target() {
+        let records = vec![weekend("2026-10-03")];
+        let chart = MonthChart::build(date(2026, 10, 1), &records, date(2026, 11, 5));
+
+        assert!(!chart.has_target());
     }
 
     #[test]

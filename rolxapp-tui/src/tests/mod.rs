@@ -1,5 +1,6 @@
 mod absence;
 mod activities;
+mod animations;
 mod charts;
 mod copy;
 mod edit_form;

@@ -9,7 +9,7 @@ Time recorded in entries on activities. Absences are not booked time.
 _Avoid_: Worked time
 
 **Chart**:
-A line chart of the booked time on one activity over the days of one month.
+A line chart of the booked time on one activity over the days of one month. The chart of all activities also shows the target time.
 _Avoid_: Graph, plot
 
 **Daily hours**:
@@ -18,6 +18,17 @@ The measure of a chart that shows the booked time of each day.
 **Running total**:
 The measure of a chart that shows the booked time accumulated from the first day of the month up to each day.
 _Avoid_: Cumulative hours
+
+**Target time**:
+The time a user is expected to book on a day: the working time the server expects, less any absence. It is zero on weekends and holidays.
+_Avoid_: Nominal time, Target state, Goal
+
+**Vacation left**:
+The vacation a user has not taken yet as of today, including planned vacation.
+_Avoid_: Available vacation
+
+**Planned vacation**:
+Vacation booked on days after today. It is part of the vacation left, not on top of it.
 
 **Stamp**:
 A started measurement of working time that has not been stamped out yet. Stamping out turns it into entries.

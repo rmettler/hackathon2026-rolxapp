@@ -8,18 +8,25 @@ use super::theme;
 use crate::app::App;
 use crate::edit::{Basis, EditForm, EditMode, Field};
 
-pub(super) fn draw_edit(frame: &mut Frame, area: Rect, app: &App, form: &EditForm) {
-    let searching = form.mode == EditMode::Search;
+pub(super) fn edit_area(area: Rect, form: &EditForm) -> Rect {
     let width = area.width.min(80);
     let base = if form.stamp.is_some() { 7 } else { 8 };
-    let wanted = if searching { base + 9 } else { base };
+    let wanted = if form.mode == EditMode::Search {
+        base + 9
+    } else {
+        base
+    };
     let height = wanted.min(area.height);
-    let popup = Rect {
+    Rect {
         x: area.x + (area.width - width) / 2,
         y: area.y + (area.height - height) / 2,
         width,
         height,
-    };
+    }
+}
+
+pub(super) fn draw_edit(frame: &mut Frame, area: Rect, app: &App, form: &EditForm) {
+    let popup = edit_area(area, form);
     let title = if form.stamp.is_some() {
         "Stamp out"
     } else if form.index.is_some() {
@@ -78,11 +85,12 @@ pub(super) fn draw_edit(frame: &mut Frame, area: Rect, app: &App, form: &EditFor
         (None, Basis::Range) => "  saves From/To (Duration ignored)".to_string(),
     };
     lines.push(Line::from(hint.dim()));
-    if searching {
+    if form.mode == EditMode::Search {
         let results = app.search_results();
         lines.push(Line::default());
         lines.push(Line::from(format!("Search: {}█", form.search)).bold());
-        let visible = usize::from(height.saturating_sub(base + 2)).max(1);
+        let base = if form.stamp.is_some() { 7 } else { 8 };
+        let visible = usize::from(popup.height.saturating_sub(base + 2)).max(1);
         let start = form.search_sel.saturating_sub(visible - 1);
         if results.is_empty() {
             lines.push(Line::from("  no matching activity".dim()));
