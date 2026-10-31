@@ -12,7 +12,7 @@ change them in `config.json` and run `node presentation/server.mjs setup-obs` ag
 2. Turn on Do Not Disturb (Windows: Focus), so no notifications show up on the shared screen.
 3. Open this link in Chrome or Edge:
 
-   https://vdo.ninja/?push=rolx-desk-ba66a5a8&screenshare&quality=0&audiodevice=0
+   https://vdo.ninja/?push=rolxdeskba66a5a8&screenshare&quality=0&audiodevice=0
 
 4. Choose what to share:
    - **Window**: the RolX window. Only the app is visible.

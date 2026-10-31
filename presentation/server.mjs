@@ -403,7 +403,7 @@ async function setupObs() {
     log('no Move transition found: install the Move plugin and add a "Move" transition, then run setup-obs again');
   }
 
-  await obs.call('SetCurrentProgramScene', { sceneName: SCENES.deck });
+  // The scene stays as it is: the running server sets it with the next click.
   obs.close();
   console.log('OBS is set up.');
 }
