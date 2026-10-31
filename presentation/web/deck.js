@@ -1,8 +1,11 @@
 // The deck: follows the server's slide state (or a fixed offset from it, for the presenter's previews).
 //
 //   deck.html             browser window: arrow keys, space and page up/down move the slides; the frames show the
-//                         live screens (VDO.Ninja) and the video themselves
-//   deck.html?mode=obs    OBS browser source: no keys, empty frames (OBS puts the feeds on top)
+//                         live screens (VDO.Ninja) themselves
+//   deck.html?mode=obs    OBS browser source: no keys, the live screens' frames stay empty (OBS puts them on top)
+//
+// Recorded videos are always the deck's own (browser and OBS): played once with sound on their slide, a still
+// everywhere else. The previews only show the still.
 //   deck.html?mode=preview&offset=1
 //                         presenter preview (offset 0: this click, 1: the next one): no transitions, no live
 //                         screens, and the state comes from the presenter page instead of its own server connection
@@ -64,14 +67,15 @@ function buildStatic() {
     )
     .join('');
 
-  if (live) {
-    for (const frame of frames.querySelectorAll('.frame')) {
-      const source = config.sources?.[frame.dataset.feed];
-      const screen = frame.querySelector('.frame-screen');
-      if (source?.kind === 'vdo') {
-        screen.insertAdjacentHTML('beforeend', `<iframe class="frame-live" src="${source.src}" allow="autoplay; fullscreen" tabindex="-1" title="${FEEDS[frame.dataset.feed].label}"></iframe>`);
-      } else if (source?.kind === 'video') {
-        screen.insertAdjacentHTML('beforeend', `<video class="frame-live" src="${source.src}" muted playsinline preload="auto"></video>`);
+  for (const frame of frames.querySelectorAll('.frame')) {
+    const source = config.sources?.[frame.dataset.feed];
+    const screen = frame.querySelector('.frame-screen');
+    if (source?.kind === 'vdo' && live) {
+      screen.insertAdjacentHTML('beforeend', `<iframe class="frame-live" src="${source.src}" allow="autoplay; fullscreen" tabindex="-1" title="${FEEDS[frame.dataset.feed].label}"></iframe>`);
+    } else if (source?.kind === 'video') {
+      if (source.still) screen.insertAdjacentHTML('beforeend', `<img class="frame-live" src="${source.still}" alt="">`);
+      if (!preview) {
+        screen.insertAdjacentHTML('beforeend', `<video class="frame-live" src="${source.src}" playsinline preload="auto" hidden></video>`);
       }
     }
   }
@@ -152,25 +156,27 @@ function apply(next) {
 }
 
 // ---- Recorded videos ------------------------------------------------------------------------------------------
-// As in OBS (server.mjs syncVideos): from the start with sound on their own slide, from the start without sound in
-// the overview, stopped everywhere else; once through, then the last frame stays.
+// On its own slide the video plays once from the start, with sound, and keeps its last frame; everywhere else it is
+// stopped and the still shows.
 
 function syncVideos(layout) {
   for (const video of document.querySelectorAll('.frame video')) {
-    const key = video.closest('.frame').dataset.feed;
+    const own = video.closest('.frame').dataset.feed === layout;
     delete video.dataset.wantsSound;
-    if (!LAYOUTS[layout][key]) {
+    video.hidden = !own;
+    if (!own) {
       video.pause();
+      video.muted = true;
       continue;
     }
     video.currentTime = 0;
-    video.muted = layout !== key;
-    // Without a click or key press in this window first, the browser refuses sound: then play it silently and
-    // turn the sound on with the next key press here.
+    video.muted = false;
+    // Without a click or key press in this window first, a browser refuses sound: then it plays silently and the
+    // next key press here turns the sound on. (OBS allows sound right away.)
     video.play().catch(() => {
       video.muted = true;
+      video.dataset.wantsSound = 'true';
       video.play().catch(() => {});
-      video.dataset.wantsSound = String(layout === key);
     });
   }
 }

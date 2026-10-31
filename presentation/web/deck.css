@@ -266,6 +266,8 @@ body {
 }
 
 /* The live screen in a browser window: over the hint, fitted inside like OBS does it. */
+.frame-live[hidden] { display: none; }
+
 .frame-live {
   position: absolute;
   inset: 0;

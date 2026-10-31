@@ -10,6 +10,6 @@
   "feeds": {
     "desk": { "kind": "vdo", "id": "rolxdeskba66a5a8", "device": "pc" },
     "phone": { "kind": "vdo", "id": "rolxphone91d41405", "device": "android" },
-    "terminal": { "kind": "video", "file": "media/terminal-voice.mp4" }
+    "terminal": { "kind": "video", "file": "media/terminal-voice.mp4", "still": "media/terminal-still.jpg" }
   }
 }

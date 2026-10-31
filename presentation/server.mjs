@@ -57,19 +57,26 @@ function publicConfig() {
       .filter(([, feed]) => feed.kind === 'vdo')
       .map(([key, feed]) => [key, { id: feed.id, device: feed.device ?? 'pc', ...vdoLinks(feed) }]),
   );
-  // What the deck itself shows in each frame when it runs in a browser (in OBS, OBS puts the feeds on top).
+  // What the deck itself shows in each frame: live screens only in a browser (in OBS, OBS puts them on top),
+  // recorded videos always (the deck plays them, also inside OBS), with a still for the slides around them.
   const sources = Object.fromEntries(
     Object.entries(feeds).map(([key, feed]) => {
       if (feed.kind === 'vdo') return [key, { kind: 'vdo', src: vdoLinks(feed).view }];
-      if (feed.kind === 'video') return [key, { kind: 'video', src: `/media/${key}` }];
+      if (feed.kind === 'video') {
+        return [key, { kind: 'video', src: `/media/${key}`, still: feed.still ? `/media/${key}/still` : null }];
+      }
       return [key, { kind: feed.kind }];
     }),
   );
   return { people, talk, links, sources };
 }
 
-/** A video feed's file, with byte ranges so the browser can loop and seek. */
+/** A video feed's file, with byte ranges so the browser can seek; `<key>/still` is its still image. */
 async function sendVideo(req, res, key) {
+  if (key.endsWith('/still')) {
+    const feed = loadConfig().feeds?.[key.slice(0, -'/still'.length)];
+    return feed?.kind === 'video' && feed.still ? sendFile(res, resolve(HERE, feed.still)) : res.writeHead(404).end();
+  }
   const feed = loadConfig().feeds?.[key];
   if (feed?.kind !== 'video') return res.writeHead(404).end();
   const path = resolve(HERE, feed.file);
@@ -131,7 +138,6 @@ function broadcast() {
 
 function moveTo(index, step) {
   const now = Date.now();
-  const layoutBefore = SLIDES[state.index].layout;
   state.index = Math.max(0, Math.min(last, index));
   state.step = Math.max(0, Math.min(stepsOf(state.index), step));
   if (state.startedAt === null && state.index > 0) state.startedAt = now;
@@ -143,7 +149,6 @@ function moveTo(index, step) {
   }
   // Every click sets the scene, so OBS follows again after someone switched it by hand.
   showScene();
-  syncVideos(SLIDES[state.index].layout !== layoutBefore);
   broadcast();
 }
 
@@ -191,7 +196,6 @@ async function connectObs() {
     };
     setObsStatus(true, 'connected');
     showScene();
-    syncVideos();
   } catch (error) {
     setObsStatus(false, error.message);
     setTimeout(connectObs, 3000);
@@ -205,28 +209,6 @@ function showScene() {
     .call('SetCurrentProgramScene', { sceneName })
     .then(() => setObsStatus(true, 'connected'))
     .catch((error) => setObsStatus(true, `${error.message} (run setup-obs)`));
-}
-
-/** Recorded videos: from the start with sound on their own slide, from the start without sound in the overview,
- * silent everywhere else. They play once and hold the last frame, so the sound never repeats. */
-function syncVideos(restart = true) {
-  if (!obs.connected) return;
-  const layout = SLIDES[state.index].layout;
-  const feeds = loadConfig().feeds ?? {};
-  for (const [key, feed] of Object.entries(feeds)) {
-    if (feed.kind !== 'video') continue;
-    const inputName = FEEDS[key].source;
-    const shown = Boolean(LAYOUTS[layout][key]);
-    const ignore = () => {};
-    obs.call('SetInputMute', { inputName, inputMuted: layout !== key }).catch(ignore);
-    if (!restart) continue;
-    obs
-      .call('TriggerMediaInputAction', {
-        inputName,
-        mediaAction: shown ? 'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART' : 'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_STOP',
-      })
-      .catch(ignore);
-  }
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -316,25 +298,13 @@ function serve() {
 // setup-obs: scenes, sources and transition, idempotent.
 
 const PRIORITY = { class: 0, title: 1, exe: 2 };
+
+/** Feeds OBS shows itself; recorded videos are played by the deck. */
+const obsFed = (key) => loadConfig().feeds?.[key]?.kind !== 'video';
 const MOVE_MS = 480; // deck.css --move
 
 function inputFor(key) {
   const feed = loadConfig().feeds[key];
-  if (feed.kind === 'video') {
-    return {
-      inputKind: 'ffmpeg_source',
-      inputSettings: {
-        is_local_file: true,
-        local_file: resolve(HERE, feed.file),
-        // The server starts, stops and mutes it with the slides (syncVideos).
-        looping: false,
-        restart_on_activate: false,
-        clear_on_media_end: false,
-        close_when_inactive: false,
-        hw_decode: false, // hardware decoding never opened the file on this laptop
-      },
-    };
-  }
   if (feed.kind === 'window') {
     return {
       inputKind: 'window_capture',
@@ -396,10 +366,13 @@ async function setupObs() {
     height: STAGE.height,
     shutdown: false,
     restart_when_active: false,
+    reroute_audio: true, // the recorded video's sound goes through OBS (mixer, monitoring)
   };
   const wanted = [
     { inputName: deckName, inputKind: 'browser_source', inputSettings: deckSettings },
-    ...Object.entries(FEEDS).map(([key, feed]) => ({ inputName: feed.source, ...inputFor(key) })),
+    ...Object.entries(FEEDS)
+      .filter(([key]) => obsFed(key))
+      .map(([key, feed]) => ({ inputName: feed.source, ...inputFor(key) })),
   ];
   // Sources of an earlier layout (or a feed that changed kind) go. OBS frees a removed source only once nothing
   // holds it any more, so it is renamed first to free its name for the new one.
@@ -415,32 +388,21 @@ async function setupObs() {
   }
   for (const input of wanted) {
     if (inputs.has(input.inputName)) {
-      // A media source does not open its file again for unchanged settings (e.g. a video copied in later), so it
-      // gets an empty file first.
-      if (input.inputKind === 'ffmpeg_source') {
-        await obs.call('SetInputSettings', { inputName: input.inputName, inputSettings: { local_file: '' }, overlay: true });
-      }
       await obs.call('SetInputSettings', { inputName: input.inputName, inputSettings: input.inputSettings, overlay: true });
     } else {
       await obs.call('CreateInput', { sceneName: SCENES.deck, ...input, sceneItemEnabled: true });
       log(`source ${input.inputName}`);
     }
-    // Everybody talks through the call; the live feeds stay silent. A recorded video has sound on its own slide
-    // (syncVideos) and is also played on this laptop's speakers, for the people in the room.
-    if (input.inputKind === 'browser_source') {
-      await obs.call('SetInputMute', { inputName: input.inputName, inputMuted: true }).catch(() => {});
-    }
-    if (input.inputKind === 'ffmpeg_source') {
-      await obs.call('SetInputMute', { inputName: input.inputName, inputMuted: true }).catch(() => {});
+    // Everybody talks through the call: the live screens stay silent. The deck plays the recorded video's sound,
+    // in OBS and on this laptop's speakers, for the people in the room.
+    const muted = input.inputName !== deckName;
+    await obs.call('SetInputMute', { inputName: input.inputName, inputMuted: muted }).catch(() => {});
+    if (!muted) {
       await obs
         .call('SetInputAudioMonitorType', {
           inputName: input.inputName,
           monitorType: 'OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT',
         })
-        .catch(() => {});
-      // Reloading the file starts it; the running server starts it again on its slide.
-      await obs
-        .call('TriggerMediaInputAction', { inputName: input.inputName, mediaAction: 'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_STOP' })
         .catch(() => {});
     }
   }
@@ -448,7 +410,8 @@ async function setupObs() {
   const ours = new Set([deckName, ...Object.values(FEEDS).map((feed) => feed.source)]);
   for (const [layout, sceneName] of Object.entries(SCENES)) {
     const slots = LAYOUTS[layout];
-    const wantedHere = new Set([deckName, ...Object.keys(slots).map((key) => FEEDS[key].source)]);
+    const fed = Object.entries(slots).filter(([key]) => obsFed(key));
+    const wantedHere = new Set([deckName, ...fed.map(([key]) => FEEDS[key].source)]);
     const items = (await obs.call('GetSceneItemList', { sceneName })).sceneItems;
     const idOf = new Map(items.map((item) => [item.sourceName, item.sceneItemId]));
 
@@ -474,7 +437,7 @@ async function setupObs() {
         boundsHeight: STAGE.height,
       },
     });
-    for (const [key, rect] of Object.entries(slots)) {
+    for (const [key, rect] of fed) {
       const sceneItemId = await ensure(FEEDS[key].source);
       await obs.call('SetSceneItemTransform', {
         sceneName,

@@ -30,7 +30,8 @@ click and stamped out on the last slide.
   capture, or `video` file).
 - `SHARING.md`: the steps for the people who share their screen. Send it to them.
 - `media/`: the recorded terminal app video (git-ignored, put it there yourself). `terminal-voice.mp4` is the
-  recording with the voice cleaned up and brought to -16 LUFS:
+  recording with the voice cleaned up and brought to -16 LUFS, `terminal-still.jpg` a frame of it
+  (`ffmpeg -ss 30 -i terminal-voice.mp4 -frames:v 1 -q:v 2 terminal-still.jpg`):
 
   ```sh
   ffmpeg -i terminal-original.mp4 -map 0:v:0 -map 0:a:0 -c:v copy     -af "highpass=f=90,lowpass=f=9000,afftdn=nr=14:nf=-60:tn=1,acompressor=threshold=-38dB:ratio=3:attack=10:release=200:makeup=6,loudnorm=I=-16:TP=-1.5:LRA=9"     -c:a aac -b:a 192k -movflags +faststart terminal-voice.mp4
@@ -65,10 +66,11 @@ Run it in your own terminal for the talk: it keeps the slide state in memory onl
 - Deck in a browser window without OBS: `http://127.0.0.1:5180/deck.html`, `F` for full screen. Same keys.
 - OBS: Start Virtual Camera, then choose "OBS Virtual Camera" as the camera in Teams or Zoom. The live feeds are
   muted: everybody talks through the call.
-- The terminal video plays once with sound on its own slide (silent in the overview). OBS plays the sound on this
-  laptop's speakers; the virtual camera carries no sound, so for people in the call share the computer sound in
-  Teams ("Include computer sound"). The browser deck only plays sound after a click or key press in its window:
-  press `F` for full screen there before the talk.
+- The terminal video is played by the deck itself, in OBS as in the browser: once from the start with sound on
+  its slide, then its last frame stays. Everywhere else the still (`media/terminal-still.jpg`) shows. In OBS its
+  sound comes with the deck source and plays on this laptop's speakers; the virtual camera carries no sound, so
+  for people in the call share the computer sound in Teams ("Include computer sound"). The browser deck only plays
+  sound after a click or key press in its window: press `F` for full screen there before the talk.
 - Use either OBS or the browser deck for the talk, not both: each live screen and the video sound would run twice.
 
 ## Before the talk
