@@ -3,17 +3,21 @@
 //! Every call goes through [`with_activity`], which attaches the thread, frees the local references the call creates
 //! and turns a Java exception into an error (clearing it, so the next JNI call works).
 
+use std::ffi::c_void;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 use anyhow::{Context, anyhow, bail};
+use dioxus::logger::tracing::warn;
 use jni::JNIEnv;
 use jni::JavaVM;
+use jni::NativeMethod;
 use jni::objects::{JClass, JObject, JString, JValue};
 
 // Bundles the Gradle module with what dx 0.7 can't generate: the launcher icon (`@mipmap/ic_rolx`, set in
 // `AndroidManifest.xml`; dx has no icon setting for Android and overwrites its default `ic_launcher`), the notification
-// icon, and the Kotlin parts (widget, background upload, app lock; see `bridge.rs`). dx adds the modules of FFI plugins
-// to the app.
+// and shortcut icons, `StampLinkActivity`, and the Kotlin parts (widget, background upload, app lock; see `bridge.rs`).
+// dx adds the modules of FFI plugins to the app.
 #[manganis::ffi("android/plugin")]
 extern "Kotlin" {}
 
@@ -31,10 +35,16 @@ const POST_NOTIFICATIONS: &str = "android.permission.POST_NOTIFICATIONS";
 /// Request code of the permission request; nothing listens for the result, the app polls the permission instead.
 const PERMISSION_REQUEST_CODE: i32 = 4711;
 
+/// Receives the stamp links, in the `plugin` module (`StampLinkActivity.java`).
+const STAMP_LINK_ACTIVITY: &str = "ch.cudos.rolxmobile.plugin.StampLinkActivity";
+
 // Android constants (API levels and flag values of the SDK).
+const API_N_MR1: i32 = 25;
 const API_O: i32 = 26;
 const API_S: i32 = 31;
 const API_TIRAMISU: i32 = 33;
+/// Android 16; Live Updates came with its QPR2, see `live_updates_supported`.
+const API_BAKLAVA: i32 = 36;
 const IMPORTANCE_LOW: i32 = 2;
 const PRIORITY_LOW: i32 = -1;
 const PERMISSION_GRANTED: i32 = 0;
@@ -43,6 +53,7 @@ const FLAG_IMMUTABLE: i32 = 0x0400_0000;
 const DEFAULT_AMPLITUDE: i32 = -1;
 
 const BUILDER: &str = "android/app/Notification$Builder";
+const SHORTCUT_BUILDER: &str = "android/content/pm/ShortcutInfo$Builder";
 
 /// The VM and context of a call from Kotlin that runs without the activity (the widget, the background upload), set
 /// by `with_context`. `ndk_context` has no activity then, and asking it would panic.
@@ -246,14 +257,29 @@ pub fn request_notification_permission() -> anyhow::Result<()> {
     })
 }
 
-/// Shows or updates the ongoing "stamped in" notification. With `chronometer_base_ms` (epoch millis) it shows a
-/// running timer counting from then, kept up by the system without the app. Does nothing without the permission;
-/// returns whether it was posted.
-pub fn show_stamp_notification(
-    title: &str,
-    text: &str,
-    chronometer_base_ms: Option<i64>,
-) -> anyhow::Result<bool> {
+/// What [`show_stamp_notification`] shows.
+pub struct StampNotificationContent<'a> {
+    pub title: &'a str,
+    pub text: &'a str,
+    /// Epoch millis a running timer counts from, kept up by the system without the app; `None` for no timer.
+    pub chronometer_base_ms: Option<i64>,
+    /// Text of the status bar chip of a Live Update instead of the timer.
+    pub chip_text: Option<&'a str>,
+    /// Buttons as (label, stamp link), opened in `StampLinkActivity`.
+    pub actions: &'a [(&'a str, &'a str)],
+}
+
+/// Shows or updates the ongoing "stamped in" notification; on Android 16 QPR2+ it asks for a Live Update (a chip
+/// in the status bar, which Xiaomi shows in its island). Does nothing without the permission; returns whether it was
+/// posted.
+pub fn show_stamp_notification(content: &StampNotificationContent) -> anyhow::Result<bool> {
+    let StampNotificationContent {
+        title,
+        text,
+        chronometer_base_ms,
+        chip_text,
+        actions,
+    } = *content;
     with_activity(|env, ctx| {
         if !notifications_granted(env, ctx)? {
             return Ok(false);
@@ -315,6 +341,12 @@ pub fn show_stamp_notification(
             "Landroid/app/PendingIntent;",
             &[JValue::Object(&intent)],
         )?;
+        for (request_code, (label, link)) in (1..).zip(actions) {
+            env.with_local_frame(LOCAL_FRAME, |env| {
+                add_link_action(env, ctx, &builder, icon, label, link, request_code)
+            })?;
+        }
+        request_live_update(env, &builder, chip_text);
 
         let notification = env
             .call_method(&builder, "build", "()Landroid/app/Notification;", &[])?
@@ -329,6 +361,189 @@ pub fn show_stamp_notification(
             ],
         )?;
         Ok(true)
+    })
+}
+
+/// Adds a button that opens the stamp `link` in `StampLinkActivity`. `request_code` tells the buttons' pending intents
+/// apart.
+fn add_link_action(
+    env: &mut JNIEnv,
+    ctx: &JObject,
+    builder: &JObject,
+    icon_id: i32,
+    label: &str,
+    link: &str,
+    request_code: i32,
+) -> anyhow::Result<()> {
+    let intent = link_intent(env, ctx, link)?;
+    let pending = env
+        .call_static_method(
+            "android/app/PendingIntent",
+            "getActivity",
+            "(Landroid/content/Context;ILandroid/content/Intent;I)Landroid/app/PendingIntent;",
+            &[
+                JValue::Object(ctx),
+                JValue::Int(request_code),
+                JValue::Object(&intent),
+                JValue::Int(FLAG_IMMUTABLE | FLAG_UPDATE_CURRENT),
+            ],
+        )?
+        .l()?;
+    // Recent Android versions show no icon on buttons, but the builder needs one.
+    let icon = env
+        .call_static_method(
+            "android/graphics/drawable/Icon",
+            "createWithResource",
+            "(Landroid/content/Context;I)Landroid/graphics/drawable/Icon;",
+            &[JValue::Object(ctx), JValue::Int(icon_id)],
+        )?
+        .l()?;
+    let label = env.new_string(label)?;
+    let action_builder = env.new_object(
+        "android/app/Notification$Action$Builder",
+        "(Landroid/graphics/drawable/Icon;Ljava/lang/CharSequence;Landroid/app/PendingIntent;)V",
+        &[
+            JValue::Object(&icon),
+            JValue::Object(&label),
+            JValue::Object(&pending),
+        ],
+    )?;
+    let action = env
+        .call_method(
+            &action_builder,
+            "build",
+            "()Landroid/app/Notification$Action;",
+            &[],
+        )?
+        .l()?;
+    builder_set(
+        env,
+        builder,
+        "addAction",
+        "Landroid/app/Notification$Action;",
+        &[JValue::Object(&action)],
+    )
+}
+
+/// Whether the device has Live Updates for apps. They came with Android 16 QPR2 (API 36.1), which `SDK_INT` (36) does
+/// not tell apart from the first Android 16 release, so this looks for `Notification.EXTRA_REQUEST_PROMOTED_ONGOING`.
+fn live_updates_supported(env: &mut JNIEnv) -> bool {
+    static SUPPORTED: OnceLock<bool> = OnceLock::new();
+    *SUPPORTED.get_or_init(|| {
+        if sdk_int(env).unwrap_or(0) < API_BAKLAVA {
+            return false;
+        }
+        let found = env
+            .get_static_field(
+                "android/app/Notification",
+                "EXTRA_REQUEST_PROMOTED_ONGOING",
+                "Ljava/lang/String;",
+            )
+            .is_ok();
+        // The `NoSuchFieldError` of a device without them.
+        _ = take_exception(env);
+        found
+    })
+}
+
+/// Asks to promote the notification to a Live Update (Android 16 QPR2): a chip in the status bar showing `chip_text`,
+/// else the timer, and on Xiaomi's HyperOS the island. Needs `POST_PROMOTED_NOTIFICATIONS` in the manifest; the
+/// system decides, and the user can turn it off per app. Best effort: if it fails, the notification is shown as
+/// before, so failures are logged, not returned.
+fn request_live_update(env: &mut JNIEnv, builder: &JObject, chip_text: Option<&str>) {
+    if !live_updates_supported(env) {
+        return;
+    }
+    let result = (|| -> anyhow::Result<()> {
+        let key = env
+            .get_static_field(
+                "android/app/Notification",
+                "EXTRA_REQUEST_PROMOTED_ONGOING",
+                "Ljava/lang/String;",
+            )?
+            .l()?;
+        let extras = env.new_object("android/os/Bundle", "()V", &[])?;
+        env.call_method(
+            &extras,
+            "putBoolean",
+            "(Ljava/lang/String;Z)V",
+            &[JValue::Object(&key), JValue::Bool(1)],
+        )?;
+        builder_set(
+            env,
+            builder,
+            "addExtras",
+            "Landroid/os/Bundle;",
+            &[JValue::Object(&extras)],
+        )?;
+        if let Some(text) = chip_text {
+            let text = env.new_string(text)?;
+            builder_set(
+                env,
+                builder,
+                "setShortCriticalText",
+                "Ljava/lang/String;",
+                &[JValue::Object(&text)],
+            )?;
+        }
+        Ok(())
+    })();
+    if let Some(exception) = take_exception(env) {
+        warn!(exception, "requesting a Live Update failed");
+    } else if let Err(e) = result {
+        warn!(error = format!("{e:#}"), "requesting a Live Update failed");
+    }
+}
+
+/// Whether the system shows the app's notifications as Live Updates
+/// (`NotificationManager.canPostPromotedNotifications`); `None` where there are none.
+pub fn promoted_notifications_allowed() -> anyhow::Result<Option<bool>> {
+    with_activity(|env, ctx| {
+        if !live_updates_supported(env) {
+            return Ok(None);
+        }
+        let manager = system_service(env, ctx, "notification")?;
+        Ok(Some(
+            env.call_method(&manager, "canPostPromotedNotifications", "()Z", &[])?
+                .z()?,
+        ))
+    })
+}
+
+/// Opens the system page that turns the app's Live Updates on or off
+/// (`Settings.ACTION_MANAGE_APP_PROMOTED_NOTIFICATIONS`).
+pub fn open_promoted_notification_settings() -> anyhow::Result<()> {
+    with_activity(|env, activity| {
+        let action = env
+            .get_static_field(
+                "android/provider/Settings",
+                "ACTION_MANAGE_APP_PROMOTED_NOTIFICATIONS",
+                "Ljava/lang/String;",
+            )?
+            .l()?;
+        let intent = env.new_object(
+            "android/content/Intent",
+            "(Ljava/lang/String;)V",
+            &[JValue::Object(&action)],
+        )?;
+        let package = package_name(env, activity)?;
+        let name = env.new_string("android.provider.extra.APP_PACKAGE")?;
+        let this = env
+            .call_method(
+                &intent,
+                "putExtra",
+                "(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;",
+                &[JValue::Object(&name), JValue::Object(&package)],
+            )?
+            .l()?;
+        env.delete_local_ref(this)?;
+        env.call_method(
+            activity,
+            "startActivity",
+            "(Landroid/content/Intent;)V",
+            &[JValue::Object(&intent)],
+        )?;
+        Ok(())
     })
 }
 
@@ -422,7 +637,19 @@ fn builder_set(
     arg_sig: &str,
     args: &[JValue],
 ) -> anyhow::Result<()> {
-    let sig = format!("({arg_sig})L{BUILDER};");
+    chain_set(env, builder, BUILDER, name, arg_sig, args)
+}
+
+/// Calls a setter of a builder of class `class` taking `arg_sig` and drops the builder it returns (itself).
+fn chain_set(
+    env: &mut JNIEnv,
+    builder: &JObject,
+    class: &str,
+    name: &str,
+    arg_sig: &str,
+    args: &[JValue],
+) -> anyhow::Result<()> {
+    let sig = format!("({arg_sig})L{class};");
     let this = env.call_method(builder, name, sig, args)?.l()?;
     env.delete_local_ref(this)?;
     Ok(())
@@ -430,29 +657,7 @@ fn builder_set(
 
 /// Resource id of the notification icon, or the app icon if it is missing.
 fn small_icon(env: &mut JNIEnv, ctx: &JObject) -> anyhow::Result<i32> {
-    let resources = env
-        .call_method(
-            ctx,
-            "getResources",
-            "()Landroid/content/res/Resources;",
-            &[],
-        )?
-        .l()?;
-    let name = env.new_string(NOTIFICATION_ICON)?;
-    let kind = env.new_string("drawable")?;
-    let package = package_name(env, ctx)?;
-    let id = env
-        .call_method(
-            &resources,
-            "getIdentifier",
-            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I",
-            &[
-                JValue::Object(&name),
-                JValue::Object(&kind),
-                JValue::Object(&package),
-            ],
-        )?
-        .i()?;
+    let id = drawable_id(env, ctx, NOTIFICATION_ICON)?;
     if id != 0 {
         return Ok(id);
     }
@@ -465,6 +670,33 @@ fn small_icon(env: &mut JNIEnv, ctx: &JObject) -> anyhow::Result<i32> {
         )?
         .l()?;
     Ok(env.get_field(&info, "icon", "I")?.i()?)
+}
+
+/// Resource id of the drawable `name`, 0 if there is none.
+fn drawable_id(env: &mut JNIEnv, ctx: &JObject, name: &str) -> anyhow::Result<i32> {
+    let resources = env
+        .call_method(
+            ctx,
+            "getResources",
+            "()Landroid/content/res/Resources;",
+            &[],
+        )?
+        .l()?;
+    let name = env.new_string(name)?;
+    let kind = env.new_string("drawable")?;
+    let package = package_name(env, ctx)?;
+    Ok(env
+        .call_method(
+            &resources,
+            "getIdentifier",
+            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I",
+            &[
+                JValue::Object(&name),
+                JValue::Object(&kind),
+                JValue::Object(&package),
+            ],
+        )?
+        .i()?)
 }
 
 /// A `PendingIntent` that brings the app to the front, as tapping its launcher icon does.
@@ -627,4 +859,187 @@ fn put_extra(env: &mut JNIEnv, intent: &JObject, name: &str, value: &str) -> any
         .l()?;
     env.delete_local_ref(this)?;
     Ok(())
+}
+
+/// An app shortcut (long press on the app icon) that opens a stamp link.
+pub struct Shortcut<'a> {
+    /// Stable, so a shortcut pinned to the home screen keeps working when the list changes.
+    pub id: &'a str,
+    /// Shown on the home screen when pinned, and in the menu if the long label does not fit.
+    pub short_label: &'a str,
+    pub long_label: &'a str,
+    /// A drawable in the `plugin` module.
+    pub icon: &'a str,
+    pub link: &'a str,
+}
+
+/// Replaces the app's dynamic shortcuts (`ShortcutManager.setDynamicShortcuts`), ranked in the order given. Each opens
+/// its link in `StampLinkActivity`. Does nothing below Android 7.1, which has no shortcuts.
+pub fn set_shortcuts(shortcuts: &[Shortcut]) -> anyhow::Result<()> {
+    with_activity(|env, ctx| {
+        if sdk_int(env)? < API_N_MR1 {
+            return Ok(());
+        }
+        let manager = system_service(env, ctx, "shortcut")?;
+        let list = env.new_object("java/util/ArrayList", "()V", &[])?;
+        for (rank, shortcut) in shortcuts.iter().enumerate() {
+            // A frame per shortcut, as each takes a dozen local references.
+            env.with_local_frame(LOCAL_FRAME, |env| -> anyhow::Result<()> {
+                let info = shortcut_info(env, ctx, shortcut, i32::try_from(rank)?)?;
+                env.call_method(
+                    &list,
+                    "add",
+                    "(Ljava/lang/Object;)Z",
+                    &[JValue::Object(&info)],
+                )?;
+                Ok(())
+            })?;
+        }
+        env.call_method(
+            &manager,
+            "setDynamicShortcuts",
+            "(Ljava/util/List;)Z",
+            &[JValue::Object(&list)],
+        )?;
+        Ok(())
+    })
+}
+
+/// A `ShortcutInfo` for `shortcut`.
+fn shortcut_info<'local>(
+    env: &mut JNIEnv<'local>,
+    ctx: &JObject,
+    shortcut: &Shortcut,
+    rank: i32,
+) -> anyhow::Result<JObject<'local>> {
+    let id = env.new_string(shortcut.id)?;
+    let builder = env.new_object(
+        SHORTCUT_BUILDER,
+        "(Landroid/content/Context;Ljava/lang/String;)V",
+        &[JValue::Object(ctx), JValue::Object(&id)],
+    )?;
+    let set = |env: &mut JNIEnv, name: &str, arg_sig: &str, arg: JValue| {
+        chain_set(env, &builder, SHORTCUT_BUILDER, name, arg_sig, &[arg])
+    };
+    let short_label = env.new_string(shortcut.short_label)?;
+    set(
+        env,
+        "setShortLabel",
+        "Ljava/lang/CharSequence;",
+        JValue::Object(&short_label),
+    )?;
+    let long_label = env.new_string(shortcut.long_label)?;
+    set(
+        env,
+        "setLongLabel",
+        "Ljava/lang/CharSequence;",
+        JValue::Object(&long_label),
+    )?;
+    let icon_id = drawable_id(env, ctx, shortcut.icon)?;
+    if icon_id != 0 {
+        let icon = env
+            .call_static_method(
+                "android/graphics/drawable/Icon",
+                "createWithResource",
+                "(Landroid/content/Context;I)Landroid/graphics/drawable/Icon;",
+                &[JValue::Object(ctx), JValue::Int(icon_id)],
+            )?
+            .l()?;
+        set(
+            env,
+            "setIcon",
+            "Landroid/graphics/drawable/Icon;",
+            JValue::Object(&icon),
+        )?;
+    }
+    let intent = link_intent(env, ctx, shortcut.link)?;
+    set(
+        env,
+        "setIntent",
+        "Landroid/content/Intent;",
+        JValue::Object(&intent),
+    )?;
+    set(env, "setRank", "I", JValue::Int(rank))?;
+    Ok(env
+        .call_method(
+            &builder,
+            "build",
+            "()Landroid/content/pm/ShortcutInfo;",
+            &[],
+        )?
+        .l()?)
+}
+
+/// `new Intent(ACTION_VIEW, Uri.parse(link))` for `StampLinkActivity`.
+fn link_intent<'local>(
+    env: &mut JNIEnv<'local>,
+    ctx: &JObject,
+    link: &str,
+) -> anyhow::Result<JObject<'local>> {
+    let link = env.new_string(link)?;
+    let uri = env
+        .call_static_method(
+            "android/net/Uri",
+            "parse",
+            "(Ljava/lang/String;)Landroid/net/Uri;",
+            &[JValue::Object(&link)],
+        )?
+        .l()?;
+    let action = env.new_string("android.intent.action.VIEW")?;
+    let intent = env.new_object(
+        "android/content/Intent",
+        "(Ljava/lang/String;Landroid/net/Uri;)V",
+        &[JValue::Object(&action), JValue::Object(&uri)],
+    )?;
+    let class = env.new_string(STAMP_LINK_ACTIVITY)?;
+    let this = env
+        .call_method(
+            &intent,
+            "setClassName",
+            "(Landroid/content/Context;Ljava/lang/String;)Landroid/content/Intent;",
+            &[JValue::Object(ctx), JValue::Object(&class)],
+        )?
+        .l()?;
+    env.delete_local_ref(this)?;
+    Ok(intent)
+}
+
+/// Called by [`link_queued`]; set by [`listen_for_stamp_links`].
+static LINK_LISTENER: OnceLock<fn()> = OnceLock::new();
+
+/// Makes `StampLinkActivity` call `on_queued` (on the Android main thread) each time it has queued a link, by
+/// registering its native method `linkQueued`. Until then it only queues them.
+pub fn listen_for_stamp_links(on_queued: fn()) -> anyhow::Result<()> {
+    _ = LINK_LISTENER.set(on_queued);
+    with_activity(|env, activity| {
+        // `FindClass` on a thread attached from native code only sees the system classes, not the app's.
+        let loader = env
+            .call_method(activity, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?
+            .l()?;
+        let name = env.new_string(STAMP_LINK_ACTIVITY)?;
+        let class = env
+            .call_method(
+                &loader,
+                "loadClass",
+                "(Ljava/lang/String;)Ljava/lang/Class;",
+                &[JValue::Object(&name)],
+            )?
+            .l()?;
+        env.register_native_methods(
+            JClass::from(class),
+            &[NativeMethod {
+                name: "linkQueued".into(),
+                sig: "()V".into(),
+                fn_ptr: link_queued as *mut c_void,
+            }],
+        )?;
+        Ok(())
+    })
+}
+
+/// `StampLinkActivity.linkQueued()`.
+extern "system" fn link_queued(_env: JNIEnv, _class: JClass) {
+    if let Some(on_queued) = LINK_LISTENER.get() {
+        on_queued();
+    }
 }

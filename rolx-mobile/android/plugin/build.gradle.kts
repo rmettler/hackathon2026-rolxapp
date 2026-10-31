@@ -2,6 +2,8 @@
 // dx names the module `plugin` and supports only one without a declared type):
 // - the launcher icon (`@mipmap/ic_rolx`) and the notification icon (`@drawable/ic_rolx_notification`), since dx
 //   always writes its default `ic_launcher`;
+// - the icons of the app shortcuts (`@drawable/ic_shortcut_*`);
+// - `StampLinkActivity` (Java), which receives the stamp links (`rolx://stamp?...`) for the Rust app;
 // - the home-screen widget (`StampWidget`), the background upload (`UploadWorker`) and the app lock (`AppLock`), in
 //   Kotlin. They call into the Rust library through `RolxNative`, see `src/bridge.rs`.
 // The receivers and services they need are declared in this module's `AndroidManifest.xml`, merged into the app's.

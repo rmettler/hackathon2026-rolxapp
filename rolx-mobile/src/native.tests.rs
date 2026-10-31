@@ -64,6 +64,39 @@ fn break_shows_its_start_and_no_timer() {
     assert_eq!(shown.title, "Stamped in since 08:12");
     assert_eq!(shown.text, "On break since 10:15");
     assert_eq!(shown.chronometer_base_ms, None);
+    assert_eq!(shown.chip_text.as_deref(), Some("Break"));
+}
+
+fn buttons(shown: &StampNotification) -> Vec<(&str, StampLink)> {
+    shown
+        .actions
+        .iter()
+        .map(|a| (a.label, StampLink::parse(&a.link).unwrap()))
+        .collect()
+}
+
+#[test]
+fn buttons_start_or_end_the_break_and_stamp_out() {
+    let mut state = stamped_in(Some(meetings().to_ref()));
+    let shown = stamp_notification(&state, at(30, 9, 0), NOW_MS, &[]).unwrap();
+    assert_eq!(shown.chip_text, None);
+    assert_eq!(
+        buttons(&shown),
+        [
+            ("Break", StampLink::BreakStart),
+            ("Stamp out", StampLink::Out)
+        ]
+    );
+
+    state.start_break(at(30, 10, 0)).unwrap();
+    let shown = stamp_notification(&state, at(30, 10, 5), NOW_MS, &[]).unwrap();
+    assert_eq!(
+        buttons(&shown),
+        [
+            ("End break", StampLink::BreakEnd),
+            ("Stamp out", StampLink::Out)
+        ]
+    );
 }
 
 #[test]

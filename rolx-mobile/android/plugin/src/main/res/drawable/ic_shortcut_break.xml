@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  App shortcut icon (see `shortcuts` in src/links.rs): break, a coffee cup.
+  As the launcher guidelines ask, a 24dp glyph (Lucide, stroke 2) on a 44dp circle in a 48dp icon;
+  Cudos blue and white like the app.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#FF0000FF"
+        android:pathData="M2,24a22,22 0 1,1 44,0a22,22 0 1,1 -44,0z" />
+    <group
+        android:translateX="12"
+        android:translateY="12">
+        <path
+            android:pathData="M10 2v2"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M14 2v2"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M6 2v2"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>

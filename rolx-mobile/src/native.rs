@@ -1,6 +1,7 @@
 //! Native phone features: an ongoing notification while stamped in (with a timer the system keeps running without
-//! the app), a vibration when stamping in and out, and the share sheet with texts for a day and a week. The Android
-//! parts are in `android.rs`; on other targets the calls do nothing, so the app still builds and runs on the desktop.
+//! the app, "Break" and "Stamp out" buttons, and on Android 16 QPR2+ a Live Update with a status bar chip), a vibration
+//! when stamping in and out, and the share sheet with texts for a day and a week. The Android parts are in
+//! `android.rs`; on other targets the calls do nothing, so the app still builds and runs on the desktop.
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -13,6 +14,8 @@ use rolx_core::dayplan::{DayEntry, fmt_clock, fmt_hm, sort_entries};
 use rolx_core::stamp::{StampState, Status};
 use rolx_core::week::WeekSummary;
 
+use crate::links::StampLink;
+
 /// What the "stamped in" notification shows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StampNotification {
@@ -20,6 +23,27 @@ pub struct StampNotification {
     pub text: String,
     /// Epoch millis the timer counts from (now minus the time worked); `None` on a break, which shows no timer.
     pub chronometer_base_ms: Option<i64>,
+    /// Text of the status bar chip of a Live Update (Android 16 QPR2+, Xiaomi's island), which otherwise shows the
+    /// timer.
+    pub chip_text: Option<String>,
+    /// The buttons, each opening a stamp link (see `links.rs`).
+    pub actions: Vec<NotificationAction>,
+}
+
+/// A button of the "stamped in" notification.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NotificationAction {
+    pub label: &'static str,
+    pub link: String,
+}
+
+impl NotificationAction {
+    fn new(label: &'static str, link: StampLink) -> Self {
+        Self {
+            label,
+            link: link.to_link(),
+        }
+    }
 }
 
 /// The notification for `state`, or `None` when stamped out. `now` is the local time and `now_ms` the same moment in
@@ -41,11 +65,18 @@ pub fn stamp_notification(
     };
     let title = format!("Stamped in since {}", time_label(since, now));
     let break_start = state.open.as_ref().and_then(|o| o.break_started);
+    // `break-start`/`break-end` rather than `break`: a button of an outdated notification must not undo a change.
+    let stamp_out = NotificationAction::new("Stamp out", StampLink::Out);
     Some(match break_start {
         Some(start) if on_break => StampNotification {
             title,
             text: format!("On break since {}", time_label(start, now)),
             chronometer_base_ms: None,
+            chip_text: Some("Break".into()),
+            actions: vec![
+                NotificationAction::new("End break", StampLink::BreakEnd),
+                stamp_out,
+            ],
         },
         _ => StampNotification {
             title,
@@ -54,6 +85,11 @@ pub fn stamp_notification(
                 |a| activity_label(a.id, &a.full_number, activities),
             ),
             chronometer_base_ms: Some(now_ms - worked.num_milliseconds()),
+            chip_text: None,
+            actions: vec![
+                NotificationAction::new("Break", StampLink::BreakStart),
+                stamp_out,
+            ],
         },
     })
 }
@@ -156,6 +192,17 @@ async fn wait_for_permission(state: Signal<StampState>) {
             return;
         }
     }
+}
+
+/// Whether the user lets the app show its notification as a Live Update (status bar chip, Xiaomi's island; Android
+/// 16 QPR2+, turned off per app in the system settings). `None` where there are no Live Updates.
+pub fn live_updates_allowed() -> Option<bool> {
+    platform::live_updates_allowed()
+}
+
+/// Opens the system settings page that turns the app's Live Updates on or off.
+pub fn open_live_update_settings() -> anyhow::Result<()> {
+    platform::open_live_update_settings()
 }
 
 /// How many seconds to wait for the answer to the permission request.
@@ -267,7 +314,7 @@ pub fn week_share(summary: &WeekSummary, activities: &[Activity]) -> ShareText {
     }
 }
 
-fn log_error(what: &str, result: anyhow::Result<()>) {
+pub(crate) fn log_error(what: &str, result: anyhow::Result<()>) {
     if let Err(e) = result {
         warn!(error = format!("{e:#}"), "{what} failed");
     }
@@ -293,12 +340,27 @@ mod platform {
             }
             return Ok(());
         }
-        android::show_stamp_notification(
-            &content.title,
-            &content.text,
-            content.chronometer_base_ms,
-        )?;
+        let actions: Vec<(&str, &str)> = content
+            .actions
+            .iter()
+            .map(|a| (a.label, a.link.as_str()))
+            .collect();
+        android::show_stamp_notification(&android::StampNotificationContent {
+            title: &content.title,
+            text: &content.text,
+            chronometer_base_ms: content.chronometer_base_ms,
+            chip_text: content.chip_text.as_deref(),
+            actions: &actions,
+        })?;
         Ok(())
+    }
+
+    pub fn live_updates_allowed() -> Option<bool> {
+        android::promoted_notifications_allowed().ok().flatten()
+    }
+
+    pub fn open_live_update_settings() -> anyhow::Result<()> {
+        android::open_promoted_notification_settings()
     }
 
     pub fn permission_requested() -> bool {
@@ -323,6 +385,14 @@ mod platform {
     use super::StampNotification;
 
     pub fn update_notification(_content: Option<&StampNotification>) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    pub fn live_updates_allowed() -> Option<bool> {
+        None
+    }
+
+    pub fn open_live_update_settings() -> anyhow::Result<()> {
         Ok(())
     }
 

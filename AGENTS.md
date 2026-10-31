@@ -26,7 +26,10 @@ all in Rust where sensible. Goals and roadmap: `README.md`. Design docs: `docs/`
   settings in `gui.json` (`settings.rs`).
 - `rolx-mobile/` — Dioxus 0.7 Android app on top of `rolx-ui` (`Compact(true)`, root class `compact`): Stamp, Day and
   Week tabs, login (browser or device code with QR), settings in `mobile.json`, page events in JS (`PAGE_EVENTS`:
-  back in the foreground, online/offline, swipes). Embeds the config at build time (`build.rs`, passed on with
+  back in the foreground, online/offline, swipes), native features (`native.rs`: notification with buttons and as a Live
+  Update, vibration, share)
+  and stamp links `rolx://stamp?…` with the app shortcuts that use them (`links.rs`; received by the Java
+  `StampLinkActivity` in the `android/plugin` Gradle module, which also has the icons). Embeds the config at build time (`build.rs`, passed on with
   `rolx_ui::set_config_source`) and stores session and data files in the app's files dir
   (`rolx_core::paths::set_base_dir`). `build.rs` also embeds the KMR Apparat brand font when the design system
   checkout (or `ROLX_FONT_DIR`) is there at build time. The Gradle module `android/plugin` (icons, and in Kotlin the

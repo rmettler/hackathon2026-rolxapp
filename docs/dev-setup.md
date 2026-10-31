@@ -157,25 +157,48 @@ secrets: share it within the team only.
 
 ### Native features
 
-`rolx-mobile/src/native.rs` adds what a phone app needs beyond the web view; the JNI calls are in
-`src/android.rs`, and on other targets everything is a no-op:
+`rolx-mobile/src/native.rs` and `src/links.rs` add what a phone app needs beyond the web view; the
+JNI calls are in `src/android.rs`, and on other targets everything is a no-op. `StampLinkActivity`
+(Java) in the `android/plugin` Gradle module receives the stamp links; the Kotlin parts there are described below:
 
 - **Stamped-in notification.** `use_native_stamp_sync(app.stamp_state)` (called once in the root
   component) keeps an ongoing, silent notification in line with the stamp state: "Stamped in since
   08:12" with the activity and a timer the system keeps running without the app; "On break since …"
   without a timer; removed when stamped out. It also runs at start, so it is back after the app was
   killed. Tapping it opens the app. Channel "Stamped in" (low importance), icon
-  `ic_rolx_notification` in the `plugin` module.
+  `ic_rolx_notification` in the `plugin` module. Its buttons "Break" / "End break" and "Stamp
+  out" are stamp links (`break-start`, `break-end`, `out`, so a stale notification can't undo a
+  change); they open the app briefly.
+- **Live Update** (Android 16 QPR2+, i.e. API 36.1; detected by `EXTRA_REQUEST_PROMOTED_ONGOING`,
+  as `SDK_INT` is 36 for every Android 16): the notification asks to be promoted, so the status
+  bar shows a chip with the running timer ("Break" on a break), and HyperOS 3.1+ shows it in its
+  island. Needs `POST_PROMOTED_NOTIFICATIONS` (manifest, granted at install); the user can turn it
+  off per app, the settings sheet shows "Timer in the status bar" with a link to that page. On
+  plain Android 16 (API 36.0, e.g. the current emulator images) nothing changes.
 - **Notification permission** (Android 13+, `POST_NOTIFICATIONS`): asked once per app start, at the
   first stamp-in (or at start when stamped in). Without it nothing is posted; once granted (within
   two minutes) the notification appears within a second.
 - **Vibration**: a short pulse on stamp-in, a double pulse on stamp-out (not at start).
 - **Share sheet**: `share_text(subject, text)` opens Android's chooser; `day_share` and
   `week_share` build the texts for a day and a week.
+- **Stamp links** `rolx://stamp?action=<action>&activity=<activity>` stamp from outside the app: a
+  scanned QR code, Tasker, a routine that opens a link. Actions: `in` (default; with the activity,
+  else the one used last; when stamped in it switches to the activity or ends the break), `out`,
+  `break` (start or end), `break-start`, `break-end`, `toggle`. `activity` is an id, a full number
+  (`%231001.001.01`) or words matching one activity (`Meetings`). `StampLinkActivity` queues the
+  link in `<files dir>/stamp-links.txt` and opens the app, which applies it like a tap (refused
+  while a forgotten session waits; links older than two minutes are dropped) and shows the stamp
+  tab. Any app can send these links, as Tasker and QR scanners need to.
+- **App shortcuts** (long press on the icon, Android 7.1+): "Stamp in: <activity>" for the first
+  two favourites or recent activities (as the quick start tiles; "Stamp in" without any), "Stamp
+  out" and "Break". They are stamp links, set at start and when the list changes, so they appear
+  after the first start; pinned to the home screen they keep working.
 
 To check them on an emulator, besides looking at the shade:
 
 ```sh
+adb shell am start -a android.intent.action.VIEW -d "'rolx://stamp?action=in&activity=Meetings'"   # a stamp link
+adb shell dumpsys shortcut | grep -A3 "ShortcutInfo {id=" | grep -o "id=[^,]*\|shortLabel=[^,]*"  # the shortcuts
 adb shell dumpsys notification --noredact | grep -A40 pkg=ch.cudos.RolxMobile   # title, text, showChronometer, when
 adb shell dumpsys vibrator_manager | grep -A8 "Recent vibrations"
 adb shell cmd statusbar expand-notifications                                 # open the shade

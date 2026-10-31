@@ -10,10 +10,13 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- The "stamped in" notification, see src/native.rs; Android 13+ asks the user at the first stamp-in. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Android 16 QPR2+ may show that notification as a Live Update: a chip in the status bar, the island on Xiaomi's
+         HyperOS. Granted at install; the user can turn it off per app. -->
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <!-- The vibration when stamping in and out (granted at install). -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
-    <!-- `ic_rolx` comes from the `launcher-icon` plugin module, see src/android.rs. A DayNight theme instead of dx's
+    <!-- `ic_rolx` comes from the `plugin` module, see src/android.rs. A DayNight theme instead of dx's
          light `AppTheme`: the web view reports `prefers-color-scheme: dark` only if the app's theme is dark. -->
     <application android:hasCode="true" android:icon="@mipmap/ic_rolx"
         android:extractNativeLibs="true"
@@ -39,6 +42,23 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="ch.cudos.rolxmobile" />
+            </intent-filter>
+        </activity>
+        <!-- Stamp links (`rolx://stamp?action=out`) from the app shortcuts, QR codes, Tasker and other apps: queues
+             them for the app and opens it, without a window or a recents entry of its own. In the `plugin` module,
+             see src/links.rs. -->
+        <activity
+            android:name="ch.cudos.rolxmobile.plugin.StampLinkActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="rolx" android:host="stamp" />
             </intent-filter>
         </activity>
     </application>
