@@ -8,7 +8,7 @@ stamped during the demo is real.
 ```
 Desktop PC ── VDO.Ninja screen share ──┐
 Phone ─────── VDO.Ninja Android app ───┤
-media/terminal.mp4 ────────────────────┼──► OBS ── Virtual Camera ──► Teams / Zoom
+Deck plays media/terminal-voice.mp4 ───┼──► OBS ── Virtual Camera ──► Teams / Zoom
 Deck (browser source) ─────────────────┘     ▲
                                              │ obs-websocket: the scene follows the slides
 Presenter view (+ clicker) ── server.mjs ────┘
@@ -34,7 +34,7 @@ click and stamped out on the last slide.
   (`ffmpeg -ss 30 -i terminal-voice.mp4 -frames:v 1 -q:v 2 terminal-still.jpg`):
 
   ```sh
-  ffmpeg -i terminal-original.mp4 -map 0:v:0 -map 0:a:0 -c:v copy     -af "highpass=f=90,lowpass=f=9000,afftdn=nr=14:nf=-60:tn=1,acompressor=threshold=-38dB:ratio=3:attack=10:release=200:makeup=6,loudnorm=I=-16:TP=-1.5:LRA=9"     -c:a aac -b:a 192k -movflags +faststart terminal-voice.mp4
+  ffmpeg -i terminal-original.mp4 -map 0:v:0 -map 0:a:0 -c:v copy \n    -af "highpass=f=90,lowpass=f=9000,afftdn=nr=14:nf=-60:tn=1,acompressor=threshold=-38dB:ratio=3:attack=10:release=200:makeup=6,loudnorm=I=-16:TP=-1.5:LRA=9" \n    -c:a aac -b:a 192k -movflags +faststart terminal-voice.mp4
   ```
 
 ## One-time setup on the presenting laptop
@@ -58,7 +58,8 @@ click and stamped out on the last slide.
 node presentation/server.mjs          # http://127.0.0.1:5180/presenter.html
 ```
 
-Run it in your own terminal for the talk: it keeps the slide state in memory only.
+Run it in your own terminal for the talk. It keeps the slide and the timer in `.state.<port>.json`, so a restart
+continues where it was; delete the file (or click Reset timer and slide 1) for a fresh start.
 
 - Presenter view: `http://127.0.0.1:5180/presenter.html`. Next: right arrow, space, page down (clickers send
   that). Back: left arrow, page up. `S` stamps the talk in early. "Share links" has the desktop link and the
