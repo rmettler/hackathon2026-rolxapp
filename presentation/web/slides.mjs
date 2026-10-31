@@ -88,7 +88,7 @@ export const SLIDES = [
   {
     id: 'rust',
     layout: 'deck',
-    notes: ['What worked, what hurt.'],
+    notes: ['Fullstack: one language from the server API to the UI?', 'Multiplatform: desktop, Android, terminal, RISC-V.', 'Production ready: what worked, what hurt.'],
   },
   {
     id: 'end',

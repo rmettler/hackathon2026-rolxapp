@@ -118,6 +118,23 @@ body {
 }
 
 .slide > .heading { position: absolute; left: var(--margin); top: 96px; }
+
+/* The open questions of the Rust slide: one per line, large, with a hairline between them. */
+.questions {
+  position: absolute;
+  left: var(--margin);
+  right: var(--margin);
+  top: 300px;
+  padding: 0;
+  list-style: none;
+  font-size: 96px;
+  font-weight: var(--weight-medium);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+
+.questions li { padding: 36px 0; border-top: 1px solid var(--border); }
+.questions li:last-child { border-bottom: 1px solid var(--border); }
 .heading-xl { font-size: 132px; }
 
 /* ---- Text around the feeds ----------------------------------------------------------------------------------- */
