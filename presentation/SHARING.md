@@ -24,7 +24,9 @@ change them in `config.json` and run `node presentation/server.mjs setup-obs` ag
 1. Install **VDO.Ninja** from Google Play: https://play.google.com/store/apps/details?id=flutter.vdo.ninja
 2. Open it and enter this **Stream ID**:
 
-   rolx-phone-91d41405
+   rolxphone91d41405
+
+   Letters and digits only: the app drops hyphens and other characters.
 
 3. Choose **SCREEN** as the source. Leave "Capture system audio" off.
 4. Tap connect and allow Android's screen capture prompt.

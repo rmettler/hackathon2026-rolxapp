@@ -9,7 +9,7 @@
   },
   "feeds": {
     "desk": { "kind": "vdo", "id": "rolx-desk-ba66a5a8", "device": "pc" },
-    "phone": { "kind": "vdo", "id": "rolx-phone-91d41405", "device": "android" },
+    "phone": { "kind": "vdo", "id": "rolxphone91d41405", "device": "android" },
     "terminal": { "kind": "video", "file": "media/terminal.mp4" }
   }
 }
