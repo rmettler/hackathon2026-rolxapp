@@ -1,22 +1,22 @@
 use chrono::Duration;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::client::RolxClient;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkItem {
     pub name: String,
     #[serde(with = "super::seconds")]
     pub duration: Duration,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkItemGroup {
     pub name: String,
     pub items: Vec<WorkItem>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserMonthReport {
     pub month: String,

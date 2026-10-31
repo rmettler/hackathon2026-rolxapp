@@ -75,6 +75,24 @@ pub async fn put_record(client: &RolxClient, record: &Record) -> anyhow::Result<
         .await
 }
 
+/// Replaces the records of their dates on the server, all or none.
+pub async fn bulk_update(client: &RolxClient, records: &[Record]) -> anyhow::Result<()> {
+    #[derive(Serialize)]
+    struct BulkRecord<'a> {
+        records: &'a [Record],
+    }
+
+    let Some(first) = records.first() else {
+        return Ok(());
+    };
+    client
+        .put_json(
+            &format!("api/v1/WorkRecord/{}/bulkupdate", first.user_id),
+            &BulkRecord { records },
+        )
+        .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

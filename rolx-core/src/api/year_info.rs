@@ -1,15 +1,15 @@
 use chrono::Duration;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::client::RolxClient;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Holiday {
     pub name: String,
     pub date: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MonthlyWorkTime {
     /// `yyyy-MM`.
     pub month: String,
@@ -24,7 +24,7 @@ impl MonthlyWorkTime {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct YearInfo {
     pub holidays: Vec<Holiday>,
