@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RolX deck</title>
+  <link rel="stylesheet" href="/tokens.css">
+  <link rel="stylesheet" href="/deck.css">
+  <script type="module" src="/deck.js"></script>
+</head>
+<body>
+  <div class="stage" data-slide="title" data-step="0" data-layout="deck" data-tone="brand">
+
+    <section class="slide" data-id="title">
+      <p class="event">Cudos Hackathon 2026</p>
+      <h1 class="wordmark">RolX</h1>
+      <p class="tagline">Time tracking wherever work happens</p>
+    </section>
+
+    <section class="slide" data-id="claim">
+      <h2 class="statement">Work doesn’t wait<br>at a desk.</h2>
+    </section>
+
+    <section class="slide" data-id="core">
+      <h2 class="heading">One core, every screen</h2>
+      <svg class="wires" viewBox="0 0 1920 1080" aria-hidden="true">
+        <path class="wire wire-app" d="M580 360 C700 360 700 540 820 540" pathLength="1"/>
+        <path class="wire wire-app" d="M580 540 L820 540" pathLength="1"/>
+        <path class="wire wire-app" d="M580 720 C700 720 700 540 820 540" pathLength="1"/>
+        <path class="wire wire-server" id="wire-server" d="M1240 540 L1460 540" pathLength="1"/>
+        <circle class="packet" r="7">
+          <animateMotion dur="900ms" begin="indefinite" fill="remove" calcMode="spline" keyTimes="0;1"
+            keySplines="0.65 0 0.35 1" path="M1240 540 L1460 540"/>
+        </circle>
+      </svg>
+      <div class="node node-app" style="--x: 200px; --y: 300px; --i: 0" data-icon="terminal">
+        <span class="node-label">Terminal</span>
+      </div>
+      <div class="node node-app" style="--x: 200px; --y: 480px; --i: 1" data-icon="laptop">
+        <span class="node-label">Desktop</span>
+      </div>
+      <div class="node node-app" style="--x: 200px; --y: 660px; --i: 2" data-icon="smartphone">
+        <span class="node-label">Android</span>
+      </div>
+      <div class="node node-core">
+        <span class="core-name">rolx-core</span>
+        <span class="core-line">One Rust library</span>
+      </div>
+      <div class="node node-server" style="--x: 1460px; --y: 480px">
+        <span class="node-label">RolX server</span>
+      </div>
+    </section>
+
+    <section class="slide" data-id="phone">
+      <div class="side side-centered">
+        <h2 class="heading heading-xl">On the phone</h2>
+        <p class="person" data-person="phone" data-icon="smartphone" data-role="Android app"></p>
+      </div>
+    </section>
+
+    <section class="slide" data-id="desk">
+      <div class="side side-narrow side-centered">
+        <h2 class="heading">At the desk</h2>
+        <p class="person" data-person="desk" data-icon="laptop" data-role="Desktop app"></p>
+      </div>
+    </section>
+
+    <section class="slide" data-id="train">
+      <div class="side side-narrow">
+        <h2 class="heading">On the train</h2>
+        <p class="person" data-person="train" data-icon="terminal" data-role="Terminal"></p>
+        <div class="chips">
+          <p class="chip chip-offline" data-icon="wifiOff">Offline, still stamping</p>
+          <p class="chip chip-synced" data-icon="cloudCheck">Back online, synced</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-id="all">
+      <h2 class="heading">Three people, one core</h2>
+    </section>
+
+    <section class="slide" data-id="rust">
+      <h2 class="statement">Was Rust the<br>right choice?</h2>
+    </section>
+
+    <section class="slide" data-id="end">
+      <h2 class="wordmark wordmark-end">Questions?</h2>
+    </section>
+
+    <div class="frames" aria-hidden="true"></div>
+
+    <div class="clock" data-place="hero">
+      <span class="clock-dot"></span>
+      <span class="clock-time">00:00:00</span>
+    </div>
+    <p class="clock-caption">This talk, tracked</p>
+
+    <div class="bar" aria-hidden="true"></div>
+  </div>
+</body>
+</html>

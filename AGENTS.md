@@ -32,6 +32,9 @@ all in Rust where sensible. Goals and roadmap: `README.md`. Design docs: `docs/`
   checkout (or `ROLX_FONT_DIR`) is there at build time. `android/AndroidManifest.xml` sets a DayNight theme (else the web view is
   never dark) and `ACCESS_NETWORK_STATE` (else `navigator.onLine` never changes).
 - `xtask/` — workspace tasks.
+- `presentation/` — the hackathon talk: an HTML deck on the design tokens, a presenter view and a small Node server
+  (no dependencies) that switches OBS scenes with the slides; see `presentation/README.md`. Not part of the Cargo
+  workspace.
 
 ## Commands
 

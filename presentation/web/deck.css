@@ -1,0 +1,408 @@
+/* RolX deck: a 1920 x 1080 stage on the Cudos tokens (/tokens.css is rolx-ui/src/tokens.css).
+   The deck stays light whatever the OS says: it is one picture for everybody watching. */
+
+@font-face { font-family: 'KMR Apparat'; font-weight: 400; font-display: swap; src: url('/fonts/KMR-Apparat-Regular.woff2') format('woff2'); }
+@font-face { font-family: 'KMR Apparat'; font-weight: 500; font-display: swap; src: url('/fonts/KMR-Apparat-Medium.woff2') format('woff2'); }
+@font-face { font-family: 'KMR Apparat'; font-weight: 700; font-display: swap; src: url('/fonts/KMR-Apparat-Bold.woff2') format('woff2'); }
+
+:root {
+  color-scheme: light;
+  --fg: var(--cudos-ink);
+  --fg-muted: var(--cudos-graphite);
+  --bg: var(--cudos-chalk);
+  --surface: var(--cudos-white);
+  --border: var(--cudos-ash);
+  --brand: var(--cudos-blue);
+  --shadow-lg: var(--cudos-shadow-lg);
+  --shadow-md: var(--cudos-shadow-md);
+
+  /* One motion language: the frames, the clock and OBS's Move transition all take MOVE with EASE. */
+  --move: 600ms;
+  --ease: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --margin: 120px;
+}
+
+* { box-sizing: border-box; margin: 0; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--cudos-black);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: 'kern';
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---- Stage ------------------------------------------------------------------------------------------------- */
+
+.stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1920px;
+  height: 1080px;
+  transform: translate(-50%, -50%) scale(var(--scale, 1));
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.stage[data-tone='brand'] {
+  --fg: var(--cudos-white);
+  --fg-muted: rgba(255, 255, 255, 0.76);
+  background: var(--brand);
+}
+
+.slide {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+
+.stage[data-slide='title'] .slide[data-id='title'],
+.stage[data-slide='claim'] .slide[data-id='claim'],
+.stage[data-slide='core'] .slide[data-id='core'],
+.stage[data-slide='phone'] .slide[data-id='phone'],
+.stage[data-slide='desk'] .slide[data-id='desk'],
+.stage[data-slide='train'] .slide[data-id='train'],
+.stage[data-slide='all'] .slide[data-id='all'],
+.stage[data-slide='rust'] .slide[data-id='rust'],
+.stage[data-slide='end'] .slide[data-id='end'] {
+  display: block;
+}
+
+.icon { width: 1em; height: 1em; flex: none; }
+
+/* ---- Type ---------------------------------------------------------------------------------------------------- */
+
+.wordmark {
+  position: absolute;
+  left: calc(var(--margin) - 0.06em);
+  top: 250px;
+  font-size: 380px;
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+
+.wordmark-end { top: 270px; font-size: 260px; }
+
+.event,
+.tagline {
+  position: absolute;
+  left: var(--margin);
+  color: var(--fg-muted);
+}
+
+.event { top: 112px; font-size: 32px; letter-spacing: var(--cudos-letter-spacing-wide); }
+
+.tagline {
+  top: 680px;
+  font-size: 52px;
+  line-height: var(--cudos-line-height-125);
+  letter-spacing: var(--cudos-letter-spacing-tight);
+  color: var(--fg);
+}
+
+.statement {
+  position: absolute;
+  left: var(--margin);
+  top: 50%;
+  transform: translateY(-58%);
+  font-size: 156px;
+  font-weight: var(--weight-medium);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+}
+
+.heading {
+  font-size: 88px;
+  font-weight: var(--weight-medium);
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+}
+
+.slide > .heading { position: absolute; left: var(--margin); top: 96px; }
+.heading-xl { font-size: 132px; }
+
+/* ---- Side column on the feed slides -------------------------------------------------------------------------- */
+
+.side {
+  position: absolute;
+  left: var(--margin);
+  top: 112px;
+  width: 900px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 48px;
+}
+
+.side-narrow { width: 480px; }
+.side-narrow .heading { font-size: 80px; }
+.side-centered { top: 0; bottom: 120px; justify-content: center; }
+
+/* Icon, then the name (when config.json has one) above the app. */
+.person { display: flex; align-items: flex-start; gap: 0.5em; font-size: 30px; }
+.person .icon { color: var(--brand); height: 1.3em; }
+.person-text { display: flex; flex-direction: column; gap: 4px; }
+.person-name { font-size: 1.34em; font-weight: var(--weight-medium); line-height: 1.2; }
+.person-role { color: var(--fg-muted); line-height: 1.3; }
+.person:has(.person-name) .icon { height: 1.6em; }
+
+/* Offline / synced: two states in one place, swapped by the steps. */
+.chips { display: grid; }
+
+.chip {
+  grid-area: 1 / 1;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  height: 64px;
+  padding: 0 28px 0 22px;
+  border: 1px solid;
+  border-radius: var(--cudos-radius-full);
+  font-size: 28px;
+  font-weight: var(--weight-medium);
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 300ms var(--ease-out), transform 450ms var(--ease-out);
+}
+
+.chip .icon { font-size: 28px; }
+.chip-offline { color: var(--cudos-amber); background: var(--cudos-amber-bg); border-color: var(--cudos-amber-border); }
+.chip-synced { color: var(--cudos-green); background: var(--cudos-green-bg); border-color: var(--cudos-green-border); }
+
+.stage[data-step='1'] .chip-offline,
+.stage[data-step='2'] .chip-synced {
+  opacity: 1;
+  transform: none;
+}
+
+.stage[data-step='2'] .chip-offline { transform: translateY(-12px); }
+
+/* ---- Core diagram ---------------------------------------------------------------------------------------------- */
+
+.wires { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+
+.wire {
+  fill: none;
+  stroke: var(--cudos-stone);
+  stroke-width: 3;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 700ms var(--ease);
+}
+
+.packet { fill: var(--brand); opacity: 0; }
+.packet.is-moving { opacity: 1; }
+
+.node {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  width: 380px;
+  height: 120px;
+  padding: 0 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--surface-radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  font-size: 36px;
+  font-weight: var(--weight-medium);
+  opacity: 0;
+  transform: translateX(-16px);
+  transition: opacity 400ms var(--ease-out), transform 600ms var(--ease-out);
+  transition-delay: calc(var(--i, 0) * 90ms);
+}
+
+.node .icon { font-size: 36px; color: var(--brand); }
+
+.node-core {
+  left: 820px;
+  top: 420px;
+  width: 420px;
+  height: 240px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 36px 40px;
+  border: 0;
+  background: var(--brand);
+  color: var(--cudos-white);
+  box-shadow: var(--shadow-lg);
+  opacity: 1;
+  transform: none;
+}
+
+.core-name { font-size: 64px; letter-spacing: -0.02em; line-height: 1; }
+.core-line { font-size: 28px; font-weight: var(--weight-regular); color: rgba(255, 255, 255, 0.8); }
+
+.node-server { width: 300px; transform: translateX(16px); }
+
+.stage[data-slide='core']:not([data-step='0']) .node-app { opacity: 1; transform: none; }
+.stage[data-slide='core']:not([data-step='0']) .wire-app { stroke-dashoffset: 0; transition-delay: 200ms; }
+.stage[data-slide='core'][data-step='2'] .node-server { opacity: 1; transform: none; }
+.stage[data-slide='core'][data-step='2'] .wire-server { stroke-dashoffset: 0; }
+
+/* ---- Live feed frames ------------------------------------------------------------------------------------------
+   OBS puts the feed on top of the inner rectangle; the frame around it belongs to the deck. */
+
+.frames { position: absolute; inset: 0; pointer-events: none; }
+
+.frame {
+  position: absolute;
+  padding: var(--frame-pad);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  outline: 1px solid var(--border);
+  view-transition-class: frame;
+}
+
+.frame[hidden] { display: none; }
+
+.frame-screen {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--cudos-radius-4);
+  background: var(--cudos-ink);
+  color: var(--cudos-steel);
+}
+
+.frame-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  font-size: 24px;
+}
+
+.frame-hint .icon { font-size: 48px; }
+.stage[data-mode='obs'] .frame-hint { display: none; }
+
+.frame-caption {
+  position: absolute;
+  left: 4px;
+  top: calc(100% + 22px);
+  display: none;
+  white-space: nowrap;
+}
+
+.stage[data-layout='all'] .frame-caption { display: flex; }
+.frame-caption.person { font-size: 24px; }
+
+/* ---- Clock: the talk is stamped in on the first click and out on the last slide ---------------------------------- */
+
+.clock {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  view-transition-name: clock;
+}
+
+.clock[data-place='hero'] { left: var(--margin); top: 872px; gap: 22px; font-size: 64px; letter-spacing: -0.01em; }
+.clock[data-place='bar'] { left: var(--margin); top: 1002px; gap: 12px; font-size: 24px; color: var(--fg-muted); }
+
+.clock-dot {
+  width: 0.36em;
+  height: 0.36em;
+  border: 0.08em solid currentColor;
+  border-radius: 50%;
+}
+
+.stage[data-clock='running'] .clock-dot { border-color: var(--brand); background: var(--brand); }
+.stage[data-tone='brand'][data-clock='running'] .clock-dot { border-color: var(--cudos-white); background: var(--cudos-white); }
+.stage[data-clock='stopped'] .clock-dot { border-radius: 2px; background: currentColor; }
+
+.clock-caption {
+  position: absolute;
+  left: var(--margin);
+  top: 960px;
+  display: none;
+  font-size: 32px;
+  color: var(--fg-muted);
+}
+
+.stage[data-slide='end'] .clock-caption { display: block; }
+
+/* ---- Bar: one segment per slide, like the entries of a day -------------------------------------------------------- */
+
+.bar {
+  position: absolute;
+  left: 340px;
+  right: var(--margin);
+  top: 1014px;
+  display: flex;
+  gap: 8px;
+  view-transition-name: bar;
+}
+
+.stage[data-tone='brand'] .bar { visibility: hidden; }
+
+.segment {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.segment-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--cudos-stone);
+  transform-origin: left;
+  transform: scaleX(var(--fill, 0));
+  transition: transform var(--move) var(--ease), background-color var(--move) var(--ease);
+}
+
+.segment[data-current] .segment-fill { background: var(--brand); }
+
+/* ---- Slide changes (View Transitions) ----------------------------------------------------------------------------- */
+
+::view-transition-group(*) {
+  animation-duration: var(--move);
+  animation-timing-function: var(--ease);
+}
+
+/* The background crossfades (root); the slide content leaves quickly and rises in; frames and the clock morph. */
+.slide { view-transition-name: slide; }
+::view-transition-old(slide) { animation: 220ms var(--ease) both fade-out; }
+::view-transition-new(slide) { animation: 560ms var(--ease-out) 140ms both rise-in; }
+
+/* A frame that only exists on one side leaves quickly and arrives with the new slide. */
+::view-transition-old(*.frame):only-child { animation: 240ms var(--ease) both fade-out; }
+::view-transition-new(*.frame):only-child { animation: 520ms var(--ease-out) 160ms both rise-in; }
+
+html.wipe::view-transition-old(root) { animation: none; }
+html.wipe::view-transition-new(root),
+html.wipe::view-transition-new(slide),
+html.wipe::view-transition-new(bar) { animation: var(--move) var(--ease) both wipe-up; }
+
+@keyframes wipe-up { from { clip-path: inset(100% 0 0 0); } }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(18px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "port": 5180,
+  "obsUrl": "ws://127.0.0.1:4455",
+  "people": {
+    "phone": "",
+    "desk": "",
+    "train": ""
+  },
+  "feeds": {
+    "phone": { "kind": "window", "window": "rolx-phone:SDL_app:scrcpy.exe", "match": "title" },
+    "desk": { "kind": "window", "window": "RolX:Window Class:rolxapp-dioxus.exe", "match": "exe" },
+    "trainScreen": { "kind": "vdo", "id": "rolx-screen-fa25ec68", "share": "screen" },
+    "trainCamera": { "kind": "vdo", "id": "rolx-camera-755b1613", "share": "camera" }
+  }
+}

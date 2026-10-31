@@ -1,0 +1,199 @@
+// The deck: follows the server's slide state (or a fixed offset from it, for the presenter's previews).
+//
+//   deck.html             browser window: arrow keys, space and page up/down move the slides
+//   deck.html?mode=obs    OBS browser source: no hints in the frames, no keys
+//   deck.html?offset=1    presenter preview of the next click, without transitions
+
+import { icon } from '/icons.mjs';
+import { FEEDS, FRAME_PAD, LAYOUTS, SLIDES, STAGE, stepsOf } from '/slides.mjs';
+
+const params = new URLSearchParams(location.search);
+const mode = params.get('mode') ?? 'browser';
+const offset = Number(params.get('offset') ?? 0);
+const animate = offset === 0 && 'startViewTransition' in document;
+
+const stage = document.querySelector('.stage');
+const clock = document.querySelector('.clock');
+const clockTime = document.querySelector('.clock-time');
+stage.dataset.mode = mode;
+
+let state = null;
+let clockOffset = 0; // server clock minus ours
+let people = {};
+
+// ---- Static parts --------------------------------------------------------------------------------------------
+
+function fitStage() {
+  const scale = Math.min(innerWidth / STAGE.width, innerHeight / STAGE.height);
+  stage.style.setProperty('--scale', scale);
+}
+
+function personHtml(key, role, iconName) {
+  const name = people[key];
+  const nameHtml = name ? `<span class="person-name">${escapeHtml(name)}</span>` : '';
+  return `${icon(iconName)}<span class="person-text">${nameHtml}<span class="person-role">${role}</span></span>`;
+}
+
+const escapeHtml = (text) =>
+  text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+const FEED_ICONS = { phone: 'smartphone', desk: 'laptop', trainScreen: 'terminal', trainCamera: 'train' };
+
+function buildStatic() {
+  for (const el of document.querySelectorAll('.node[data-icon], .chip[data-icon]')) {
+    el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon));
+  }
+  for (const el of document.querySelectorAll('.person[data-person]')) {
+    el.innerHTML = personHtml(el.dataset.person, el.dataset.role, el.dataset.icon);
+  }
+
+  const frames = document.querySelector('.frames');
+  frames.innerHTML = Object.entries(FEEDS)
+    .map(
+      ([key, feed]) => `
+      <div class="frame" data-feed="${key}" style="--frame-pad: ${FRAME_PAD}px; view-transition-name: frame-${key}" hidden>
+        <div class="frame-screen"><span class="frame-hint">${icon(FEED_ICONS[key])}${feed.label}</span></div>
+        ${key === 'trainCamera' ? '' : `<p class="person frame-caption">${personHtml(feed.person, feed.label, FEED_ICONS[key])}</p>`}
+      </div>`,
+    )
+    .join('');
+
+  document.querySelector('.bar').innerHTML = SLIDES.map(() => '<span class="segment"><span class="segment-fill"></span></span>').join('');
+}
+
+// ---- State ----------------------------------------------------------------------------------------------------
+
+/** The state `n` clicks after `s`. */
+function advance(s, n) {
+  let { index, step } = s;
+  for (let i = 0; i < n; i++) {
+    if (step < stepsOf(index)) step += 1;
+    else if (index < SLIDES.length - 1) [index, step] = [index + 1, 0];
+  }
+  return { ...s, index, step };
+}
+
+function render(s) {
+  const slide = SLIDES[s.index];
+  stage.dataset.slide = slide.id;
+  stage.dataset.step = s.step;
+  stage.dataset.layout = slide.layout;
+  stage.dataset.tone = slide.tone ?? 'plain';
+  clock.dataset.place = slide.tone === 'brand' ? 'hero' : 'bar';
+
+  const slots = LAYOUTS[slide.layout];
+  for (const frame of document.querySelectorAll('.frame')) {
+    const rect = slots[frame.dataset.feed];
+    frame.hidden = !rect;
+    if (!rect) continue;
+    Object.assign(frame.style, {
+      left: `${rect.x - FRAME_PAD}px`,
+      top: `${rect.y - FRAME_PAD}px`,
+      width: `${rect.w + 2 * FRAME_PAD}px`,
+      height: `${rect.h + 2 * FRAME_PAD}px`,
+    });
+  }
+
+  document.querySelectorAll('.segment').forEach((segment, i) => {
+    const fill = i < s.index ? 1 : i > s.index ? 0 : (s.step + 1) / (stepsOf(i) + 1);
+    segment.toggleAttribute('data-current', i === s.index);
+    segment.style.setProperty('--fill', fill);
+  });
+
+  tick(s);
+}
+
+function apply(next) {
+  const before = state;
+  state = next;
+  const slideChanged = !before || before.index !== next.index;
+  const stepChanged = before && before.step !== next.step;
+
+  if (animate && before && slideChanged) {
+    // Into or out of the blue: the new background wipes up instead of crossfading through lavender.
+    const wipe = (SLIDES[before.index].tone ?? 'plain') !== (SLIDES[next.index].tone ?? 'plain');
+    document.documentElement.classList.toggle('wipe', wipe);
+    const transition = document.startViewTransition(() => render(next));
+    transition.finished.finally(() => document.documentElement.classList.remove('wipe'));
+  } else {
+    render(next);
+  }
+
+  // The upload on the core slide: one packet travels to the server as it appears.
+  if (animate && stepChanged && SLIDES[next.index].id === 'core' && next.step === 2) {
+    const packet = document.querySelector('.packet');
+    packet.classList.add('is-moving');
+    setTimeout(() => packet.querySelector('animateMotion').beginElement(), 450);
+    setTimeout(() => packet.classList.remove('is-moving'), 1400);
+  }
+}
+
+// ---- Clock ----------------------------------------------------------------------------------------------------
+
+const pad = (n) => String(n).padStart(2, '0');
+
+function tick(s = state) {
+  if (!s) return;
+  let elapsed = 0;
+  let status = 'idle';
+  if (s.stoppedElapsed !== null) {
+    elapsed = s.stoppedElapsed;
+    status = 'stopped';
+  } else if (s.startedAt !== null) {
+    elapsed = Date.now() + clockOffset - s.startedAt;
+    status = 'running';
+  }
+  const seconds = Math.max(0, Math.floor(elapsed / 1000));
+  clockTime.textContent = `${pad(Math.floor(seconds / 3600))}:${pad(Math.floor(seconds / 60) % 60)}:${pad(seconds % 60)}`;
+  stage.dataset.clock = status;
+}
+
+// ---- Wiring ---------------------------------------------------------------------------------------------------
+
+async function post(path, body) {
+  await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+}
+
+const KEYS = {
+  ArrowRight: 'next',
+  ArrowDown: 'next',
+  PageDown: 'next',
+  ' ': 'next',
+  Enter: 'next',
+  ArrowLeft: 'prev',
+  ArrowUp: 'prev',
+  PageUp: 'prev',
+  Home: 'first',
+};
+
+async function main() {
+  ({ people } = await (await fetch('/api/config')).json());
+  buildStatic();
+  fitStage();
+  addEventListener('resize', fitStage);
+
+  if (mode === 'browser' && offset === 0) {
+    addEventListener('keydown', (event) => {
+      if (event.repeat || event.ctrlKey || event.altKey || event.metaKey) return;
+      const action = KEYS[event.key];
+      if (action) {
+        event.preventDefault();
+        post('/api/go', { action });
+      } else if (event.key === 's' || event.key === 'S') {
+        post('/api/timer', { action: 'start' });
+      } else if (event.key === 'f' || event.key === 'F') {
+        document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+      }
+    });
+  }
+
+  const events = new EventSource('/api/events');
+  events.onmessage = (event) => {
+    const s = JSON.parse(event.data);
+    clockOffset = s.serverNow - Date.now();
+    apply(advance(s, offset));
+  };
+  setInterval(() => tick(), 250);
+}
+
+main();

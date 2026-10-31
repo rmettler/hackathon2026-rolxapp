@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RolX presenter</title>
+  <link rel="stylesheet" href="/tokens.css">
+  <link rel="stylesheet" href="/presenter.css">
+  <script type="module" src="/presenter.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="clock"><span class="clock-dot"></span><span class="clock-time">00:00:00</span></div>
+    <p class="position"></p>
+    <p class="status" data-status="obs"></p>
+    <p class="status" data-status="server"></p>
+  </header>
+
+  <main class="main">
+    <section class="now">
+      <div class="screen"><iframe src="/deck.html?mode=preview" title="Current slide" tabindex="-1"></iframe></div>
+    </section>
+    <aside class="side">
+      <h2 class="label">Next click</h2>
+      <div class="screen screen-small"><iframe src="/deck.html?mode=preview&amp;offset=1" title="Next slide" tabindex="-1"></iframe></div>
+      <h2 class="label">Notes</h2>
+      <ul class="notes"></ul>
+    </aside>
+  </main>
+
+  <footer class="controls">
+    <div class="buttons">
+      <button type="button" data-go="prev">Back</button>
+      <button type="button" class="primary" data-go="next">Next</button>
+      <button type="button" data-timer="start">Start timer</button>
+      <button type="button" data-timer="reset">Reset timer</button>
+    </div>
+    <ol class="slides"></ol>
+  </footer>
+
+  <details class="links">
+    <summary>Remote links</summary>
+    <div class="link-list"></div>
+  </details>
+</body>
+</html>
