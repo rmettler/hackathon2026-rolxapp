@@ -15,7 +15,7 @@ Presenter view (+ clicker) ── server.mjs ────┘
 ```
 
 Slides: title with the talk's stamp card, the claim, "One core, every screen" (Terminal, Desktop, Android, RISC-V
-around rolx-core, then the server), the desktop app, the phone, the terminal video, all three screens, the Rust
+around rolx-core, then the server), the terminal video, the desktop app, the phone, all three screens, the Rust
 question, questions. The stamp card is drawn like the stamp panel of the apps: it is stamped in on the first
 click and stamped out on the last slide.
 

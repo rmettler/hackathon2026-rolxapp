@@ -66,6 +66,11 @@ export const SLIDES = [
     ],
   },
   {
+    id: 'terminal',
+    layout: 'terminal',
+    notes: ['The recorded terminal app video.'],
+  },
+  {
     id: 'desk',
     layout: 'desk',
     notes: ['Shared from the other PC.', 'Hotkey, command palette, tray. Fix an overlap in the day view.'],
@@ -74,11 +79,6 @@ export const SLIDES = [
     id: 'phone',
     layout: 'phone',
     notes: ['Shared from the phone.', 'Stamp in, switch activity, look at the day.'],
-  },
-  {
-    id: 'terminal',
-    layout: 'terminal',
-    notes: ['The recorded terminal app video.'],
   },
   {
     id: 'all',
