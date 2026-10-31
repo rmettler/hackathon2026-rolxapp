@@ -10,7 +10,15 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; font-family: var(--font-sans); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-leading); font-weight: var(--weight-regular); background: var(--bg); color: var(--fg); }
-main { max-width: 760px; margin: 0 auto; padding: 20px 24px 40px; }
+main { padding: 20px 32px 40px; }
+
+/* Wide windows: the stamp panel stays in view on the left, the day work uses the rest. */
+.layout { display: block; }
+.side, .work { min-width: 0; }
+@media (min-width: 1100px) {
+  .layout { display: grid; grid-template-columns: minmax(380px, 440px) minmax(0, 1fr); gap: 0 28px; align-items: start; }
+  .work > .day-nav { margin-top: 14px; }
+}
 h1 { margin: 0; font-size: var(--type-headline-size); line-height: var(--type-headline-leading); letter-spacing: var(--type-headline-tracking); font-weight: var(--weight-medium); }
 h2 { margin: 0; font-size: var(--type-title-size); line-height: var(--type-title-leading); font-weight: var(--weight-medium); }
 h3 { margin: 4px 0; font-size: var(--type-body-size); font-weight: var(--weight-medium); }
@@ -176,3 +184,9 @@ tr.editing > td { background: var(--bg-alt); max-width: 0; }
 .palette { position: fixed; z-index: 20; top: 70px; left: 50%; transform: translateX(-50%); width: min(600px, 92vw); background: var(--surface-raised); color: var(--fg); border: 1px solid var(--border); border-radius: var(--surface-radius); box-shadow: var(--shadow-lg); padding: 10px; }
 .palette > input { width: 100%; }
 .palette .options { max-height: 50vh; }
+
+/* Tall wide windows: keep the stamp panel in view and give the chart more height. */
+@media (min-width: 1100px) and (min-height: 860px) {
+  .side { position: sticky; top: 0; }
+  .chart .bars { height: 160px; }
+}
