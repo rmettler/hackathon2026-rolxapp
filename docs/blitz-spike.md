@@ -56,9 +56,11 @@ The first three and the stroke colours were local changes to the copied componen
    - A window remains: hovering or clicking while the startup sheets load. It was not seen in the
      runs here, and a fix needs Blitz or Stylo; it is worth reporting upstream.
 
-## Open: crash on quick clicks across screen changes
+## Fixed: crash on quick clicks across screen changes
 
-Found on 2026-10-31, after the spike: the app panics in Blitz's hit test (`blitz-dom` `node.rs:1483`, `Option::unwrap()` on `None`). A scripted loop of Settings, Back and next day crashed it within 2 cycles in 5 of 6 runs, with and without the components removed for Q11. It also happened once in about a dozen runs with pauses of one to two seconds between clicks. A likely reading, not proven: a mouse event hits stale paint children between a DOM change and the next layout. See Q12 in `docs/open-questions.md`.
+Found on 2026-10-31, after the spike: the app panicked in Blitz's hit test (`blitz-dom` `node.rs:1483`, `Option::unwrap()` on `None`), as a pointer event between a DOM change and the next layout met paint lists naming dropped nodes. A scripted loop of Settings, Back and next day crashed it within 2 cycles in 5 of 6 runs, and it also happened once in about a dozen runs with pauses of one to two seconds between clicks.
+
+`vendor/blitz-dom` now carries the upstream fix, see `vendor/README.md`. With it, the same loop survived all 40 cycles in 8 of 8 runs, and 4 of 4 runs of sign-in against the mock, Settings and logout were clean. `apps/desktop/tests/hit_test_dropped_nodes.rs` panics at that same line without the fix. Other crashes of this alpha remain possible: the stylesheet one above is only worked around, and a review provoked a panic in `get_cursor` (`document.rs`) by moving a hoisted child out of a parent and dropping that parent before the next layout. Whether Dioxus ever does that is not known; it was not seen in the app.
 
 ## Other findings
 

@@ -52,6 +52,7 @@ pub fn run(root: &Path) -> Result<String, String> {
     }
 
     check_single_dioxus(root)?;
+    check_vendored_blitz_dom(root)?;
 
     if packages.iter().any(|p| p == "rolx-ui") {
         check_tailwind_fresh(root)?;
@@ -145,6 +146,39 @@ fn check_single_dioxus(root: &Path) -> Result<(), String> {
     ))
 }
 
+/// The desktop app must run on the fixed `blitz-dom`. A Dioxus upgrade to another version would leave
+/// the app on an unfixed one, without a warning, as the test's dev-dependency keeps the patch in use.
+fn check_vendored_blitz_dom(root: &Path) -> Result<(), String> {
+    let args = [
+        "tree",
+        "-p",
+        "rolxapp-desktop",
+        "-e",
+        "normal",
+        "-i",
+        "blitz-dom",
+        "--depth",
+        "0",
+    ];
+    println!("check: cargo {}", args.join(" "));
+    let out = run_cmd("cargo", &args, root)?;
+    check_cmd_output(&out, "`cargo tree -i blitz-dom`")?;
+
+    let tree = String::from_utf8_lossy(&out.stdout);
+    if is_vendored_blitz_dom(&tree) {
+        return Ok(());
+    }
+    Err(format!(
+        "rolxapp-desktop does not use vendor/blitz-dom, see vendor/README.md:\n{tree}"
+    ))
+}
+
+fn is_vendored_blitz_dom(tree: &str) -> bool {
+    tree.lines().next().is_some_and(|line| {
+        line.starts_with("blitz-dom ") && line.replace('\\', "/").contains("/vendor/blitz-dom)")
+    })
+}
+
 /// The duplicates themselves are the unindented lines of `cargo tree -d`; indented ones are their
 /// dependents, which may well be Dioxus crates without being duplicated. A crate listed twice with
 /// the same version and source is one package built with different features, which is fine.
@@ -212,6 +246,18 @@ dioxus-html v0.8.0-alpha.3 (https://github.com/DioxusLabs/dioxus#abc)
 └── b v1.0.0
 ";
         assert_eq!(duplicate_dioxus_crates(tree).len(), 2);
+    }
+
+    #[test]
+    fn recognises_the_vendored_blitz_dom() {
+        assert!(is_vendored_blitz_dom(
+            "blitz-dom v0.3.0-beta.4 (D:\\x\\vendor\\blitz-dom)\n"
+        ));
+        assert!(is_vendored_blitz_dom(
+            "blitz-dom v0.3.0-beta.4 (/x/vendor/blitz-dom)\n"
+        ));
+        assert!(!is_vendored_blitz_dom("blitz-dom v0.3.0-beta.5\n"));
+        assert!(!is_vendored_blitz_dom(""));
     }
 
     #[test]

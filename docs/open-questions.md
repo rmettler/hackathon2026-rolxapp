@@ -7,8 +7,7 @@ applied and noted here, and all questions are asked at the end.
 
 | # | Question | State |
 |---|---|---|
-| Q10 | Google rejects the web sign-in button: "The given origin is not allowed for the given client ID" (HTTP 403). Only `http://localhost:8080` is registered for the client in `[google_web_client]` (answer of 2026-10-31), and the rejection was seen again on that date. Google's setup guide asks for both `http://localhost` and `http://localhost:<port>`. | Open: add `http://localhost` in the Google Console and retry, or give it time if the origin was added only just now. Google's guide also advises `Referrer-Policy: no-referrer-when-downgrade` for tests on http and localhost, while the host sends `strict-origin-when-cross-origin`; try that second. The cause is not proven until then. A production origin needs adding as well. |
-| Q12 | The desktop app can crash in Blitz when clicks hit a screen change (`docs/blitz-spike.md`). It reproduces within seconds under scripted clicks and was seen once at a slower pace; a crash gives no message in a release build. Patch `blitz-dom` with `[patch]`, or move `apps/desktop` to the `desktop` (WebView) feature as the plan's fallback? | Open: nothing changed yet. Recommended: try the small patch first, and move to WebView if the crash stays. |
+| Q10 | Google rejected the web sign-in button with HTTP 403, "The given origin is not allowed for the given client ID", while only `http://localhost:8080` was registered. | The button renders since 2026-10-31 under the strict CSP with no error. `http://localhost` was registered just before; whether that or a delay after the earlier change did it is not known. Signing in with a real account is still open, see the checklist. A production origin needs adding as well. |
 
 ## Answered
 
@@ -25,6 +24,7 @@ Answered on 2026-10-31; the defaults were confirmed.
 | Q7 | Android minimum SDK version | dx template default: `minSdk` 24, `targetSdk` 34 |
 | Q8 | Windows bundle format | dx default: NSIS installer, per user |
 | Q9 | Hackathon deadline / priority if time runs out | milestone order as in the plan |
+| Q12 | The desktop app can crash in Blitz when clicks hit a screen change: patch `blitz-dom` or move to the WebView? | Answered on 2026-10-31: patch. Done by backporting the upstream fix, see `vendor/README.md` and `docs/blitz-spike.md`. |
 | Q11 | Remove the components only `StylePreload` rendered? | Removed as they were really unused: `calendar`, `card`, `date_picker`, `popover`, `select`. The CSP no longer allows `'unsafe-eval'`. |
 
 ## Decisions taken
@@ -81,7 +81,7 @@ to expect.
 - [ ] M12: run `dist/desktop/RolX_0.1.0_x64-setup.exe`. Expect a SmartScreen warning (not signed), an install without administrator rights, a start-menu entry and a desktop shortcut, and the app starting with no console window. Build it first with the command in `apps/desktop/README.md`.
 - [ ] M15: Android device login with real Google and stage, on an emulator or phone. Put the server and device client into `apps/android/config.local.toml` and build. Expect the code on screen, Open browser to show Google's device page in the system browser, and the day view after entering the code. Also check Copy code by pasting.
 - [ ] M16: install the `aarch64` APK on a real phone (`adb install`, or copy it and allow the install). Expect the app to start and show Login; with a build holding your settings, sign in as in M15.
-- [ ] M20: web sign-in with real Google, after Q10. Also checks that Google's script works under the strict CSP, which only a stand-in has done so far. Start the chain from `apps/web/README.md` with `--google-client-id <web client id>` and the server of your choice. Expect Google's button, the sign-in, and the day view.
+- [ ] M20: web sign-in with real Google. Google's button renders since Q10; this also checks that its sign-in works under the strict CSP, which only a stand-in has done so far. Start the chain from `apps/web/README.md` with `--google-client-id <web client id>` and the server of your choice. Expect Google's button, the sign-in, and the day view.
 - [ ] M21: the static Linux host against a real server: the x86_64 tarball or container with `--server https://<rolx server>`. Expect `/api/v1/SignIn/info` to answer 200. So far the musl build has only talked to the mock; TLS to stage was checked with the native build (M18).
 - [ ] M21: riscv64 container under emulation. This podman machine answers "Exec format error", as it has no riscv64 emulation; install `qemu-user-static` in it, then run the riscv64 image and expect `/config.json` and `/api/v1/SignIn/info` to respond. The binary itself was checked to be a static RISC-V ELF, and it cross-compiles with TLS.
 - [ ] M21: on the real RISC-V box, unpack `dist/web/rolxapp-webhost-riscv64gc-unknown-linux-musl.tar.gz` and run it as in `apps/webhost/README.md`. Expect the web app and a working `/api` with TLS to the RolX server.

@@ -818,8 +818,6 @@ dependencies = [
 [[package]]
 name = "blitz-dom"
 version = "0.3.0-beta.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a814bfd3ad19e6d8d26f99c75188062baca499564f9abe44250230962427d183"
 dependencies = [
  "accesskit",
  "anyrender",
@@ -7109,6 +7107,8 @@ name = "rolxapp-desktop"
 version = "0.1.0"
 dependencies = [
  "arboard",
+ "blitz-dom",
+ "blitz-traits",
  "dioxus",
  "open",
  "reqwest",

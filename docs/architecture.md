@@ -72,7 +72,7 @@ and hold the device client's secret. See `docs/open-questions.md`.
 
 ## Blitz
 
-The desktop app runs on Dioxus Native, an alpha. `docs/blitz-spike.md` has the evidence and the rules:
+The desktop app runs on Dioxus Native, an alpha, with a patched `blitz-dom` (`vendor/README.md`). `docs/blitz-spike.md` has the evidence and the rules:
 icons need a concrete `stroke`, every `css_module` component must render at startup (`StylePreload`,
 kept honest by a test), and no stylesheet may be added later, or the app can crash. If this proves
 too fragile, `apps/desktop` can move to Dioxus' `desktop` (WebView) feature without touching the

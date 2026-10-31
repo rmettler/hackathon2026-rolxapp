@@ -1,6 +1,7 @@
 [workspace]
 members         = ["crates/*", "apps/*", "xtask"]
 default-members = ["apps/cli"]
+exclude         = ["vendor"]
 resolver        = "3"
 
 [workspace.package]
@@ -44,3 +45,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url                = "2"
 urlencoding        = "2"
 xcap               = "0.9"
+
+# See `vendor/README.md`.
+[patch.crates-io]
+blitz-dom = { path = "vendor/blitz-dom" }

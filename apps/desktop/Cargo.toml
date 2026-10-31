@@ -12,6 +12,10 @@ rolx-auth     = { path = "../../crates/rolx-auth" }
 rolx-core     = { path = "../../crates/rolx-core" }
 rolx-ui       = { path = "../../crates/rolx-ui" }
 
+[dev-dependencies]
+blitz-dom    = { version = "=0.3.0-beta.4", default-features = false }
+blitz-traits = { version = "=0.3.0-beta.4", default-features = false }
+
 [features]
 default         = []
 uncensored_logs = ["rolx-auth/uncensored_logs", "rolx-core/uncensored_logs"]
