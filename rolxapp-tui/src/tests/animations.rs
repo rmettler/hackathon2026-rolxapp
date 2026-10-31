@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::layout::Rect;
 
 use super::charts::charts_app;
@@ -97,6 +98,19 @@ fn switching_to_the_pie_draws_the_chart_in_again() {
     finish(&mut animations, &app);
 
     press(&mut app, "p");
+    animations.observe(&app, SCREEN);
+
+    assert!(animations.running());
+}
+
+#[test]
+fn opening_the_detail_pie_draws_the_chart_in_again() {
+    let mut animations = Animations::new(true);
+    let mut app = charts_app();
+    press(&mut app, "pj");
+    finish(&mut animations, &app);
+
+    special(&mut app, KeyCode::Enter, KeyModifiers::NONE);
     animations.observe(&app, SCREEN);
 
     assert!(animations.running());

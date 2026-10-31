@@ -378,14 +378,7 @@ impl App {
                 .map(|r| self.outbox.overlay(r))
                 .collect(),
         );
-        let chart = self.month_chart();
-        let len = chart.as_ref().map_or(0, |c| c.series.len());
-        self.chart_sel = match self.chart_keep.take() {
-            Some(id) => chart
-                .and_then(|c| c.series.iter().position(|s| s.activity_id == Some(id)))
-                .unwrap_or(0),
-            None => self.chart_sel.min(len.saturating_sub(1)),
-        };
+        self.settle_chart_selection();
     }
 
     /// Each day as it was before the change: the local copy, else what is shown.

@@ -19,6 +19,10 @@ _Avoid_: Breakdown, distribution
 **Share**:
 The part of a month's booked time that falls on one activity.
 
+**Detail pie chart**:
+A pie chart of the booked time of one activity in one month, split by the comments of its entries. Entries without a comment form one slice.
+_Avoid_: Drill-down, sub-chart
+
 **Daily hours**:
 The measure of a chart that shows the booked time of each day.
 

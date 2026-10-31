@@ -62,7 +62,7 @@ impl App {
             Tab::Activities => self.filtered_activities().len(),
             Tab::Year => self.year_info.as_ref().map_or(0, |y| y.holidays.len()),
             Tab::Report => self.report_line_count(),
-            Tab::Charts => self.month_chart().map_or(0, |c| c.series.len()),
+            Tab::Charts => self.chart_list_len(),
         }
     }
 

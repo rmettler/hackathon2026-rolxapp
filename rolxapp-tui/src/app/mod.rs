@@ -14,7 +14,9 @@ mod week;
 mod week_grid;
 
 pub use absence::{Absence, absence_of, leave_time};
-pub use chart::{ChartMeasure, ChartView, MonthChart, slice_at};
+pub use chart::{
+    ChartDetail, ChartMeasure, ChartView, DetailChart, MonthChart, Slice, slice_at, slice_of_row,
+};
 pub use msg::{Msg, Screen};
 pub use offline::Load;
 #[cfg(test)]
@@ -84,6 +86,8 @@ pub struct App {
     pub chart_keep: Option<i32>,
     pub chart_measure: ChartMeasure,
     pub chart_view: ChartView,
+    /// The activity whose comments the pie chart shows, while the detail pie chart is open.
+    pub chart_detail: Option<ChartDetail>,
     /// Start of the running stamp, if any.
     pub stamp: Option<DateTime<Local>>,
     /// Where the running stamp is kept; `None` keeps it in memory only.
@@ -157,6 +161,7 @@ impl App {
             chart_keep: None,
             chart_measure: ChartMeasure::RunningTotal,
             chart_view: ChartView::Line,
+            chart_detail: None,
             stamp: None,
             stamp_store: None,
             stamp_session: None,

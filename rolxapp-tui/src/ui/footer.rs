@@ -1,4 +1,4 @@
-use crate::app::{App, DayView, Tab};
+use crate::app::{App, ChartView, DayView, Tab};
 use crate::edit::EditMode;
 
 /// Key hints for the footer, depending on what has focus.
@@ -44,6 +44,12 @@ pub(super) fn help_text(app: &App) -> &'static str {
             }
             Tab::Year => "j/k scroll   h/l year   C-d/C-u page   gg/G ends   q quit",
             Tab::Report => "j/k scroll   h/l month   C-d/C-u page   gg/G ends   q quit",
+            Tab::Charts if app.chart_detail.is_some() => {
+                "j/k comment   h/l month   t this month   Enter/Esc back   p line   q quit"
+            }
+            Tab::Charts if app.chart_view == ChartView::Pie => {
+                "j/k activity   h/l month   t this month   Enter comments   p line   q quit"
+            }
             Tab::Charts => {
                 "j/k activity   h/l month   t this month   m daily/total   p pie/line   r reload   q quit"
             }

@@ -23,13 +23,57 @@ const MAX_SLICES: usize = 8;
 const DIMMED_RADIUS: f64 = 0.88;
 
 /// One slice of the pie: an activity's share of the month's booked time.
+#[derive(Clone)]
 pub struct Slice {
-    /// `None` for the combined "Other" slice.
+    /// `None` for the combined "Other" slice, and for the comment slices of a detail pie chart.
     pub activity_id: Option<i32>,
-    /// "Other" for the combined slice.
+    /// The activity number, or the comment in a detail pie chart; "Other" for the combined slice.
     pub number: String,
     pub total: Duration,
     pub share: f64,
+}
+
+/// The comment of entries that have none.
+const NO_COMMENT: &str = "(no comment)";
+
+/// The activity whose comments the detail pie chart shows.
+#[derive(Clone, Debug)]
+pub struct ChartDetail {
+    pub activity_id: i32,
+    /// The row of the activity list to select again when the detail is closed.
+    pub back_to: usize,
+}
+
+/// The booked time of one activity in a month, split by comment.
+pub struct DetailChart {
+    pub total: Duration,
+    /// Every comment, biggest first.
+    pub comments: Vec<Slice>,
+}
+
+impl DetailChart {
+    pub fn slices(&self) -> Vec<Slice> {
+        fold(self.comments.clone())
+    }
+}
+
+/// Keeps the biggest slices and combines the rest into "Other".
+fn fold(mut slices: Vec<Slice>) -> Vec<Slice> {
+    if slices.len() > MAX_SLICES {
+        let rest = slices.split_off(MAX_SLICES);
+        slices.push(Slice {
+            activity_id: None,
+            number: "Other".into(),
+            total: rest.iter().map(|s| s.total).sum(),
+            share: rest.iter().map(|s| s.share).sum(),
+        });
+    }
+    slices
+}
+
+/// The slice a row of a pie's list stands for; the first row, the total, has none.
+pub fn slice_of_row(row: usize) -> Option<usize> {
+    (row > 0).then(|| (row - 1).min(MAX_SLICES))
 }
 
 /// The slice at `(x, y)` of a unit pie starting at 12 o'clock, going clockwise.
@@ -89,6 +133,8 @@ pub struct MonthChart {
     /// Last day with a data point: today in the current month, 0 for future months.
     pub last_day: u32,
     pub series: Vec<ChartSeries>,
+    /// Booked time of each activity by comment.
+    comments: BTreeMap<i32, BTreeMap<String, Duration>>,
     /// Target time of each day; zero on weekends and holidays.
     expected: Vec<Duration>,
     /// The line of the daily target: weekends and holidays keep the last working day's full target.
@@ -112,6 +158,7 @@ impl MonthChart {
         let mut expected = blank();
         let mut full_target: Vec<Option<Duration>> = vec![None; days as usize];
         let mut by_activity: BTreeMap<i32, (String, Vec<Duration>)> = BTreeMap::new();
+        let mut comments: BTreeMap<i32, BTreeMap<String, Duration>> = BTreeMap::new();
 
         for record in records {
             let Ok(date) = NaiveDate::parse_from_str(&record.date, "%Y-%m-%d") else {
@@ -132,6 +179,17 @@ impl MonthChart {
                     .entry(entry.activity_id)
                     .or_insert_with(|| (entry.full_activity_number.clone(), blank()));
                 activity.1[day] += entry.duration;
+                let comment = entry
+                    .comment
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|c| !c.is_empty())
+                    .unwrap_or(NO_COMMENT);
+                *comments
+                    .entry(entry.activity_id)
+                    .or_default()
+                    .entry(comment.to_string())
+                    .or_insert_with(Duration::zero) += entry.duration;
             }
         }
 
@@ -184,6 +242,7 @@ impl MonthChart {
             days,
             last_day,
             series,
+            comments,
             expected,
             level,
         }
@@ -204,10 +263,8 @@ impl MonthChart {
             return Vec::new();
         }
         let share = |d: Duration| d.num_seconds() as f64 / total.num_seconds() as f64;
-        let activities = &self.series[1..];
-        let mut slices: Vec<Slice> = activities
+        let slices = self.series[1..]
             .iter()
-            .take(MAX_SLICES)
             .map(|s| Slice {
                 activity_id: s.activity_id,
                 number: s.number.clone(),
@@ -215,21 +272,35 @@ impl MonthChart {
                 share: share(s.total),
             })
             .collect();
-        if activities.len() > MAX_SLICES {
-            let rest: Duration = activities[MAX_SLICES..].iter().map(|s| s.total).sum();
-            slices.push(Slice {
-                activity_id: None,
-                number: "Other".into(),
-                total: rest,
-                share: share(rest),
-            });
-        }
-        slices
+        fold(slices)
     }
 
     /// The slice an entry of the activity list stands for; "All activities" has none.
     pub fn slice_of_row(&self, row: usize) -> Option<usize> {
-        (row > 0).then(|| (row - 1).min(MAX_SLICES))
+        slice_of_row(row)
+    }
+
+    /// One activity's booked time split by comment, `None` if it has none this month.
+    pub fn detail(&self, activity_id: i32) -> Option<DetailChart> {
+        let total = self
+            .series
+            .iter()
+            .find(|s| s.activity_id == Some(activity_id))?
+            .total;
+        let mut comments: Vec<Slice> = self
+            .comments
+            .get(&activity_id)?
+            .iter()
+            .filter(|(_, d)| **d > Duration::zero())
+            .map(|(comment, d)| Slice {
+                activity_id: None,
+                number: comment.clone(),
+                total: *d,
+                share: d.num_seconds() as f64 / total.num_seconds() as f64,
+            })
+            .collect();
+        comments.sort_by(|a, b| b.total.cmp(&a.total).then_with(|| a.number.cmp(&b.number)));
+        Some(DetailChart { total, comments })
     }
 
     /// `(day of month, hours)` of the target for every day of the month.
@@ -281,6 +352,87 @@ impl App {
         self.month_chart()?.series.get(self.chart_sel)?.activity_id
     }
 
+    /// Rows of the activity list, or of the comment list while the detail pie chart is open.
+    pub(crate) fn chart_list_len(&self) -> usize {
+        let Some(chart) = self.month_chart() else {
+            return 0;
+        };
+        match self
+            .chart_detail
+            .as_ref()
+            .and_then(|d| chart.detail(d.activity_id))
+        {
+            Some(detail) => detail.comments.len() + 1,
+            None => chart.series.len(),
+        }
+    }
+
+    /// Keeps the selection sensible after the month's records arrived.
+    pub(crate) fn settle_chart_selection(&mut self) {
+        let keep = self.chart_keep.take();
+        let Some(chart) = self.month_chart() else {
+            return;
+        };
+        if let Some(detail) = self.chart_detail.clone() {
+            let position = chart
+                .series
+                .iter()
+                .position(|s| s.activity_id == Some(detail.activity_id));
+            match (position, chart.detail(detail.activity_id)) {
+                (Some(row), Some(shown)) => {
+                    self.chart_detail = Some(ChartDetail {
+                        back_to: row,
+                        ..detail
+                    });
+                    self.chart_sel = self.chart_sel.min(shown.comments.len());
+                }
+                _ => {
+                    // The activity has no booked time in this month.
+                    self.chart_detail = None;
+                    self.chart_sel = 0;
+                }
+            }
+            return;
+        }
+        self.chart_sel = match keep {
+            Some(id) => chart
+                .series
+                .iter()
+                .position(|s| s.activity_id == Some(id))
+                .unwrap_or(0),
+            None => self.chart_sel.min(chart.series.len().saturating_sub(1)),
+        };
+    }
+
+    /// `Enter`: opens the detail pie chart of the selected activity, or closes it again.
+    fn toggle_chart_detail(&mut self) {
+        if self.close_chart_detail() {
+            return;
+        }
+        let Some(chart) = self.month_chart() else {
+            return;
+        };
+        match chart.series.get(self.chart_sel).and_then(|s| s.activity_id) {
+            Some(activity_id) => {
+                self.chart_detail = Some(ChartDetail {
+                    activity_id,
+                    back_to: self.chart_sel,
+                });
+                self.chart_sel = 0;
+            }
+            None => self.status = Some("Select an activity first".into()),
+        }
+    }
+
+    /// Returns to the overview pie chart with the activity selected again; false if it wasn't open.
+    fn close_chart_detail(&mut self) -> bool {
+        let Some(detail) = self.chart_detail.take() else {
+            return false;
+        };
+        self.chart_sel = detail.back_to;
+        true
+    }
+
     /// Switches month, remembering the selected activity so it can be reselected once loaded.
     pub(crate) fn move_chart_month(&mut self, month: NaiveDate) {
         self.chart_keep = self.selected_chart_activity();
@@ -304,7 +456,12 @@ impl App {
             KeyCode::Char('m') if self.chart_view == ChartView::Line => {
                 self.chart_measure = self.chart_measure.toggle();
             }
+            KeyCode::Enter if self.chart_view == ChartView::Pie => self.toggle_chart_detail(),
+            KeyCode::Esc => {
+                self.close_chart_detail();
+            }
             KeyCode::Char('p') => {
+                self.close_chart_detail();
                 self.chart_view = match self.chart_view {
                     ChartView::Line => ChartView::Pie,
                     ChartView::Pie => ChartView::Line,
@@ -646,6 +803,111 @@ mod tests {
         assert_eq!(slice_at(&slices, 0.0, 0.95, Some(0)), Some(0));
         assert_eq!(slice_at(&slices, 0.0, -0.95, Some(0)), None);
         assert_eq!(slice_at(&slices, 0.0, -0.95, None), Some(1));
+    }
+
+    fn commented(
+        activity_id: i32,
+        number: &str,
+        minutes: i64,
+        comment: Option<&str>,
+    ) -> RecordEntry {
+        RecordEntry {
+            comment: comment.map(str::to_string),
+            ..entry(activity_id, number, minutes)
+        }
+    }
+
+    fn detail_of(entries: Vec<RecordEntry>) -> Option<DetailChart> {
+        MonthChart::build(
+            date(2026, 10, 1),
+            &[record("2026-10-01", entries)],
+            date(2026, 11, 5),
+        )
+        .detail(1)
+    }
+
+    #[test]
+    fn the_detail_splits_one_activity_by_comment_biggest_first() {
+        let detail = detail_of(vec![
+            commented(1, "P1", 30, Some("plan")),
+            commented(1, "P1", 90, Some("review")),
+            commented(2, "P2", 60, Some("elsewhere")),
+        ])
+        .unwrap();
+
+        let comments: Vec<&str> = detail.comments.iter().map(|c| c.number.as_str()).collect();
+        assert_eq!(comments, ["review", "plan"]);
+        assert_eq!(detail.total, Duration::hours(2));
+        assert!((detail.comments[0].share - 0.75).abs() < 1e-9);
+    }
+
+    #[test]
+    fn the_same_comment_adds_up_even_with_stray_spaces() {
+        let detail = detail_of(vec![
+            commented(1, "P1", 30, Some("review")),
+            commented(1, "P1", 30, Some("  review ")),
+        ])
+        .unwrap();
+
+        assert_eq!(detail.comments.len(), 1);
+        assert_eq!(detail.comments[0].total, Duration::hours(1));
+    }
+
+    #[test]
+    fn comments_differing_in_case_are_different_slices() {
+        let detail = detail_of(vec![
+            commented(1, "P1", 30, Some("review")),
+            commented(1, "P1", 30, Some("Review")),
+        ])
+        .unwrap();
+
+        assert_eq!(detail.comments.len(), 2);
+    }
+
+    #[test]
+    fn entries_without_a_comment_share_one_slice() {
+        let detail = detail_of(vec![
+            commented(1, "P1", 30, None),
+            commented(1, "P1", 15, Some("   ")),
+        ])
+        .unwrap();
+
+        assert_eq!(detail.comments.len(), 1);
+        assert_eq!(detail.comments[0].number, "(no comment)");
+        assert_eq!(detail.comments[0].total, Duration::minutes(45));
+    }
+
+    #[test]
+    fn comments_without_booked_time_get_no_slice() {
+        let detail = detail_of(vec![
+            commented(1, "P1", 30, Some("plan")),
+            commented(1, "P1", 0, Some("nothing")),
+        ])
+        .unwrap();
+
+        assert_eq!(detail.comments.len(), 1);
+    }
+
+    #[test]
+    fn an_activity_without_booked_time_has_no_detail() {
+        assert!(detail_of(vec![commented(2, "P2", 30, None)]).is_none());
+    }
+
+    #[test]
+    fn only_the_eight_biggest_comments_get_a_slice_and_the_rest_is_other() {
+        let entries = (1..=10)
+            .map(|n| commented(1, "P1", i64::from(n) * 10, Some(&format!("c{n}"))))
+            .collect();
+        let detail = detail_of(entries).unwrap();
+
+        assert_eq!(detail.comments.len(), 10, "the list keeps all of them");
+        let slices = detail.slices();
+        assert_eq!(slices.len(), 9);
+        let other = slices.last().unwrap();
+        assert_eq!(other.number, "Other");
+        assert_eq!(other.total, Duration::minutes(30), "c1 and c2");
+        let sum: f64 = slices.iter().map(|s| s.share).sum();
+        assert!((sum - 1.0).abs() < 1e-9);
     }
 
     #[test]

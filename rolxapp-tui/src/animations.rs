@@ -26,7 +26,7 @@ pub struct Animations {
     effects: EffectManager<Slot>,
     enabled: bool,
     overlay: Option<OverlayKind>,
-    chart: Option<(NaiveDate, ChartMeasure, ChartView)>,
+    chart: Option<(NaiveDate, ChartMeasure, ChartView, Option<i32>)>,
     last_frame: Option<Instant>,
 }
 
@@ -67,7 +67,14 @@ impl Animations {
         }
 
         let panel = ui::chart_area(app, area);
-        let key = panel.map(|_| (app.chart_month, app.chart_measure, app.chart_view));
+        let key = panel.map(|_| {
+            (
+                app.chart_month,
+                app.chart_measure,
+                app.chart_view,
+                app.chart_detail.as_ref().map(|d| d.activity_id),
+            )
+        });
         if key != self.chart {
             if let Some(panel) = panel {
                 let effect = fx::coalesce((CHART_MS, Interpolation::QuadOut)).with_area(panel);
