@@ -184,11 +184,28 @@ pub fn WeekPanel(
                         for d in days {
                             div {
                                 key: "{d.date}",
+                                role: "button",
+                                tabindex: "0",
+                                "aria-label": "Show {d.date.format(\"%A %d.%m.\")}",
+                                "aria-pressed": "{d.date == selected}",
                                 class: match (d.date == selected, missing.contains(&d.date)) {
                                     (true, true) => "col sel missing",
                                     (true, false) => "col sel",
                                     (false, true) => "col missing",
                                     (false, false) => "col",
+                                },
+                                onclick: {
+                                    let date = d.date;
+                                    move |_| day.set(date)
+                                },
+                                onkeydown: {
+                                    let date = d.date;
+                                    move |e: KeyboardEvent| {
+                                        if matches!(e.key(), Key::Enter) || e.key() == Key::Character(" ".into()) {
+                                            e.prevent_default();
+                                            day.set(date);
+                                        }
+                                    }
                                 },
                                 div { class: "bars", title: "{d.date.format(\"%a %d.%m.\")}: {fmt_hm(d.booked_secs)}",
                                     for t in d.by_activity.iter() {
