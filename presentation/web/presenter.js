@@ -35,6 +35,13 @@ function setStatus(name, ok, text) {
   el.textContent = text;
 }
 
+/** The previews get the state from here instead of opening their own event streams (see deck.js). */
+function sendToPreviews() {
+  for (const frame of document.querySelectorAll('.screen iframe')) {
+    frame.contentWindow?.postMessage({ type: 'rolx-state', state, clockOffset }, location.origin);
+  }
+}
+
 function render() {
   const slide = SLIDES[state.index];
   const steps = slide.steps ?? 0;
@@ -110,7 +117,11 @@ async function main() {
     state = JSON.parse(event.data);
     clockOffset = state.serverNow - Date.now();
     render();
+    sendToPreviews();
   };
+  addEventListener('message', (event) => {
+    if (event.origin === location.origin && event.data?.type === 'rolx-ready' && state) sendToPreviews();
+  });
   setInterval(tick, 250);
 }
 

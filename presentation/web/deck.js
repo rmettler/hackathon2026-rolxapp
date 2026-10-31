@@ -3,7 +3,9 @@
 //   deck.html             browser window: arrow keys, space and page up/down move the slides; the frames show the
 //                         live screens (VDO.Ninja) and the video themselves
 //   deck.html?mode=obs    OBS browser source: no keys, empty frames (OBS puts the feeds on top)
-//   deck.html?offset=1    presenter preview of the next click, without transitions or live screens
+//   deck.html?mode=preview&offset=1
+//                         presenter preview (offset 0: this click, 1: the next one): no transitions, no live
+//                         screens, and the state comes from the presenter page instead of its own server connection
 
 import { icon } from '/icons.mjs';
 import { FEEDS, FRAME_PAD, LAYOUTS, SLIDES, STAGE, stepsOf } from '/slides.mjs';
@@ -11,7 +13,8 @@ import { FEEDS, FRAME_PAD, LAYOUTS, SLIDES, STAGE, stepsOf } from '/slides.mjs';
 const params = new URLSearchParams(location.search);
 const mode = params.get('mode') ?? 'browser';
 const offset = Number(params.get('offset') ?? 0);
-const animate = offset === 0 && 'startViewTransition' in document;
+const preview = mode === 'preview';
+const animate = !preview && offset === 0 && 'startViewTransition' in document;
 // Every live screen is one more viewer the sharing device has to upload to, so only the real deck shows them.
 const live = mode === 'browser' && offset === 0 && params.get('live') !== '0';
 
@@ -66,7 +69,7 @@ function buildStatic() {
       const source = config.sources?.[frame.dataset.feed];
       const screen = frame.querySelector('.frame-screen');
       if (source?.kind === 'vdo') {
-        screen.insertAdjacentHTML('beforeend', `<iframe class="frame-live" src="${source.src}" allow="autoplay; fullscreen" title="${FEEDS[frame.dataset.feed].label}"></iframe>`);
+        screen.insertAdjacentHTML('beforeend', `<iframe class="frame-live" src="${source.src}" allow="autoplay; fullscreen" tabindex="-1" title="${FEEDS[frame.dataset.feed].label}"></iframe>`);
       } else if (source?.kind === 'video') {
         screen.insertAdjacentHTML('beforeend', `<video class="frame-live" src="${source.src}" muted playsinline preload="auto"></video>`);
       }
@@ -190,6 +193,11 @@ const hhmm = (ms) => {
 
 function tick(s = state) {
   if (!s) return;
+  // A recorded video is only ever heard on its own slide, whatever happened in between.
+  const layout = SLIDES[s.index].layout;
+  for (const video of document.querySelectorAll('.frame video')) {
+    if (video.closest('.frame').dataset.feed !== layout && !video.muted) video.muted = true;
+  }
   const hero = stamp.dataset.place === 'hero';
   let elapsed = 0;
   let clock = 'idle';
@@ -250,13 +258,36 @@ async function main() {
     });
   }
 
-  const events = new EventSource('/api/events');
-  events.onmessage = (event) => {
-    const s = JSON.parse(event.data);
-    clockOffset = s.serverNow - Date.now();
-    apply(advance(s, offset));
-  };
+  if (preview && parent !== window) {
+    // The presenter page passes its state on: browsers allow only six connections per server, and every page
+    // with its own event stream takes one of them away from the clicks.
+    addEventListener('message', (event) => {
+      if (event.origin !== location.origin || event.data?.type !== 'rolx-state') return;
+      clockOffset = event.data.clockOffset;
+      apply(advance(event.data.state, offset));
+    });
+    parent.postMessage({ type: 'rolx-ready' }, location.origin);
+  } else {
+    const events = new EventSource('/api/events');
+    events.onmessage = (event) => {
+      const s = JSON.parse(event.data);
+      clockOffset = s.serverNow - Date.now();
+      apply(advance(s, offset));
+    };
+  }
   setInterval(() => tick(), 250);
+
+  // A live screen (VDO.Ninja frame) may grab the keyboard focus; the slide keys must keep working.
+  if (live) {
+    addEventListener('blur', () => {
+      setTimeout(() => {
+        if (document.activeElement?.tagName === 'IFRAME') {
+          document.activeElement.blur();
+          window.focus();
+        }
+      });
+    });
+  }
 }
 
 main();

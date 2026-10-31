@@ -3,3 +3,5 @@
 # Recorded videos stay local
 media/*
 !media/.gitkeep
+# Slide state between server restarts
+.state.*.json

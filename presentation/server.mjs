@@ -8,7 +8,7 @@
 
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
-import { createReadStream, existsSync, readFileSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -101,13 +101,30 @@ async function sendVideo(req, res, key) {
 // Slide state
 
 const last = SLIDES.length - 1;
+const STATE_FILE = join(HERE, `.state.${PORT}.json`); // one per port, so a second server does not mix in
 const state = { index: 0, step: 0, startedAt: null, stoppedElapsed: null };
+
+// The slide and the talk's timer survive a restart of the server (on purpose or not) in the middle of the talk.
+try {
+  Object.assign(state, JSON.parse(readFileSync(STATE_FILE, 'utf8')));
+  state.index = Math.max(0, Math.min(last, state.index));
+} catch {
+  // First start, or an unreadable file: from the title.
+}
+const saveState = () => {
+  try {
+    writeFileSync(STATE_FILE, JSON.stringify(state));
+  } catch {
+    // Not worth stopping the talk for.
+  }
+};
 const obsStatus = { connected: false, message: 'not connected' };
 const clients = new Set();
 
 const snapshot = () => ({ ...state, serverNow: Date.now(), obs: { ...obsStatus } });
 
 function broadcast() {
+  saveState();
   const data = `data: ${JSON.stringify(snapshot())}\n\n`;
   for (const res of clients) res.write(data);
 }
@@ -126,7 +143,7 @@ function moveTo(index, step) {
   }
   // Every click sets the scene, so OBS follows again after someone switched it by hand.
   showScene();
-  if (SLIDES[state.index].layout !== layoutBefore) syncVideos();
+  syncVideos(SLIDES[state.index].layout !== layoutBefore);
   broadcast();
 }
 
@@ -192,7 +209,7 @@ function showScene() {
 
 /** Recorded videos: from the start with sound on their own slide, from the start without sound in the overview,
  * silent everywhere else. They play once and hold the last frame, so the sound never repeats. */
-function syncVideos() {
+function syncVideos(restart = true) {
   if (!obs.connected) return;
   const layout = SLIDES[state.index].layout;
   const feeds = loadConfig().feeds ?? {};
@@ -202,6 +219,7 @@ function syncVideos() {
     const shown = Boolean(LAYOUTS[layout][key]);
     const ignore = () => {};
     obs.call('SetInputMute', { inputName, inputMuted: layout !== key }).catch(ignore);
+    if (!restart) continue;
     obs
       .call('TriggerMediaInputAction', {
         inputName,
@@ -298,7 +316,7 @@ function serve() {
 // setup-obs: scenes, sources and transition, idempotent.
 
 const PRIORITY = { class: 0, title: 1, exe: 2 };
-const MOVE_MS = 600;
+const MOVE_MS = 480; // deck.css --move
 
 function inputFor(key) {
   const feed = loadConfig().feeds[key];
@@ -419,6 +437,10 @@ async function setupObs() {
           inputName: input.inputName,
           monitorType: 'OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT',
         })
+        .catch(() => {});
+      // Reloading the file starts it; the running server starts it again on its slide.
+      await obs
+        .call('TriggerMediaInputAction', { inputName: input.inputName, mediaAction: 'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_STOP' })
         .catch(() => {});
     }
   }

@@ -29,7 +29,12 @@ click and stamped out on the last slide.
 - `config.json`: the talk's name, presenter names, and where each feed comes from (`vdo` stream id, `window`
   capture, or `video` file).
 - `SHARING.md`: the steps for the people who share their screen. Send it to them.
-- `media/terminal.mp4`: the recorded terminal app video (git-ignored, put it there yourself).
+- `media/`: the recorded terminal app video (git-ignored, put it there yourself). `terminal-voice.mp4` is the
+  recording with the voice cleaned up and brought to -16 LUFS:
+
+  ```sh
+  ffmpeg -i terminal-original.mp4 -map 0:v:0 -map 0:a:0 -c:v copy     -af "highpass=f=90,lowpass=f=9000,afftdn=nr=14:nf=-60:tn=1,acompressor=threshold=-38dB:ratio=3:attack=10:release=200:makeup=6,loudnorm=I=-16:TP=-1.5:LRA=9"     -c:a aac -b:a 192k -movflags +faststart terminal-voice.mp4
+  ```
 
 ## One-time setup on the presenting laptop
 
