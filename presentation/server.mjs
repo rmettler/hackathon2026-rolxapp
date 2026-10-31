@@ -75,7 +75,6 @@ function broadcast() {
 
 function moveTo(index, step) {
   const now = Date.now();
-  const layoutBefore = SLIDES[state.index].layout;
   state.index = Math.max(0, Math.min(last, index));
   state.step = Math.max(0, Math.min(stepsOf(state.index), step));
   if (state.startedAt === null && state.index > 0) state.startedAt = now;
@@ -85,7 +84,8 @@ function moveTo(index, step) {
     state.startedAt = now - state.stoppedElapsed;
     state.stoppedElapsed = null;
   }
-  if (SLIDES[state.index].layout !== layoutBefore) showScene();
+  // Every click sets the scene, so OBS follows again after someone switched it by hand.
+  showScene();
   broadcast();
 }
 
