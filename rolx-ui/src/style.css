@@ -124,7 +124,8 @@ button.star.on { color: var(--brand-ink); }
 .guidance .today { font-weight: var(--weight-medium); }
 .guidance .warn { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .chart { display: flex; gap: 8px; margin-top: 16px; }
-.chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0; cursor: pointer; border-radius: var(--cudos-radius-4); }
+.chart .col:hover .bars { background: var(--surface-hover); }
 .chart .bars { position: relative; width: 100%; height: 110px; display: flex; flex-direction: column-reverse; background: var(--bg-alt); border-radius: var(--cudos-radius-4); overflow: hidden; }
 .chart .seg { width: 100%; }
 .chart .target { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--fg-muted); }

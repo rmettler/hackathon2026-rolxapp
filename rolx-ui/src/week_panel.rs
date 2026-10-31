@@ -313,8 +313,23 @@ pub fn WeekPanel(
                                 div {
                                     key: "{d.date}",
                                     class: col_class(d.date),
-                                    role: "img",
-                                    "aria-label": "{column_label(d)}",
+                                    role: "button",
+                                    tabindex: "0",
+                                    "aria-label": "Show {column_label(d)}",
+                                    "aria-pressed": "{d.date == selected}",
+                                    onclick: {
+                                        let date = d.date;
+                                        move |_| day.set(date)
+                                    },
+                                    onkeydown: {
+                                        let date = d.date;
+                                        move |e: KeyboardEvent| {
+                                            if matches!(e.key(), Key::Enter) || e.key() == Key::Character(" ".into()) {
+                                                e.prevent_default();
+                                                day.set(date);
+                                            }
+                                        }
+                                    },
                                     {chart_column(d, scale)}
                                 }
                             }
